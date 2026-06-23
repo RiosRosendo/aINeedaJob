@@ -9,27 +9,29 @@
 # ============================================================================
 
 # FastAPI web framework
-fastapi==0.110.0
-uvicorn[standard]==0.27.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
 
 # Pydantic for validation
-pydantic==2.6.4
-pydantic-settings==2.2.1
+pydantic>=2.6.4
+pydantic-settings>=2.2.1
 
 # ============================================================================
 # AI / LLM ORCHESTRATION
 # ============================================================================
 
 # LangGraph for agent coordination
-langgraph==0.0.61
-langchain==0.1.16
-langchain-core==0.1.44
+# Pinned to stable versions from late 2024 that work together on Python 3.11
+langgraph==0.2.28
+langchain==0.2.16
+langchain-core==0.2.39
+langchain-community==0.2.16
 
 # Anthropic Claude API
-anthropic==0.28.0
+anthropic==0.32.0
 
 # OpenAI GPT API
-openai==1.52.0
+openai==1.57.0
 
 # ============================================================================
 # DATABASE
@@ -88,7 +90,7 @@ python-dateutil==2.8.2
 PyYAML==6.0.1
 
 # Type hints and annotations
-typing-extensions==4.10.0
+typing-extensions>=4.11
 
 # ============================================================================
 # DEVELOPMENT / DEBUGGING (Optional)
