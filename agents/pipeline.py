@@ -122,6 +122,18 @@ def decision_node(state: JobState) -> JobState:
         return state
 
 
+def cv_tailoring_node(state: JobState) -> JobState:
+    """Placeholder for V2: CV tailoring agent (auto-apply path)."""
+    print(f"[V2 PLACEHOLDER] CV Tailoring Agent - Job ID: {state.get('job_id')}")
+    return state
+
+
+def notify_user_node(state: JobState) -> JobState:
+    """Placeholder for V2: Notify user for approval (review path)."""
+    print(f"[V2 PLACEHOLDER] Notify User Agent - Job ID: {state.get('job_id')}")
+    return state
+
+
 def route_by_score(state: JobState) -> Literal["cv_tailoring", "notify_user", "end"]:
     """
     Route next step based on fit score.
@@ -151,23 +163,29 @@ workflow = StateGraph(JobState)
 workflow.add_node("discovery", discovery_node)
 workflow.add_node("parsing", parsing_node)
 workflow.add_node("matching", matching_node)
-workflow.add_node("decision", decision_node)
+workflow.add_node("decision_router", decision_node)
+workflow.add_node("cv_tailoring", cv_tailoring_node)
+workflow.add_node("notify_user", notify_user_node)
 
 # Add edges (linear progression through pipeline)
 workflow.add_edge("discovery", "parsing")
 workflow.add_edge("parsing", "matching")
-workflow.add_edge("matching", "decision")
+workflow.add_edge("matching", "decision_router")
 
-# Conditional edge after decision based on score
+# Conditional edge after decision_router based on score
 workflow.add_conditional_edges(
-    "decision",
+    "decision_router",
     route_by_score,
     {
-        "cv_tailoring": "cv_tailoring",  # Placeholder for future node
-        "notify_user": "notify_user",    # Placeholder for future node
+        "cv_tailoring": "cv_tailoring",
+        "notify_user": "notify_user",
         "end": END,
     }
 )
+
+# Placeholder nodes terminate to END (V2 will replace these with real logic)
+workflow.add_edge("cv_tailoring", END)
+workflow.add_edge("notify_user", END)
 
 # Set entry point
 workflow.set_entry_point("discovery")
