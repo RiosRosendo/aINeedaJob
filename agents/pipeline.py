@@ -206,7 +206,7 @@ def processing_node(state: JobState) -> JobState:
             # PARSE: Extract structured fields from description
             print(f"[PARSING] Job {job_id}: '{title}'")
             try:
-                parsed = parse_job(job_id, user_id, job_data.get("description_raw", ""))
+                parsed = parse_job(job_id, user_id, job_data.get("description_raw", ""), original_title=title)
                 update_job(job_id, user_id, parsed)
             except Exception as e:
                 # If parsing fails (e.g., groq not available), skip this job

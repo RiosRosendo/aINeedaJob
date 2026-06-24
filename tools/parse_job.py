@@ -20,8 +20,11 @@ class HTMLStripper(HTMLParser):
         return ''.join(self.text)
 
 
-def parse_job(job_id, user_id, description_raw):
-    """Extract structured fields. Returns dict with title, company, location, etc."""
+def parse_job(job_id, user_id, description_raw, original_title=None):
+    """Extract structured fields. Returns dict with title, company, location, etc.
+
+    If LLM returns empty title, uses original_title as fallback.
+    """
     if not description_raw or not description_raw.strip():
         raise Exception("description_raw is empty")
 
@@ -32,7 +35,7 @@ def parse_job(job_id, user_id, description_raw):
     # Extract via LLM (retry once)
     try:
         parsed = _extract_with_llm(cleaned_text, retry=True)
-        _validate_fields(parsed)
+        _validate_fields(parsed, original_title)
 
         log_agent_run(
             user_id=user_id,
@@ -119,9 +122,15 @@ Job description:
         return json.loads(response)
 
 
-def _validate_fields(parsed):
+def _validate_fields(parsed, original_title=None):
+    # If parsed title is empty, use original title as fallback
     if not parsed.get('title') or not str(parsed.get('title')).strip():
-        raise Exception("title is required")
+        if original_title and original_title.strip():
+            print(f"[PARSE FALLBACK] Empty parsed title, using original: '{original_title}'")
+            parsed['title'] = original_title
+        else:
+            raise Exception("title is required (both parsed and original missing)")
+
     for key in ('required_skills', 'nice_to_have_skills', 'responsibilities'):
         if key not in parsed:
             parsed[key] = []
