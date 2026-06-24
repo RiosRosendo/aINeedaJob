@@ -42,6 +42,29 @@ async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/logs")
+async def get_agent_logs(user_id: str = Depends(get_user_id), limit: int = 5):
+    """
+    Get recent agent activity logs for the user.
+
+    Returns the last N entries from agent_logs table.
+    """
+    try:
+        results = execute_query(
+            """
+            SELECT id, agent, status, details, created_at
+            FROM agent_logs
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+            """,
+            (user_id, limit)
+        )
+        return results or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{job_id}", response_model=dict)
 async def get_job(job_id: str, user_id: str = Depends(get_user_id)):
     """

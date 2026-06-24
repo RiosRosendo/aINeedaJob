@@ -2,13 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import { Sun, Moon, RotateCw } from 'lucide-react';
-import { getUserProfile, getJobsWithStats } from '@/lib/api';
+import { getUserProfile, getJobsWithStats, getAgentLogs, getPendingApprovalJobs } from '@/lib/api';
 import { Job, UserProfile, DashboardStats } from '@/lib/types';
+
+interface ActivityLog {
+  id: string;
+  agent: string;
+  status: string;
+  details?: any;
+  created_at: string;
+}
 
 export default function Dashboard() {
   const [isDark, setIsDark] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
     jobs_found: 0,
     applied: 0,
@@ -24,7 +33,7 @@ export default function Dashboard() {
         setLoading(true);
         setError(null);
 
-        const [profileData, jobsData] = await Promise.all([
+        const [profileData, jobsData, logs, pendingJobs] = await Promise.all([
           getUserProfile().catch(err => {
             console.error('Profile fetch error:', err);
             return null;
@@ -33,10 +42,19 @@ export default function Dashboard() {
             console.error('Jobs fetch error:', err);
             throw err;
           }),
+          getAgentLogs(5).catch(err => {
+            console.error('Agent logs fetch error:', err);
+            return [];
+          }),
+          getPendingApprovalJobs().catch(err => {
+            console.error('Pending jobs fetch error:', err);
+            return [];
+          }),
         ]);
 
         setProfile(profileData);
-        setJobs(jobsData.jobs);
+        setJobs(pendingJobs);
+        setActivityLogs(logs);
         setStats(jobsData.stats);
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
@@ -58,27 +76,54 @@ export default function Dashboard() {
     }
   };
 
-  const activityEvents = [
+  // Format activity logs for display
+  const formatActivityEvents = (logs: ActivityLog[]) => {
+    return logs.map((log, index) => {
+      const agentName = log.agent?.toUpperCase() || 'Agent';
+      const status = log.status || 'completed';
+      const details = log.details || {};
+      let title = `${agentName} - ${status}`;
+
+      if (log.agent === 'job_discovery' && log.status === 'success') {
+        title = `Found ${details.jobs_count || 'new'} roles matching your profile`;
+      } else if (log.agent === 'job_parsing' && log.status === 'success') {
+        title = `Parsed job: ${details.title || 'Job'}`;
+      } else if (log.agent === 'job_match' && log.status === 'success') {
+        title = `Scored job - ${details.score || '?'}% fit`;
+      } else if (log.agent === 'job_match' && log.status === 'failed') {
+        title = 'Failed to score job';
+      }
+
+      const createdAt = new Date(log.created_at);
+      const now = new Date();
+      const diffMs = now.getTime() - createdAt.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      let timestamp = 'just now';
+
+      if (diffMins < 1) {
+        timestamp = 'just now';
+      } else if (diffMins < 60) {
+        timestamp = `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+      } else if (diffHours < 24) {
+        timestamp = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+      } else {
+        timestamp = createdAt.toLocaleDateString();
+      }
+
+      return {
+        type: index === 0 ? ('latest' as const) : (undefined as any),
+        title,
+        timestamp,
+      };
+    });
+  };
+
+  const activityEvents = activityLogs.length > 0 ? formatActivityEvents(activityLogs) : [
     {
       type: 'latest' as const,
-      title: 'Found 12 new roles matching your profile',
-      timestamp: '2 minutes ago',
-    },
-    {
-      title: 'Submitted application — Product Designer at Notion',
-      timestamp: '14 minutes ago',
-    },
-    {
-      title: 'Tailored resume for Vercel — Frontend Engineer',
-      timestamp: '38 minutes ago',
-    },
-    {
-      title: 'Flagged 5 roles for your approval',
-      timestamp: '1 hour ago',
-    },
-    {
-      title: 'Completed daily scan — 847 roles reviewed',
-      timestamp: '2 hours ago',
+      title: 'No activity yet',
+      timestamp: 'Start a job search to see activity',
     },
   ];
 
@@ -180,10 +225,10 @@ export default function Dashboard() {
         </div>
 
         <div className="relative">
-          {/* Timeline line */}
+          {/* Timeline line - centered through dots */}
           <div
-            className="absolute left-3 top-4 bottom-4 w-0.5"
-            style={{ backgroundColor: 'var(--border)' }}
+            className="absolute left-1.5 top-4 bottom-4 w-0.5"
+            style={{ backgroundColor: 'var(--border)', transform: 'translateX(-50%)' }}
           />
 
           {/* Activity items */}
@@ -335,8 +380,9 @@ interface JobCardProps {
 function JobCard({ job, delay }: JobCardProps) {
   // Calculate stroke dashoffset based on fit score (0-100)
   // Full circle = 163.36, so offset = (100 - score) * 1.6336
-  const fitScore = job.fit_score || 85;
+  const fitScore = Math.round(job.fit_score || 75);
   const dashOffset = (100 - fitScore) * 1.6336;
+  const location = job.location ? job.location.split(',')[0] : 'Location N/A';
 
   return (
     <div

@@ -105,6 +105,44 @@ export const triggerJobSearch = async (roles?: string[], country?: string) => {
   }
 };
 
+export const getAgentLogs = async (limit: number = 5) => {
+  try {
+    const response = await api.get('/api/jobs/logs', {
+      params: { limit },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch agent logs:', error);
+    return [];
+  }
+};
+
+export const getPendingApprovalJobs = async () => {
+  try {
+    const response = await api.get<Application[]>('/api/applications', {
+      params: { limit: 100 },
+    });
+    const applications = response.data || [];
+
+    // Get pending approval applications
+    const pendingAppIds = applications
+      .filter(app => app.status === 'pending_approval')
+      .slice(0, 3)
+      .map(app => app.job_id);
+
+    if (pendingAppIds.length === 0) {
+      return [];
+    }
+
+    // Fetch jobs for these applications
+    const allJobs = await getJobs(100);
+    return allJobs.filter(job => pendingAppIds.includes(job.id));
+  } catch (error) {
+    console.error('Failed to fetch pending approval jobs:', error);
+    return [];
+  }
+};
+
 // Applications
 export const getApplications = async (limit: number = 50) => {
   try {
