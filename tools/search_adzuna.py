@@ -85,10 +85,8 @@ def _search_role(role, country, salary_min):
     params = {
         'app_id': ADZUNA_APP_ID,
         'app_key': ADZUNA_API_KEY,
-        'keywords': role,
-        'location0': country,
+        'what': role,
         'results_per_page': 50,
-        'sort_by': 'date',
     }
 
     if salary_min:
@@ -99,10 +97,8 @@ def _search_role(role, country, salary_min):
     max_pages = 3  # Limit to avoid excessive API calls
 
     while page <= max_pages:
-        params['page'] = page
-
         try:
-            response = _make_request(f'{ADZUNA_BASE_URL}/{country}/search/{page}', params)
+            response = _make_request(f'{ADZUNA_BASE_URL}/{country.lower()}/search/{page}', params)
             data = response.json()
 
             if 'results' not in data:
