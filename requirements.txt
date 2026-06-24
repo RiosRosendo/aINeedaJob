@@ -27,11 +27,8 @@ langchain==0.2.16
 langchain-core==0.2.39
 langchain-community==0.2.16
 
-# Anthropic Claude API
-anthropic==0.32.0
-
-# OpenAI GPT API
-openai==1.57.0
+# Groq API (free, fast inference)
+groq>=0.4.1
 
 # ============================================================================
 # DATABASE

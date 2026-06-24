@@ -1,28 +1,19 @@
 """
 LLM API wrapper for aINeedJob.
 
-Unified interface for both Anthropic Claude and OpenAI APIs.
-Automatically routes requests based on model name.
+Unified interface for Groq API (free, fast inference).
 
 Required environment variables:
-  - ANTHROPIC_API_KEY: API key for Anthropic Claude
-  - OPENAI_API_KEY: API key for OpenAI GPT
-  - ANTHROPIC_MODEL: Default Claude model (e.g., claude-sonnet-4-6)
-  - OPENAI_MODEL: Default OpenAI model (e.g., gpt-4o)
+  - GROQ_API_KEY: API key for Groq (get from https://console.groq.com)
+  - GROQ_MODEL: Model name (default: llama-3.1-8b-instant)
 
 Example usage:
   from tools.llm import call_llm
 
-  # Using Claude
+  # Using Groq (Llama)
   response = call_llm(
     prompt="Extract job title from this description: ...",
-    model="claude-sonnet-4-6"
-  )
-
-  # Using GPT
-  response = call_llm(
-    prompt="Analyze this job offer...",
-    model="gpt-4o"
+    model="llama-3.1-8b-instant"
   )
 """
 
@@ -31,74 +22,47 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+GROQ_MODEL = os.getenv('GROQ_MODEL', 'llama-3.1-8b-instant')
 
 
 def call_llm(prompt, model=None):
     """
-    Call an LLM (Claude or GPT) with a prompt.
+    Call Groq LLM with a prompt.
 
     Args:
         prompt (str): The prompt to send to the LLM
-        model (str): Model name (e.g., 'claude-sonnet-4-6' or 'gpt-4o').
-                     If None, uses ANTHROPIC_MODEL or OPENAI_MODEL from .env
+        model (str): Model name (e.g., 'llama-3.1-8b-instant').
+                     If None, uses GROQ_MODEL from .env
 
     Returns:
         str: LLM response text
 
     Raises:
-        Exception: If API call fails, no API key found, or model is unknown
+        Exception: If API call fails or API key not set
     """
     if not model:
-        model = os.getenv('ANTHROPIC_MODEL') or os.getenv('OPENAI_MODEL')
+        model = GROQ_MODEL
 
-    if not model:
-        raise Exception("No model specified and no default in .env")
+    if not GROQ_API_KEY:
+        raise Exception("GROQ_API_KEY not set in .env. Get one from https://console.groq.com")
 
-    # Route to Anthropic Claude
-    if 'claude' in model.lower():
-        if not ANTHROPIC_API_KEY:
-            raise Exception("ANTHROPIC_API_KEY not set in .env")
-        return _call_anthropic(prompt, model)
-
-    # Route to OpenAI GPT
-    elif 'gpt' in model.lower():
-        if not OPENAI_API_KEY:
-            raise Exception("OPENAI_API_KEY not set in .env")
-        return _call_openai(prompt, model)
-
-    else:
-        raise Exception(f"Unknown model: {model}. Use 'claude-*' or 'gpt-*'")
+    return _call_groq(prompt, model)
 
 
-def _call_anthropic(prompt, model):
-    """Call Anthropic Claude API."""
+def _call_groq(prompt, model):
+    """Call Groq API."""
     try:
-        import anthropic
+        from groq import Groq
 
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        message = client.messages.create(
+        client = Groq(api_key=GROQ_API_KEY)
+        message = client.chat.completions.create(
             model=model,
             max_tokens=2048,
             messages=[{"role": "user", "content": prompt}],
         )
-        return message.content[0].text
+        return message.choices[0].message.content
+    except ImportError:
+        raise Exception("groq package not installed. Run: pip install groq")
     except Exception as e:
-        raise Exception(f"Anthropic API call failed: {str(e)}")
-
-
-def _call_openai(prompt, model):
-    """Call OpenAI GPT API."""
-    try:
-        import openai
-
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        response = client.chat.completions.create(
-            model=model,
-            max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        raise Exception(f"OpenAI API call failed: {str(e)}")
+        raise Exception(f"Groq API call failed: {str(e)}")
