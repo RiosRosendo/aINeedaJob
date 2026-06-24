@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Sun, Moon, RotateCw } from 'lucide-react';
+import { Sun, Moon, RotateCw, X } from 'lucide-react';
 import { getUserProfile, getJobsWithStats, getAgentLogs, getPendingApprovalJobs } from '@/lib/api';
 import { Job, UserProfile, DashboardStats } from '@/lib/types';
 
@@ -11,6 +11,9 @@ interface ActivityLog {
   status: string;
   details?: any;
   created_at: string;
+  job_id?: string;
+  fit_score?: number;
+  decision?: string;
 }
 
 export default function Dashboard() {
@@ -26,6 +29,7 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -90,8 +94,9 @@ export default function Dashboard() {
         const jobTitle = details.title ? details.title.substring(0, 40) : 'Job';
         title = `Parsed job: ${jobTitle}`;
       } else if (log.agent === 'job_match' && log.status === 'success') {
-        const score = details.score !== undefined ? details.score : '?';
-        const decision = details.decision || 'pending';
+        // Use fit_score from the joined fit_scores table, not from details
+        const score = log.fit_score !== undefined ? log.fit_score : (details.score !== undefined ? details.score : '?');
+        const decision = log.decision || details.decision || 'pending';
         title = `Scored job - ${score}% fit (${decision})`;
       } else if (log.agent === 'job_match' && log.status === 'failed') {
         title = 'Failed to score job';
@@ -314,6 +319,7 @@ export default function Dashboard() {
                 key={job.id}
                 job={job}
                 delay={0.06 + i * 0.1}
+                onViewDetails={() => setSelectedJob(job)}
               />
             ))
           ) : (
@@ -325,6 +331,11 @@ export default function Dashboard() {
           )}
         </div>
       </section>
+
+      {/* Job Details Modal */}
+      {selectedJob && (
+        <JobDetailsModal job={selectedJob} onClose={() => setSelectedJob(null)} />
+      )}
     </div>
   );
 }
@@ -378,9 +389,10 @@ function StatCard({
 interface JobCardProps {
   job: Job;
   delay: number;
+  onViewDetails?: () => void;
 }
 
-function JobCard({ job, delay }: JobCardProps) {
+function JobCard({ job, delay, onViewDetails }: JobCardProps) {
   // Calculate stroke dashoffset based on fit score (0-100)
   // Full circle = 163.36, so offset = (100 - score) * 1.6336
   const fitScore = Math.round(job.fit_score || 75);
@@ -491,6 +503,7 @@ function JobCard({ job, delay }: JobCardProps) {
       {/* Buttons */}
       <div className="flex gap-2">
         <button
+          onClick={onViewDetails}
           className="flex-1 text-xs font-medium py-2.5 border rounded-xl transition-all"
           style={{
             color: 'var(--muted)',
@@ -554,5 +567,184 @@ function JobCardSkeleton() {
         </div>
       </div>
     </div>
+  );
+}
+
+interface JobDetailsModalProps {
+  job: Job;
+  onClose: () => void;
+}
+
+function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
+  const getScoreColor = (score?: number) => {
+    if (!score && score !== 0) return '#9ca3af';
+    if (score >= 85) return '#10b981';
+    if (score >= 60) return '#f59e0b';
+    return '#ef4444';
+  };
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, []);
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 z-40"
+        onClick={onClose}
+        style={{ animation: 'fadeIn 0.2s ease-in-out' }}
+      />
+
+      <div
+        className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:w-2/3 md:max-w-2xl border rounded-2xl p-8 overflow-y-auto z-50"
+        style={{
+          borderColor: 'var(--border)',
+          backgroundColor: 'var(--card)',
+          transform: 'md:translate(-50%, -50%)',
+          maxHeight: '90vh',
+          animation: 'slideUp 0.3s ease-out',
+        }}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-6 right-6 p-2 hover:bg-opacity-20 transition-all"
+          style={{
+            color: 'var(--muted)',
+          }}
+        >
+          <X size={20} />
+        </button>
+
+        <div className="mb-6 pr-10">
+          <h2
+            className="text-2xl font-semibold mb-2"
+            style={{
+              color: 'var(--text)',
+              letterSpacing: '-0.02em',
+            }}
+          >
+            {job.title}
+          </h2>
+          <p
+            className="text-sm mb-4"
+            style={{ color: 'var(--muted)' }}
+          >
+            {job.company}
+          </p>
+
+          <div className="flex flex-wrap gap-4">
+            <div>
+              <span className="text-xs" style={{ color: 'var(--faint)' }}>
+                Location
+              </span>
+              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                {job.location || 'N/A'}
+              </p>
+            </div>
+            <div>
+              <span className="text-xs" style={{ color: 'var(--faint)' }}>
+                Modality
+              </span>
+              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                {job.modality || 'Unknown'}
+              </p>
+            </div>
+            {job.fit_score !== undefined && (
+              <div>
+                <span className="text-xs" style={{ color: 'var(--faint)' }}>
+                  Fit Score
+                </span>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-8 h-8 rounded-full border-2 flex items-center justify-center"
+                    style={{
+                      borderColor: getScoreColor(job.fit_score),
+                      backgroundColor: 'var(--bg)',
+                    }}
+                  >
+                    <span
+                      className="text-xs font-bold"
+                      style={{ color: getScoreColor(job.fit_score) }}
+                    >
+                      {Math.round(job.fit_score)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {(job.strengths || job.gaps) && (
+          <div className="mb-6 pb-6 border-b" style={{ borderColor: 'var(--border)' }}>
+            {job.strengths && job.strengths.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold mb-2" style={{ color: '#10b981' }}>
+                  ✓ Strengths
+                </h3>
+                <ul className="space-y-1">
+                  {job.strengths.map((strength, i) => (
+                    <li key={i} className="text-xs" style={{ color: 'var(--muted)' }}>
+                      • {strength}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {job.gaps && job.gaps.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold mb-2" style={{ color: '#ef4444' }}>
+                  ✗ Gaps
+                </h3>
+                <ul className="space-y-1">
+                  {job.gaps.map((gap, i) => (
+                    <li key={i} className="text-xs" style={{ color: 'var(--muted)' }}>
+                      • {gap}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {job.required_skills && job.required_skills.length > 0 && (
+          <div className="mb-6 pb-6 border-b" style={{ borderColor: 'var(--border)' }}>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text)' }}>
+              Required Skills
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {job.required_skills.map((skill, i) => (
+                <span
+                  key={i}
+                  className="text-xs px-3 py-1.5 rounded-full border"
+                  style={{
+                    borderColor: 'var(--border)',
+                    color: 'var(--muted)',
+                  }}
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text)' }}>
+            Description
+          </h3>
+          <p
+            className="text-sm leading-relaxed whitespace-pre-wrap"
+            style={{ color: 'var(--muted)' }}
+          >
+            {job.description_raw || 'No description available'}
+          </p>
+        </div>
+      </div>
+    </>
   );
 }

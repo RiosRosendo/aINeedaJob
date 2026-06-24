@@ -35,13 +35,37 @@ export default function ApprovalsPage() {
         }
       }
 
-      setPendingJobs(jobsData);
+      // Deduplicate by job title + description hash (handles duplicate job listings)
+      const deduplicatedJobs = deduplicateByJobContent(jobsData);
+      setPendingJobs(deduplicatedJobs);
     } catch (err) {
       console.error('Failed to load pending jobs:', err);
       setError('Failed to load pending jobs. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Deduplicate jobs by title + first 100 chars of description
+  const deduplicateByJobContent = (jobs: PendingJob[]): PendingJob[] => {
+    const seen = new Set<string>();
+    const deduped: PendingJob[] = [];
+
+    for (const item of jobs) {
+      const title = item.job?.title || '';
+      const desc = item.job?.description_raw || '';
+      const descPreview = desc.substring(0, 100);
+
+      // Create a simple hash-like key from title + description
+      const key = title + '|' + descPreview;
+
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push(item);
+      }
+    }
+
+    return deduped;
   };
 
   useEffect(() => {

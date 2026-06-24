@@ -47,18 +47,21 @@ async def get_agent_logs(user_id: str = Depends(get_user_id), limit: int = 5):
     """
     Get recent agent activity logs for the user.
 
-    Returns the last N entries from agent_logs table.
+    Returns the last N entries from agent_logs table with fit scores.
     """
     try:
         results = execute_query(
             """
-            SELECT id, agent, status, details, created_at
-            FROM agent_logs
-            WHERE user_id = %s
-            ORDER BY created_at DESC
+            SELECT
+                l.id, l.agent, l.status, l.details, l.created_at, l.job_id,
+                fs.score as fit_score, fs.decision
+            FROM agent_logs l
+            LEFT JOIN fit_scores fs ON l.job_id = fs.job_id AND fs.user_id = %s
+            WHERE l.user_id = %s
+            ORDER BY l.created_at DESC
             LIMIT %s
             """,
-            (user_id, limit)
+            (user_id, user_id, limit)
         )
         return results or []
     except Exception as e:

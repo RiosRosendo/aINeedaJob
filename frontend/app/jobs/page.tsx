@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getJobs } from '@/lib/api';
+import { getScoredJobs } from '@/lib/api';
 import { Job } from '@/lib/types';
 import { X, Search } from 'lucide-react';
 
@@ -25,7 +25,7 @@ export default function JobsPage() {
       try {
         setLoading(true);
         setError(null);
-        const data = await getJobs(1000);
+        const data = await getScoredJobs(1000);
         setJobs(data);
       } catch (err) {
         console.error('Failed to load jobs:', err);
@@ -427,6 +427,14 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
     if (score >= 60) return '#f59e0b';
     return '#ef4444';
   };
+
+  useEffect(() => {
+    // Disable body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, []);
 
   return (
     <>

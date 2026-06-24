@@ -17,19 +17,52 @@ def get_user_id(x_user_id: str = Header(...)) -> str:
     return x_user_id
 
 
-@router.get("", response_model=List[ApplicationResponse])
+@router.get("", response_model=List[dict])
 async def list_applications(user_id: str = Depends(get_user_id), limit: int = 50):
     """
-    List all applications for user.
+    List all applications for user with job details.
 
     Multi-user scoped: returns only applications for this user.
+    Deduplicates by job title + description hash to handle duplicate job listings.
+    Shows only the most recent application per unique job.
     """
+    import hashlib
+
     try:
         results = execute_query(
-            "SELECT * FROM applications WHERE user_id = %s ORDER BY created_at DESC LIMIT %s",
-            (user_id, limit)
+            """
+            SELECT
+                a.id, a.job_id, a.user_id, a.status, a.cv_version_url, a.cover_letter_url,
+                a.applied_at, a.created_at, a.updated_at,
+                j.title as job_title, j.company as job_company,
+                COALESCE(LEFT(j.description_raw, 100), '') as desc_preview
+            FROM applications a
+            LEFT JOIN jobs j ON a.job_id = j.id
+            WHERE a.user_id = %s
+            ORDER BY a.job_id DESC, a.created_at DESC
+            """,
+            (user_id,)
         )
-        return results
+
+        # Deduplicate by title + description hash (handles duplicate job listings)
+        seen_jobs = {}
+        deduped = []
+
+        for app in results:
+            job_id = app.get('job_id')
+            title = app.get('job_title', '')
+            desc_preview = app.get('desc_preview', '')
+
+            # Create hash of title + description to identify duplicate jobs
+            job_hash = hashlib.md5((title + desc_preview).encode()).hexdigest()
+
+            if job_hash not in seen_jobs:
+                seen_jobs[job_hash] = True
+                # Remove desc_preview before returning (internal field only)
+                app_clean = {k: v for k, v in app.items() if k != 'desc_preview'}
+                deduped.append(app_clean)
+
+        return deduped[:limit]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

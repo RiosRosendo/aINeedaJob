@@ -13,35 +13,70 @@ def get_user_id(x_user_id: str = Header(...)) -> str:
     return x_user_id
 
 
-@router.get("/profile", response_model=UserProfileResponse)
+@router.get("/profile", response_model=dict)
 async def get_user_profile(user_id: str = Depends(get_user_id)):
     """
     Get user profile.
 
     Returns user's job preferences, skills, and profile URLs.
+    Auto-creates default profile if not found.
     """
     try:
         result = execute_query(
             "SELECT * FROM user_profiles WHERE user_id = %s",
             (user_id,)
         )
+
+        # If profile doesn't exist, create a default one
         if not result:
-            raise HTTPException(status_code=404, detail="User profile not found")
+            print(f"Profile not found for user {user_id}, creating default...")
+            try:
+                # Check if user exists, create if not
+                user_result = execute_query(
+                    "SELECT id FROM users WHERE id = %s",
+                    (user_id,)
+                )
+                if not user_result:
+                    print(f"User not found, creating user {user_id}...")
+                    execute_update(
+                        "INSERT INTO users (id, email, password_hash, name, email_verified, is_active) VALUES (%s, %s, %s, %s, %s, %s)",
+                        (user_id, f"{user_id}@example.com", "dev_placeholder", user_id, True, True)
+                    )
+                    print(f"User {user_id} created successfully")
+
+                # Create default profile
+                print(f"Creating default profile for user {user_id}...")
+                execute_update(
+                    """
+                    INSERT INTO user_profiles
+                    (user_id, target_roles, preferred_modality, preferred_countries, salary_min, tech_stack)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (user_id, '["AI Engineer"]', "remote", '["us"]', 100000, '["Python", "AWS"]')
+                )
+                print(f"Profile created for user {user_id}")
+
+                # Fetch the newly created profile
+                result = execute_query(
+                    "SELECT * FROM user_profiles WHERE user_id = %s",
+                    (user_id,)
+                )
+            except Exception as create_err:
+                print(f"Error creating profile: {create_err}")
+                raise
+
+        if not result:
+            raise HTTPException(status_code=500, detail="Failed to create or retrieve profile")
 
         profile = result[0]
-        # Parse JSON fields
-        if isinstance(profile.get("target_roles"), str):
-            profile["target_roles"] = json.loads(profile["target_roles"])
-        if isinstance(profile.get("preferred_countries"), str):
-            profile["preferred_countries"] = json.loads(profile["preferred_countries"])
-        if isinstance(profile.get("tech_stack"), str):
-            profile["tech_stack"] = json.loads(profile["tech_stack"])
-
         return profile
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Error in get_user_profile: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)}")
 
 
 @router.put("/profile")

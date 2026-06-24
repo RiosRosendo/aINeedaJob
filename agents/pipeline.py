@@ -187,6 +187,15 @@ def processing_node(state: JobState) -> JobState:
         title = job_data.get("title")
 
         try:
+            # CHECK: Skip if already scored
+            existing_score = execute_query(
+                "SELECT id FROM fit_scores WHERE job_id = %s AND user_id = %s",
+                (job_id, user_id)
+            )
+            if existing_score:
+                print(f"[SKIP] Job {job_id} already scored, skipping duplicate")
+                continue
+
             # FILTER: Check if title is relevant
             if not _is_title_relevant(title, roles):
                 print(f"[FILTER] Skipping '{title}' - title not relevant to {roles}")
