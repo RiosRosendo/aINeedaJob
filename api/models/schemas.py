@@ -108,6 +108,7 @@ class NotificationResponse(BaseModel):
 class JobSearchRequest(BaseModel):
     """Trigger job discovery request."""
     user_id: str
+    roles: Optional[List[str]] = None  # If provided, search these roles instead of profile roles
 
 
 class ApplicationApprovalRequest(BaseModel):

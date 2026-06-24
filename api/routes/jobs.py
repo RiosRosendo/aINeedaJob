@@ -89,25 +89,34 @@ async def trigger_job_search(request: JobSearchRequest):
         # Initialize pipeline state
         state = JobState(
             user_id=user_id,
-            job_id="",
-            application_id="",
             raw_jobs=[],
-            parsed_job={},
-            fit_score={},
-            decision="",
-            error=""
+            unprocessed_jobs=[],
+            processed_count=0,
+            applied_count=0,
+            review_count=0,
+            ignored_count=0,
+            error="",
+            roles=request.roles or [],
+            profile={},
+            summary={}
         )
 
-        # Run discovery pipeline
+        # Run discovery + batch processing pipeline
         result = graph.invoke(state)
 
         if result.get("error"):
             raise HTTPException(status_code=400, detail=result["error"])
 
+        summary = result.get("summary", {})
         return {
-            "status": "triggered",
+            "status": "completed",
             "jobs_found": len(result.get("raw_jobs", [])),
-            "message": "Job search pipeline started"
+            "jobs_processed": result.get("processed_count", 0),
+            "applied": result.get("applied_count", 0),
+            "review": result.get("review_count", 0),
+            "ignored": result.get("ignored_count", 0),
+            "summary": summary,
+            "message": f"Pipeline complete: {summary.get('applied', 0)} to apply, {summary.get('review', 0)} for review"
         }
     except HTTPException:
         raise

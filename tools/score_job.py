@@ -74,6 +74,27 @@ def _run_hard_filters(job_data, user_profile):
 
 def _score_with_llm(job_data, user_profile, matched_skills, missing_skills, bonus_skills, retry=True):
     """Call LLM to compute fit score."""
+    # Check if required_skills is empty
+    has_required_skills = bool(job_data.get('required_skills', []))
+
+    # Adjust weights if skills data is missing
+    if not has_required_skills:
+        weights_desc = """
+Compute a fit score from 0 to 100 based on:
+- Role alignment and title match (50% weight) - evaluate if the job role matches target roles
+- Experience level match (20% weight)
+- Modality match (15% weight)
+- Salary match (15% weight)
+
+NOTE: Job posting did not list required skills, so focus on role title match and experience level."""
+    else:
+        weights_desc = """
+Compute a fit score from 0 to 100 based on:
+- Skill match (50% weight)
+- Role alignment (20% weight)
+- Modality match (15% weight)
+- Salary match (15% weight)"""
+
     prompt = f"""You are a career advisor evaluating job fit.
 Return only a JSON object with no extra text.
 
@@ -87,23 +108,16 @@ User profile:
 Job details:
 - Title: {job_data.get('title')}
 - Company: {job_data.get('company')}
-- Required skills: {job_data.get('required_skills', [])}
-- Nice to have: {job_data.get('nice_to_have_skills', [])}
+- Required skills: {job_data.get('required_skills', []) if has_required_skills else "Not listed"}
+- Nice to have: {job_data.get('nice_to_have_skills', []) if job_data.get('nice_to_have_skills') else "Not listed"}
 - Experience level: {job_data.get('experience_level')}
 - Modality: {job_data.get('modality')}
 - Location: {job_data.get('location')}
 - Salary range: {job_data.get('salary_min')} - {job_data.get('salary_max')}
 
-Skill analysis:
-- Matched skills: {matched_skills}
-- Missing skills: {missing_skills}
-- Bonus skills: {bonus_skills}
+{f"Skill analysis: - Matched: {matched_skills}, Missing: {missing_skills}, Bonus: {bonus_skills}" if has_required_skills else "Skill analysis: Job did not list required skills, evaluate based on role title fit"}
 
-Compute a fit score from 0 to 100 based on:
-- Skill match (50% weight)
-- Role alignment (20% weight)
-- Modality match (15% weight)
-- Salary match (15% weight)
+{weights_desc}
 
 Return:
 {{

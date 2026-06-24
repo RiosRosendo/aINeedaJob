@@ -1,8 +1,8 @@
 """
 LangGraph pipeline orchestrating the V1 job search workflow.
 
-Routes jobs through: Discovery → Parsing → Matching → Decision
-Each agent node calls corresponding tools and updates state.
+Batch processing: Discovery → Process ALL unprocessed jobs → Summary
+Processes all unprocessed jobs with title filtering to avoid irrelevant results.
 """
 
 from typing import TypedDict, Literal
@@ -22,24 +22,29 @@ from tools.trigger_agent import trigger_agent
 
 
 class JobState(TypedDict):
-    """Pipeline state tracking job through discovery, parsing, matching, decision."""
+    """Pipeline state tracking job discovery and batch processing."""
     user_id: str
-    job_id: str
-    application_id: str
     raw_jobs: list
-    parsed_job: dict
-    fit_score: dict
-    decision: str
+    unprocessed_jobs: list  # All jobs to process
+    processed_count: int
+    applied_count: int
+    review_count: int
+    ignored_count: int
     error: str
+    roles: list
+    profile: dict
+    summary: dict
 
 
 def discovery_node(state: JobState) -> JobState:
-    """Search Adzuna + Muse, save jobs. Output: raw_jobs list and first job_id."""
-    print(f"[DISCOVERY] State at start: user_id={state.get('user_id')}, job_id={state.get('job_id')}")
+    """Search Adzuna + Muse, save jobs, get all unprocessed jobs for batch processing."""
+    print(f"[DISCOVERY] Starting for user_id={state.get('user_id')}")
     try:
         user_id = state.get("user_id")
         if not user_id:
             raise Exception("user_id required")
+
+        # Get profile
         profile_result = execute_query(
             "SELECT target_roles, preferred_countries, preferred_modality, salary_min FROM user_profiles WHERE user_id = %s",
             (user_id,)
@@ -47,150 +52,212 @@ def discovery_node(state: JobState) -> JobState:
         if not profile_result:
             raise Exception("User profile not found")
         p = profile_result[0]
-        print(f"[DISCOVERY] Profile: {p}")
-        adzuna_jobs = search_adzuna(p.get("target_roles"), p.get("preferred_countries"), p.get("salary_min"))
-        print(f"[DISCOVERY] Adzuna jobs found: {len(adzuna_jobs)}")
-        themuse_jobs = search_themuse(p.get("target_roles"), p.get("preferred_modality"))
-        print(f"[DISCOVERY] Muse jobs found: {len(themuse_jobs)}")
+        state["profile"] = p
+        print(f"[DISCOVERY] Profile loaded: {len(p.get('target_roles', []))} roles")
+
+        # Use roles from request if provided, otherwise use profile roles
+        roles = state.get("roles") or p.get("target_roles")
+        state["roles"] = roles
+
+        # Search all job boards
+        adzuna_jobs = []
+        preferred_countries = p.get("preferred_countries", ["US"])
+        if isinstance(preferred_countries, list) and len(preferred_countries) > 0:
+            for country in preferred_countries:
+                jobs = search_adzuna(roles, country.lower(), p.get("salary_min"))
+                adzuna_jobs.extend(jobs)
+        else:
+            adzuna_jobs = search_adzuna(roles, "us", p.get("salary_min"))
+
+        themuse_jobs = search_themuse(roles, p.get("preferred_modality"))
         all_jobs = adzuna_jobs + themuse_jobs
+
         save_result = save_jobs(user_id, all_jobs)
-        print(f"[DISCOVERY] Save result: {save_result}")
         state["raw_jobs"] = all_jobs
+        print(f"[DISCOVERY] Jobs: Adzuna={len(adzuna_jobs)}, Muse={len(themuse_jobs)}, Total={len(all_jobs)}")
+        print(f"[DISCOVERY] Save result: {save_result}")
 
-        # Extract first saved job_id from database for processing through pipeline
-        saved = execute_query(
-            "SELECT id FROM jobs WHERE user_id = %s ORDER BY created_at DESC LIMIT 1",
-            (user_id,)
+        # Get ALL unprocessed jobs (discovered/parsed without fit_score)
+        unprocessed = execute_query(
+            """
+            SELECT j.id, j.title, j.company, j.description_raw, j.source
+            FROM jobs j
+            LEFT JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
+            WHERE j.user_id = %s
+              AND j.status IN ('discovered', 'parsed')
+              AND fs.id IS NULL
+            ORDER BY j.created_at DESC
+            """,
+            (user_id, user_id)
         )
-        print(f"[DISCOVERY] DB query result: {saved}")
-        if saved:
-            state["job_id"] = str(saved[0]["id"])
-            print(f"[DISCOVERY] job_id set to: {state['job_id']}")
+        state["unprocessed_jobs"] = unprocessed or []
+        print(f"[DISCOVERY] Found {len(state['unprocessed_jobs'])} unprocessed jobs")
 
-        print(f"[DISCOVERY] State at end: user_id={state.get('user_id')}, job_id={state.get('job_id')}")
         return state
     except Exception as e:
         state["error"] = f"Discovery failed: {str(e)}"
         return state
 
 
-def parsing_node(state: JobState) -> JobState:
-    """Extract structured fields from raw description via LLM. Output: parsed_job dict."""
-    print(f"[PARSING] State at start: user_id={state.get('user_id')}, job_id={state.get('job_id')}")
+def _is_title_relevant(title: str, roles: list) -> bool:
+    """Check if job title contains keywords from target roles."""
+    if not title or not roles:
+        return True
+
+    title_lower = title.lower()
+    # Extract keywords from roles (first word, e.g. "Robotics Engineer" → "robotics")
+    keywords = set()
+    for role in roles:
+        words = role.lower().split()
+        keywords.update(words)
+
+    # Check if any keyword appears in title
+    for keyword in keywords:
+        if keyword in title_lower:
+            return True
+
+    return False
+
+
+def _mark_as_ignored(job_id: str, user_id: str) -> bool:
+    """Mark job as ignored without scoring."""
     try:
-        job_id, user_id = state.get("job_id"), state.get("user_id")
-        if not job_id or not user_id:
-            raise Exception("job_id and user_id required")
-        job_result = execute_query("SELECT description_raw FROM jobs WHERE id = %s AND user_id = %s", (job_id, user_id))
-        if not job_result:
-            raise Exception("Job not found")
-        parsed = parse_job(job_id, user_id, job_result[0].get("description_raw", ""))
-        update_job(job_id, user_id, parsed)
-        state["parsed_job"] = parsed
-        print(f"[PARSING] State at end: user_id={state.get('user_id')}, job_id={state.get('job_id')}")
-        return state
+        # Create application with ignored status
+        try:
+            execute_query(
+                "INSERT INTO applications (job_id, user_id, status) VALUES (%s, %s, %s)",
+                (job_id, user_id, "ignored")
+            )
+        except Exception:
+            # Application already exists, skip
+            pass
+
+        # Create fit_score with 0 score
+        try:
+            execute_query(
+                """
+                INSERT INTO fit_scores (job_id, user_id, score, decision, strengths, gaps)
+                VALUES (%s, %s, 0, %s, %s, %s)
+                """,
+                (job_id, user_id, "ignore", [], [])
+            )
+        except Exception:
+            # Fit score already exists, skip
+            pass
+
+        return True
     except Exception as e:
-        state["error"] = f"Parsing failed: {str(e)}"
-        print(f"[PARSING] State at error: user_id={state.get('user_id')}, job_id={state.get('job_id')}, error={e}")
+        print(f"[ERROR] Failed to mark job {job_id} as ignored: {e}")
+        return False
+
+
+def processing_node(state: JobState) -> JobState:
+    """Batch process all unprocessed jobs: filter → parse → score → decide."""
+    user_id = state.get("user_id")
+    unprocessed = state.get("unprocessed_jobs", [])
+    profile = state.get("profile")
+    roles = state.get("roles", [])
+
+    state["processed_count"] = 0
+    state["applied_count"] = 0
+    state["review_count"] = 0
+    state["ignored_count"] = 0
+
+    if not user_id or not unprocessed:
+        print(f"[PROCESSING] No jobs to process")
+        state["summary"] = {
+            "total_processed": 0,
+            "applied": 0,
+            "review": 0,
+            "ignored": 0,
+        }
         return state
 
+    # Limit to first 10 jobs for efficiency (process in batches in production)
+    unprocessed = unprocessed[:10]
+    print(f"[PROCESSING] Processing {len(unprocessed)} jobs for user {user_id}")
 
-def matching_node(state: JobState) -> JobState:
-    """Run hard filters, calculate skill overlap, score via LLM. Output: fit_score dict."""
-    print(f"[MATCHING] State at start: user_id={state.get('user_id')}, job_id={state.get('job_id')}")
-    try:
-        job_id, user_id = state.get("job_id"), state.get("user_id")
-        if not job_id or not user_id:
-            raise Exception("job_id and user_id required")
-        job_result = execute_query("SELECT * FROM jobs WHERE id = %s AND user_id = %s", (job_id, user_id))
-        if not job_result:
-            raise Exception("Job not found")
-        profile_result = execute_query("SELECT * FROM user_profiles WHERE user_id = %s", (user_id,))
-        if not profile_result:
-            raise Exception("User profile not found")
-        fit_score = score_job(job_id, user_id, job_result[0], profile_result[0])
-        save_fit_score(job_id, user_id, fit_score)
-        state["fit_score"] = fit_score
-        state["decision"] = fit_score.get("decision")
-        print(f"[MATCHING] State at end: user_id={state.get('user_id')}, job_id={state.get('job_id')}, decision={state.get('decision')}")
-        return state
-    except Exception as e:
-        state["error"] = f"Matching failed: {str(e)}"
-        print(f"[MATCHING] State at error: user_id={state.get('user_id')}, job_id={state.get('job_id')}, error={e}")
+    profile_full = execute_query("SELECT * FROM user_profiles WHERE user_id = %s", (user_id,))
+    if not profile_full:
+        state["error"] = "User profile not found"
         return state
 
+    for job_data in unprocessed:
+        job_id = job_data.get("id")
+        title = job_data.get("title")
 
-def decision_node(state: JobState) -> JobState:
-    """Route based on fit score: apply → cv_tailoring, review → notify, ignore → end."""
-    print(f"[DECISION_ROUTER] State at start: user_id={state.get('user_id')}, job_id={state.get('job_id')}")
-    try:
-        job_id, user_id = state.get("job_id"), state.get("user_id")
-        if not job_id or not user_id:
-            raise Exception("job_id and user_id required")
-        fit_score = state.get("fit_score", {})
-        decision, score = fit_score.get("decision", "ignore"), fit_score.get("score", 0)
-        if decision == "apply":
-            status = "pending_application"
-            trigger_agent("cv_tailoring", user_id, job_id)
-        elif decision == "review":
-            status = "pending_approval"
-            create_notification(user_id, "approval_required",
-                              f"Job matching {score}% needs approval", job_id,
-                              datetime.utcnow() + timedelta(hours=48))
-        else:
-            status = "ignored"
+        try:
+            # FILTER: Check if title is relevant
+            if not _is_title_relevant(title, roles):
+                print(f"[FILTER] Skipping '{title}' - title not relevant to {roles}")
+                _mark_as_ignored(job_id, user_id)
+                state["ignored_count"] += 1
+                continue
 
-        # Create application record first (INSERT ... RETURNING id)
-        app_result = execute_query(
-            "INSERT INTO applications (job_id, user_id, status) VALUES (%s, %s, %s) RETURNING id",
-            (job_id, user_id, status)
-        )
-        if app_result:
-            application_id = str(app_result[0]["id"])
-            print(f"[DECISION_ROUTER] Created application: {application_id}")
-            state["application_id"] = application_id
-        else:
-            raise Exception("Failed to create application record")
-        print(f"[DECISION_ROUTER] State at end: user_id={state.get('user_id')}, job_id={state.get('job_id')}, status={status}")
-        return state
-    except Exception as e:
-        state["error"] = f"Decision failed: {str(e)}"
-        print(f"[DECISION_ROUTER] State at error: user_id={state.get('user_id')}, job_id={state.get('job_id')}, error={e}")
-        return state
+            # PARSE: Extract structured fields from description
+            print(f"[PARSING] Job {job_id}: '{title}'")
+            try:
+                parsed = parse_job(job_id, user_id, job_data.get("description_raw", ""))
+                update_job(job_id, user_id, parsed)
+            except Exception as e:
+                # If parsing fails (e.g., groq not available), skip this job
+                print(f"[PARSE SKIPPED] Job {job_id}: {str(e)[:60]}")
+                state["ignored_count"] += 1
+                continue
 
+            # SCORE: Calculate fit score
+            job_full = execute_query("SELECT * FROM jobs WHERE id = %s AND user_id = %s", (job_id, user_id))
+            if not job_full:
+                continue
 
-def cv_tailoring_node(state: JobState) -> JobState:
-    """Placeholder for V2: CV tailoring agent (auto-apply path)."""
-    print(f"[V2 PLACEHOLDER] CV Tailoring Agent - Job ID: {state.get('job_id')}")
+            print(f"[SCORING] Job {job_id}")
+            fit_score = score_job(job_id, user_id, job_full[0], profile_full[0])
+            save_fit_score(job_id, user_id, fit_score)
+
+            # DECIDE: Route based on score
+            decision = fit_score.get("decision", "ignore")
+            score = fit_score.get("score", 0)
+
+            if decision == "apply":
+                status = "pending_application"
+                trigger_agent("cv_tailoring", user_id, job_id)
+                state["applied_count"] += 1
+            elif decision == "review":
+                status = "pending_approval"
+                create_notification(user_id, "approval_required",
+                                  f"Job matching {score}% needs approval", job_id,
+                                  datetime.utcnow() + timedelta(hours=48))
+                state["review_count"] += 1
+            else:
+                status = "ignored"
+                state["ignored_count"] += 1
+
+            # Create application record
+            app_result = execute_query(
+                "INSERT INTO applications (job_id, user_id, status) VALUES (%s, %s, %s) RETURNING id",
+                (job_id, user_id, status)
+            )
+            if app_result:
+                print(f"[DECISION] Job {job_id} → {status} (score: {score}%)")
+            else:
+                print(f"[ERROR] Failed to create application for job {job_id}")
+
+            state["processed_count"] += 1
+
+        except Exception as e:
+            print(f"[JOB ERROR] Job {job_id}: {e}")
+            state["ignored_count"] += 1
+
+    # Create summary
+    state["summary"] = {
+        "total_processed": state["processed_count"],
+        "applied": state["applied_count"],
+        "review": state["review_count"],
+        "ignored": state["ignored_count"],
+    }
+
+    print(f"[PROCESSING COMPLETE] Summary: {state['summary']}")
     return state
-
-
-def notify_user_node(state: JobState) -> JobState:
-    """Placeholder for V2: Notify user for approval (review path)."""
-    print(f"[V2 PLACEHOLDER] Notify User Agent - Job ID: {state.get('job_id')}")
-    return state
-
-
-def route_by_score(state: JobState) -> Literal["cv_tailoring", "notify_user", "end"]:
-    """
-    Route next step based on fit score.
-
-    - score >= 85 → "cv_tailoring" (auto-apply path)
-    - score 60-84 → "notify_user" (review path)
-    - score < 60 → "end" (ignore path)
-    """
-    if state.get("error"):
-        return "end"
-
-    fit_score = state.get("fit_score", {})
-    score = fit_score.get("score", 0)
-
-    if score >= 85:
-        return "cv_tailoring"
-    elif score >= 60:
-        return "notify_user"
-    else:
-        return "end"
 
 
 # Build the StateGraph
@@ -198,31 +265,11 @@ workflow = StateGraph(JobState)
 
 # Add nodes
 workflow.add_node("discovery", discovery_node)
-workflow.add_node("parsing", parsing_node)
-workflow.add_node("matching", matching_node)
-workflow.add_node("decision_router", decision_node)
-workflow.add_node("cv_tailoring", cv_tailoring_node)
-workflow.add_node("notify_user", notify_user_node)
+workflow.add_node("processing", processing_node)
 
-# Add edges (linear progression through pipeline)
-workflow.add_edge("discovery", "parsing")
-workflow.add_edge("parsing", "matching")
-workflow.add_edge("matching", "decision_router")
-
-# Conditional edge after decision_router based on score
-workflow.add_conditional_edges(
-    "decision_router",
-    route_by_score,
-    {
-        "cv_tailoring": "cv_tailoring",
-        "notify_user": "notify_user",
-        "end": END,
-    }
-)
-
-# Placeholder nodes terminate to END (V2 will replace these with real logic)
-workflow.add_edge("cv_tailoring", END)
-workflow.add_edge("notify_user", END)
+# Add edges: Discovery → Processing → END
+workflow.add_edge("discovery", "processing")
+workflow.add_edge("processing", END)
 
 # Set entry point
 workflow.set_entry_point("discovery")
