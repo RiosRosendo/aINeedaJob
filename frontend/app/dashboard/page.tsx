@@ -82,49 +82,58 @@ export default function Dashboard() {
 
   // Format activity logs for display
   const formatActivityEvents = (logs: ActivityLog[]) => {
-    return logs.map((log, index) => {
-      const agentName = log.agent?.toUpperCase() || 'Agent';
-      const status = log.status || 'completed';
-      const details = log.details || {};
-      let title = `${agentName} - ${status}`;
+    return logs
+      .filter(log => {
+        // Hide job_match events with score=0 or no score
+        if (log.agent === 'job_match' && log.status === 'success') {
+          const score = log.fit_score !== undefined ? log.fit_score : (log.details?.score !== undefined ? log.details.score : 0);
+          if (score === 0) return false;
+        }
+        return true;
+      })
+      .map((log, index) => {
+        const agentName = log.agent?.toUpperCase() || 'Agent';
+        const status = log.status || 'completed';
+        const details = log.details || {};
+        let title = `${agentName} - ${status}`;
 
-      if (log.agent === 'job_discovery' && log.status === 'success') {
-        title = `Found ${details.jobs_count || 'new'} roles matching your profile`;
-      } else if (log.agent === 'job_parsing' && log.status === 'success') {
-        const jobTitle = details.title ? details.title.substring(0, 40) : 'Job';
-        title = `Parsed job: ${jobTitle}`;
-      } else if (log.agent === 'job_match' && log.status === 'success') {
-        // Use fit_score from the joined fit_scores table, not from details
-        const score = log.fit_score !== undefined ? log.fit_score : (details.score !== undefined ? details.score : '?');
-        const decision = log.decision || details.decision || 'pending';
-        title = `Scored job - ${score}% fit (${decision})`;
-      } else if (log.agent === 'job_match' && log.status === 'failed') {
-        title = 'Failed to score job';
-      }
+        if (log.agent === 'job_discovery' && log.status === 'success') {
+          title = `Found ${details.jobs_count || 'new'} roles matching your profile`;
+        } else if (log.agent === 'job_parsing' && log.status === 'success') {
+          const jobTitle = details.title ? details.title.substring(0, 40) : 'Job';
+          title = `Parsed job: ${jobTitle}`;
+        } else if (log.agent === 'job_match' && log.status === 'success') {
+          // Use fit_score from the joined fit_scores table, not from details
+          const score = log.fit_score !== undefined ? log.fit_score : (details.score !== undefined ? details.score : '?');
+          const decision = log.decision || details.decision || 'pending';
+          title = `Scored job - ${score}% fit (${decision})`;
+        } else if (log.agent === 'job_match' && log.status === 'failed') {
+          title = 'Failed to score job';
+        }
 
-      const createdAt = new Date(log.created_at);
-      const now = new Date();
-      const diffMs = now.getTime() - createdAt.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-      let timestamp = 'just now';
+        const createdAt = new Date(log.created_at);
+        const now = new Date();
+        const diffMs = now.getTime() - createdAt.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        let timestamp = 'just now';
 
-      if (diffMins < 1) {
-        timestamp = 'just now';
-      } else if (diffMins < 60) {
-        timestamp = `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
-      } else if (diffHours < 24) {
-        timestamp = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-      } else {
-        timestamp = createdAt.toLocaleDateString();
-      }
+        if (diffMins < 1) {
+          timestamp = 'just now';
+        } else if (diffMins < 60) {
+          timestamp = `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+        } else if (diffHours < 24) {
+          timestamp = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+        } else {
+          timestamp = createdAt.toLocaleDateString();
+        }
 
-      return {
-        type: index === 0 ? ('latest' as const) : (undefined as any),
-        title,
-        timestamp,
-      };
-    });
+        return {
+          type: index === 0 ? ('latest' as const) : (undefined as any),
+          title,
+          timestamp,
+        };
+      });
   };
 
   const activityEvents = activityLogs.length > 0 ? formatActivityEvents(activityLogs) : [

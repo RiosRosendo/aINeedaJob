@@ -184,7 +184,7 @@ function ApprovalCard({
     }
   };
 
-  const fitScore = Math.round(job.fit_score || 75);
+  const fitScore = application.fit_score !== undefined ? Math.round(application.fit_score) : (job.fit_score !== undefined ? Math.round(job.fit_score) : 0);
   const getScoreColor = (score: number) => {
     if (score >= 80) return '#10b981'; // green
     if (score >= 70) return '#f59e0b'; // amber

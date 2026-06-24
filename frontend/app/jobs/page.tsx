@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getScoredJobs } from '@/lib/api';
+import { getScoredJobs, getJobs } from '@/lib/api';
 import { Job } from '@/lib/types';
 import { X, Search } from 'lucide-react';
 
@@ -10,6 +10,7 @@ type ModalityFilter = 'all' | 'remote' | 'hybrid' | 'on-site';
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [totalJobs, setTotalJobs] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,8 +26,12 @@ export default function JobsPage() {
       try {
         setLoading(true);
         setError(null);
-        const data = await getScoredJobs(1000);
-        setJobs(data);
+        const [scoredData, allJobsData] = await Promise.all([
+          getScoredJobs(1000),
+          getJobs(1000),
+        ]);
+        setJobs(scoredData);
+        setTotalJobs(allJobsData.length);
       } catch (err) {
         console.error('Failed to load jobs:', err);
         setError('Failed to load jobs. Please try again.');
@@ -50,8 +55,8 @@ export default function JobsPage() {
   const filteredJobs = jobs.filter(job => {
     const decision = getDecision(job.fit_score);
 
-    // Hide ignored jobs by default unless showIgnored is true
-    if (!showIgnored && decision === 'ignore') {
+    // Hide jobs with no score or score=0 by default unless showIgnored is true
+    if (!showIgnored && (!job.fit_score || job.fit_score === 0)) {
       return false;
     }
 
@@ -89,7 +94,7 @@ export default function JobsPage() {
           All Jobs
         </h1>
         <p style={{ color: 'var(--muted)' }}>
-          {filteredJobs.length} of {jobs.length} jobs found
+          {filteredJobs.length} of {jobs.length} scored jobs • {jobs.length} of {totalJobs} total discovered
         </p>
       </div>
 
@@ -141,7 +146,7 @@ export default function JobsPage() {
               Decision
             </label>
             <div className="flex gap-2">
-              {(['all', 'apply', 'review'] as DecisionFilter[]).map(
+              {(['all', 'apply', 'review', 'ignore'] as DecisionFilter[]).map(
                 (option) => (
                   <button
                     key={option}

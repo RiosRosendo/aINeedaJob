@@ -88,11 +88,21 @@ Fields:
 - modality (string: "remote", "hybrid", or "on-site")
 - salary_min (integer, annual USD, null if not mentioned)
 - salary_max (integer, annual USD, null if not mentioned)
-- required_skills (list of strings)
+- required_skills (list of strings) - EXTRACT ALL technical skills including:
+  * Programming languages (Python, Java, C++, JavaScript, Go, Rust, etc.)
+  * Frameworks and libraries (TensorFlow, PyTorch, Django, FastAPI, React, ROS, etc.)
+  * Cloud platforms (AWS, GCP, Azure, Kubernetes, etc.)
+  * Tools and technologies (Docker, Git, Linux, SQL, PostgreSQL, MongoDB, etc.)
+  * AI/ML concepts (LLMs, RAG, computer vision, NLP, transformers, YOLO, etc.)
+  * Data science tools (Pandas, NumPy, Scikit-learn, Jupyter, etc.)
+  * Even if mentioned in paragraph form, extract as individual items.
+  * If truly no technical skills mentioned, return []
 - nice_to_have_skills (list of strings)
 - experience_level (string: "junior", "mid", "senior", or "unknown")
 - experience_years_min (integer, null if not mentioned)
 - responsibilities (list of strings, max 5)
+
+IMPORTANT: Be thorough with required_skills. Extract every technical skill, tool, language, and technology mentioned anywhere in the description.
 
 Job description:
 {cleaned_text}"""
@@ -108,7 +118,10 @@ Job description:
         response = response.replace("```json", "").replace("```", "").strip()
         print(f"[PARSE] Cleaned response: {response[:200]}")
 
-        return json.loads(response)
+        parsed = json.loads(response)
+        skills = parsed.get('required_skills', [])
+        print(f"[PARSE] Extracted {len(skills)} required_skills: {skills}")
+        return parsed
     except json.JSONDecodeError:
         if not retry:
             raise Exception("LLM returned invalid JSON twice")
@@ -119,7 +132,10 @@ Job description:
         response = response.replace("```json", "").replace("```", "").strip()
         print(f"[PARSE] Retry cleaned response: {response[:200]}")
 
-        return json.loads(response)
+        parsed = json.loads(response)
+        skills = parsed.get('required_skills', [])
+        print(f"[PARSE] Extracted {len(skills)} required_skills: {skills}")
+        return parsed
 
 
 def _validate_fields(parsed, original_title=None):

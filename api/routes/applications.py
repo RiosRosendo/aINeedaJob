@@ -35,9 +35,11 @@ async def list_applications(user_id: str = Depends(get_user_id), limit: int = 50
                 a.id, a.job_id, a.user_id, a.status, a.cv_version_url, a.cover_letter_url,
                 a.applied_at, a.created_at, a.updated_at,
                 j.title as job_title, j.company as job_company,
-                COALESCE(LEFT(j.description_raw, 100), '') as desc_preview
+                COALESCE(LEFT(j.description_raw, 100), '') as desc_preview,
+                fs.score as fit_score, fs.decision, fs.strengths, fs.gaps
             FROM applications a
             LEFT JOIN jobs j ON a.job_id = j.id
+            LEFT JOIN fit_scores fs ON fs.job_id = a.job_id AND fs.user_id = a.user_id
             WHERE a.user_id = %s
             ORDER BY a.job_id DESC, a.created_at DESC
             """,

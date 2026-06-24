@@ -8,31 +8,13 @@ from tools.logger import log_agent_run
 def score_job(job_id, user_id, job_data, user_profile):
     """Score job against profile. Returns {score, decision, strengths, gaps, summary}."""
     try:
-        # Run hard filters first
+        # Run hard filters first (modality, salary, location)
         filter_result = _run_hard_filters(job_data, user_profile)
         if filter_result:
             return filter_result
 
-        # If required_skills is empty, skip LLM and evaluate by title match only
-        required_skills = job_data.get('required_skills', [])
-        print(f"[SCORE DEBUG] job_title='{job_data.get('title')}', required_skills={required_skills}, type={type(required_skills)}, bool={bool(required_skills)}")
-        if not required_skills:
-            print(f"[SCORE] Job '{job_data.get('title')}' has empty required_skills, evaluating by title match only")
-            score_data = _evaluate_by_title_match(job_data, user_profile)
-        else:
-            # Calculate skill overlap
-            matched_skills = list(
-                set(required_skills) & set(user_profile.get('tech_stack', []))
-            )
-            missing_skills = list(
-                set(required_skills) - set(user_profile.get('tech_stack', []))
-            )
-            bonus_skills = list(
-                set(job_data.get('nice_to_have_skills', [])) & set(user_profile.get('tech_stack', []))
-            )
-
-            # Score via LLM
-            score_data = _score_with_llm(job_data, user_profile, matched_skills, missing_skills, bonus_skills)
+        # Call LLM with raw data - let it handle skill evaluation
+        score_data = _score_with_llm(job_data, user_profile)
 
         # Validate output
         _validate_score_output(score_data)
@@ -58,45 +40,8 @@ def score_job(job_id, user_id, job_data, user_profile):
         raise Exception(f"Job scoring failed: {str(e)}")
 
 
-def _evaluate_by_title_match(job_data, user_profile):
-    """Evaluate job by title match only (for jobs with empty required_skills)."""
-    job_title = job_data.get('title', '').lower()
-    target_roles = user_profile.get('target_roles', [])
-
-    # Extract keywords from target roles
-    role_keywords = set()
-    for role in target_roles:
-        role_keywords.update(role.lower().split())
-
-    # Add common role keywords
-    common_keywords = {'robotics', 'ai', 'engineer', 'computer vision', 'python', 'ml', 'machine learning'}
-    role_keywords.update(common_keywords)
-
-    # Check if any keyword appears in job title
-    title_has_keyword = any(keyword in job_title for keyword in role_keywords)
-
-    if title_has_keyword:
-        print(f"[TITLE MATCH] Job '{job_data.get('title')}' title matches keywords. Score=50, decision='review'")
-        return {
-            'score': 50,
-            'decision': 'review',
-            'strengths': ['Job title matches target roles'],
-            'gaps': ['Required skills not listed'],
-            'summary': 'Job title aligns with target roles. Unable to evaluate skills as they were not listed in the posting.'
-        }
-    else:
-        print(f"[TITLE NO MATCH] Job '{job_data.get('title')}' title does not match target keywords. Score=0, decision='ignore'")
-        return {
-            'score': 0,
-            'decision': 'ignore',
-            'strengths': [],
-            'gaps': ['Required skills not listed', 'Job title does not match target roles'],
-            'summary': 'Job posting did not list required skills and title does not match target roles.'
-        }
-
-
 def _run_hard_filters(job_data, user_profile):
-    """Run hard filters. Return early match dict if filter fails, else None."""
+    """Run hard filters on objective constraints. Return early if filter fails, else None."""
     user_modality = user_profile.get('preferred_modality', 'remote')
     job_modality = job_data.get('modality', 'unknown')
     if user_modality != 'unknown' and job_modality != 'unknown':
@@ -116,59 +61,40 @@ def _run_hard_filters(job_data, user_profile):
     return None
 
 
-def _score_with_llm(job_data, user_profile, matched_skills, missing_skills, bonus_skills, retry=True):
-    """Call LLM to compute fit score."""
-    # Check if required_skills is empty
-    has_required_skills = bool(job_data.get('required_skills', []))
-
-    # Adjust weights if skills data is missing
-    if not has_required_skills:
-        weights_desc = """
-Compute a fit score from 0 to 100 based on:
-- Role alignment and title match (50% weight) - evaluate if the job role matches target roles
-- Experience level match (20% weight)
-- Modality match (15% weight)
-- Salary match (15% weight)
-
-NOTE: Job posting did not list required skills, so focus on role title match and experience level."""
-    else:
-        weights_desc = """
-Compute a fit score from 0 to 100 based on:
-- Skill match (50% weight)
-- Role alignment (20% weight)
-- Modality match (15% weight)
-- Salary match (15% weight)"""
-
+def _score_with_llm(job_data, user_profile, retry=True):
+    """Call LLM to evaluate fit. Pass raw data and let LLM handle skill matching."""
     prompt = f"""You are a career advisor evaluating job fit.
 Return only a JSON object with no extra text.
 
-User profile:
+User Profile:
 - Skills: {user_profile.get('tech_stack', [])}
-- Target roles: {user_profile.get('target_roles', [])}
-- Preferred modality: {user_profile.get('preferred_modality')}
-- Preferred countries: {user_profile.get('preferred_countries', [])}
-- Minimum salary: {user_profile.get('salary_min')}
+- Target Roles: {user_profile.get('target_roles', [])}
+- Preferred Modality: {user_profile.get('preferred_modality')}
+- Preferred Countries: {user_profile.get('preferred_countries', [])}
+- Minimum Salary: ${user_profile.get('salary_min')}
 
-Job details:
+Job Details:
 - Title: {job_data.get('title')}
 - Company: {job_data.get('company')}
-- Required skills: {job_data.get('required_skills', []) if has_required_skills else "Not listed"}
-- Nice to have: {job_data.get('nice_to_have_skills', []) if job_data.get('nice_to_have_skills') else "Not listed"}
-- Experience level: {job_data.get('experience_level')}
+- Required Skills: {job_data.get('required_skills', [])}
+- Nice to Have: {job_data.get('nice_to_have_skills', [])}
+- Experience Level: {job_data.get('experience_level')}
 - Modality: {job_data.get('modality')}
 - Location: {job_data.get('location')}
-- Salary range: {job_data.get('salary_min')} - {job_data.get('salary_max')}
+- Salary: ${job_data.get('salary_min', 'N/A')} - ${job_data.get('salary_max', 'N/A')}
 
-{f"Skill analysis: - Matched: {matched_skills}, Missing: {missing_skills}, Bonus: {bonus_skills}" if has_required_skills else "Skill analysis: Job did not list required skills, evaluate based on role title fit"}
-
-{weights_desc}
+Evaluate fit considering:
+- Title/role alignment with target roles
+- Skill match (including semantic understanding: LangGraph = agent orchestration, OpenCV = computer vision, etc.)
+- Experience level fit
+- Salary expectations
 
 Return:
 {{
   "score": integer (0-100),
   "decision": "apply" | "review" | "ignore",
-  "strengths": [list of strings, max 3],
-  "gaps": [list of strings, max 3],
+  "strengths": [list of 2-3 strengths],
+  "gaps": [list of 2-3 gaps],
   "summary": "one sentence explanation"
 }}
 
@@ -178,44 +104,15 @@ Decision rules:
 - score < 60 → "ignore"
 """
 
-    print(f"[GROQ PROMPT] Job '{job_data.get('title')}' at '{job_data.get('company')}':\n{prompt}\n")
-
     try:
         response = call_llm(prompt)
-        print(f"[GROQ RESPONSE] {response}\n")
-        score_data = json.loads(response)
-
-        # FALLBACK: If score<60 but title matches target roles, override to 50 with "review"
-        score = score_data.get('score', 0)
-        print(f"[FALLBACK CHECK] score={score}, job_title='{job_data.get('title')}', required_skills={job_data.get('required_skills')}")
-
-        if score < 60:
-            job_title = job_data.get('title', '').lower()
-            target_roles = user_profile.get('target_roles', [])
-
-            # Check if any target role keyword appears in job title
-            role_keywords = []
-            for role in target_roles:
-                role_keywords.extend(role.lower().split())
-
-            # Also add common role keywords
-            common_keywords = {'robotics', 'ai', 'engineer', 'computer vision', 'python', 'ml', 'machine learning'}
-            role_keywords.extend(common_keywords)
-
-            title_has_keyword = any(keyword in job_title for keyword in role_keywords)
-
-            if title_has_keyword:
-                print(f"[FALLBACK] Job '{job_data.get('title')}' scored {score} but title matches keywords. Overriding to score=50, decision='review'")
-                score_data['score'] = 50
-                score_data['decision'] = 'review'
-                score_data['summary'] = f"Role title matches target roles despite low score. {score_data.get('summary', '')}"
-
-        return score_data
+        print(f"[SCORE] {job_data.get('title')} @ {job_data.get('company')}: {response[:100]}")
+        return json.loads(response)
     except json.JSONDecodeError:
         if not retry:
             raise Exception("LLM returned invalid JSON twice")
         response = call_llm(prompt + "\n\nIMPORTANT: Return ONLY valid JSON.")
-        print(f"[GROQ RESPONSE RETRY] {response}\n")
+        print(f"[SCORE RETRY] {response[:100]}")
         return json.loads(response)
 
 

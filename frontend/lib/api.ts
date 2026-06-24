@@ -146,8 +146,8 @@ export const getPendingApprovalJobs = async () => {
 export const getScoredJobs = async (limit: number = 100) => {
   try {
     const allJobs = await getJobs(limit);
-    // Return all jobs that have been scored (have a fit_score >= 60)
-    return allJobs.filter(job => job.fit_score !== undefined && job.fit_score >= 60);
+    // Return all jobs that have been scored (have any fit_score value, including 0)
+    return allJobs.filter(job => job.fit_score !== undefined);
   } catch (error) {
     console.error('Failed to fetch scored jobs:', error);
     throw error;

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header
 from typing import List
 from tools.db import execute_query
 from api.models.schemas import JobResponse, FitScoreResponse, JobSearchRequest
-from agents.pipeline import graph, JobState
+from agents.pipeline import graph, JobState, processing_node
 
 router = APIRouter()
 
@@ -143,6 +143,92 @@ async def trigger_job_search(request: JobSearchRequest):
             "ignored": result.get("ignored_count", 0),
             "summary": summary,
             "message": f"Pipeline complete: {summary.get('applied', 0)} to apply, {summary.get('review', 0)} for review"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/process")
+async def process_jobs(user_id: str = Depends(get_user_id), batch_size: int = 10):
+    """
+    Process unscored jobs without running discovery.
+
+    Skips job search and goes straight to parsing + scoring existing jobs.
+    Useful for batch processing large job queues.
+
+    Args:
+        batch_size: Number of jobs to process in this batch (default 10)
+    """
+    try:
+        if not user_id:
+            raise Exception("user_id required")
+
+        # Get user profile
+        profile_result = execute_query(
+            "SELECT target_roles, preferred_countries, preferred_modality, salary_min FROM user_profiles WHERE user_id = %s",
+            (user_id,)
+        )
+        if not profile_result:
+            raise Exception("User profile not found")
+
+        profile = profile_result[0]
+
+        # Get unprocessed jobs (discovered/parsed without fit_score)
+        unprocessed = execute_query(
+            """
+            SELECT j.id, j.title, j.company, j.description_raw, j.source
+            FROM jobs j
+            LEFT JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
+            WHERE j.user_id = %s
+              AND j.status IN ('discovered', 'parsed')
+              AND fs.id IS NULL
+            ORDER BY j.created_at DESC
+            LIMIT %s
+            """,
+            (user_id, user_id, batch_size)
+        )
+
+        if not unprocessed:
+            return {
+                "status": "completed",
+                "jobs_processed": 0,
+                "applied": 0,
+                "review": 0,
+                "ignored": 0,
+                "message": "No unprocessed jobs found"
+            }
+
+        # Create pipeline state for processing only
+        state = JobState(
+            user_id=user_id,
+            raw_jobs=[],
+            unprocessed_jobs=unprocessed,
+            processed_count=0,
+            applied_count=0,
+            review_count=0,
+            ignored_count=0,
+            error="",
+            roles=profile.get("target_roles", []),
+            profile=profile,
+            summary={}
+        )
+
+        # Run processing node only (skip discovery)
+        result = processing_node(state)
+
+        if result.get("error"):
+            raise HTTPException(status_code=400, detail=result["error"])
+
+        return {
+            "status": "completed",
+            "jobs_processed": result.get("processed_count", 0),
+            "applied": result.get("applied_count", 0),
+            "review": result.get("review_count", 0),
+            "ignored": result.get("ignored_count", 0),
+            "summary": result.get("summary", {}),
+            "message": f"Processed {result.get('processed_count', 0)} jobs"
         }
     except HTTPException:
         raise

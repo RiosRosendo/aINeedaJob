@@ -54,6 +54,10 @@ export interface Application {
   applied_at?: string;
   created_at: string;
   updated_at: string;
+  fit_score?: number;
+  decision?: 'apply' | 'review' | 'ignore';
+  strengths?: string[];
+  gaps?: string[];
 }
 
 export interface ActivityEvent {
