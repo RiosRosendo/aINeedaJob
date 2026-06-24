@@ -55,6 +55,19 @@ async def update_user_profile(
     Updates job preferences, skills, and profile URLs.
     """
     try:
+        # Check if user exists, create if not
+        user_result = execute_query(
+            "SELECT id FROM users WHERE id = %s",
+            (user_id,)
+        )
+
+        if not user_result:
+            # Create user first (required for foreign key constraint)
+            execute_update(
+                "INSERT INTO users (id, email, password_hash, name, email_verified, is_active) VALUES (%s, %s, %s, %s, %s, %s)",
+                (user_id, f"{user_id}@example.com", "dev_placeholder", user_id, True, True)
+            )
+
         # Check if profile exists
         result = execute_query(
             "SELECT id FROM user_profiles WHERE user_id = %s",

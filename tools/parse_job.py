@@ -71,6 +71,10 @@ def _clean_html(text):
 
 
 def _extract_with_llm(cleaned_text, retry=True):
+    # Verify cleaned_text is not empty
+    if not cleaned_text or not cleaned_text.strip():
+        raise Exception("Cleaned job description is empty")
+
     prompt = f"""Extract the following fields from this job description.
 Return only a JSON object with no extra text.
 
@@ -91,11 +95,27 @@ Job description:
 {cleaned_text}"""
     try:
         response = call_llm(prompt)
+        print(f"[PARSE] Raw LLM response: {response[:200]}")
+
+        # Check if response is empty
+        if not response or not response.strip():
+            raise Exception("LLM returned empty response")
+
+        # Strip markdown code blocks
+        response = response.replace("```json", "").replace("```", "").strip()
+        print(f"[PARSE] Cleaned response: {response[:200]}")
+
         return json.loads(response)
     except json.JSONDecodeError:
         if not retry:
             raise Exception("LLM returned invalid JSON twice")
-        response = call_llm(prompt + "\n\nIMPORTANT: Return ONLY valid JSON.")
+        response = call_llm(prompt + "\n\nIMPORTANT: Return ONLY valid JSON. No markdown, no code blocks. Just raw JSON.")
+        print(f"[PARSE] Retry raw response: {response[:200]}")
+
+        # Clean response again on retry
+        response = response.replace("```json", "").replace("```", "").strip()
+        print(f"[PARSE] Retry cleaned response: {response[:200]}")
+
         return json.loads(response)
 
 

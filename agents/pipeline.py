@@ -34,7 +34,8 @@ class JobState(TypedDict):
 
 
 def discovery_node(state: JobState) -> JobState:
-    """Search Adzuna + Muse, save jobs. Output: raw_jobs list."""
+    """Search Adzuna + Muse, save jobs. Output: raw_jobs list and first job_id."""
+    print(f"[DISCOVERY] State at start: user_id={state.get('user_id')}, job_id={state.get('job_id')}")
     try:
         user_id = state.get("user_id")
         if not user_id:
@@ -46,11 +47,27 @@ def discovery_node(state: JobState) -> JobState:
         if not profile_result:
             raise Exception("User profile not found")
         p = profile_result[0]
+        print(f"[DISCOVERY] Profile: {p}")
         adzuna_jobs = search_adzuna(p.get("target_roles"), p.get("preferred_countries"), p.get("salary_min"))
+        print(f"[DISCOVERY] Adzuna jobs found: {len(adzuna_jobs)}")
         themuse_jobs = search_themuse(p.get("target_roles"), p.get("preferred_modality"))
+        print(f"[DISCOVERY] Muse jobs found: {len(themuse_jobs)}")
         all_jobs = adzuna_jobs + themuse_jobs
-        save_jobs(user_id, all_jobs)
+        save_result = save_jobs(user_id, all_jobs)
+        print(f"[DISCOVERY] Save result: {save_result}")
         state["raw_jobs"] = all_jobs
+
+        # Extract first saved job_id from database for processing through pipeline
+        saved = execute_query(
+            "SELECT id FROM jobs WHERE user_id = %s ORDER BY created_at DESC LIMIT 1",
+            (user_id,)
+        )
+        print(f"[DISCOVERY] DB query result: {saved}")
+        if saved:
+            state["job_id"] = str(saved[0]["id"])
+            print(f"[DISCOVERY] job_id set to: {state['job_id']}")
+
+        print(f"[DISCOVERY] State at end: user_id={state.get('user_id')}, job_id={state.get('job_id')}")
         return state
     except Exception as e:
         state["error"] = f"Discovery failed: {str(e)}"
@@ -59,6 +76,7 @@ def discovery_node(state: JobState) -> JobState:
 
 def parsing_node(state: JobState) -> JobState:
     """Extract structured fields from raw description via LLM. Output: parsed_job dict."""
+    print(f"[PARSING] State at start: user_id={state.get('user_id')}, job_id={state.get('job_id')}")
     try:
         job_id, user_id = state.get("job_id"), state.get("user_id")
         if not job_id or not user_id:
@@ -69,14 +87,17 @@ def parsing_node(state: JobState) -> JobState:
         parsed = parse_job(job_id, user_id, job_result[0].get("description_raw", ""))
         update_job(job_id, user_id, parsed)
         state["parsed_job"] = parsed
+        print(f"[PARSING] State at end: user_id={state.get('user_id')}, job_id={state.get('job_id')}")
         return state
     except Exception as e:
         state["error"] = f"Parsing failed: {str(e)}"
+        print(f"[PARSING] State at error: user_id={state.get('user_id')}, job_id={state.get('job_id')}, error={e}")
         return state
 
 
 def matching_node(state: JobState) -> JobState:
     """Run hard filters, calculate skill overlap, score via LLM. Output: fit_score dict."""
+    print(f"[MATCHING] State at start: user_id={state.get('user_id')}, job_id={state.get('job_id')}")
     try:
         job_id, user_id = state.get("job_id"), state.get("user_id")
         if not job_id or not user_id:
@@ -91,14 +112,17 @@ def matching_node(state: JobState) -> JobState:
         save_fit_score(job_id, user_id, fit_score)
         state["fit_score"] = fit_score
         state["decision"] = fit_score.get("decision")
+        print(f"[MATCHING] State at end: user_id={state.get('user_id')}, job_id={state.get('job_id')}, decision={state.get('decision')}")
         return state
     except Exception as e:
         state["error"] = f"Matching failed: {str(e)}"
+        print(f"[MATCHING] State at error: user_id={state.get('user_id')}, job_id={state.get('job_id')}, error={e}")
         return state
 
 
 def decision_node(state: JobState) -> JobState:
     """Route based on fit score: apply → cv_tailoring, review → notify, ignore → end."""
+    print(f"[DECISION_ROUTER] State at start: user_id={state.get('user_id')}, job_id={state.get('job_id')}")
     try:
         job_id, user_id = state.get("job_id"), state.get("user_id")
         if not job_id or not user_id:
@@ -115,10 +139,23 @@ def decision_node(state: JobState) -> JobState:
                               datetime.utcnow() + timedelta(hours=48))
         else:
             status = "ignored"
-        update_application(state.get("application_id"), user_id, status)
+
+        # Create application record first (INSERT ... RETURNING id)
+        app_result = execute_query(
+            "INSERT INTO applications (job_id, user_id, status) VALUES (%s, %s, %s) RETURNING id",
+            (job_id, user_id, status)
+        )
+        if app_result:
+            application_id = str(app_result[0]["id"])
+            print(f"[DECISION_ROUTER] Created application: {application_id}")
+            state["application_id"] = application_id
+        else:
+            raise Exception("Failed to create application record")
+        print(f"[DECISION_ROUTER] State at end: user_id={state.get('user_id')}, job_id={state.get('job_id')}, status={status}")
         return state
     except Exception as e:
         state["error"] = f"Decision failed: {str(e)}"
+        print(f"[DECISION_ROUTER] State at error: user_id={state.get('user_id')}, job_id={state.get('job_id')}, error={e}")
         return state
 
 
