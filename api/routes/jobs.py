@@ -14,17 +14,28 @@ def get_user_id(x_user_id: str = Header(...)) -> str:
     return x_user_id
 
 
-@router.get("", response_model=List[JobResponse])
+@router.get("", response_model=List[dict])
 async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
     """
-    List all jobs for authenticated user.
+    List all jobs for authenticated user with their fit scores.
 
     Multi-user scoped: returns only jobs for this user.
     """
     try:
         results = execute_query(
-            "SELECT * FROM jobs WHERE user_id = %s ORDER BY created_at DESC LIMIT %s",
-            (user_id, limit)
+            """
+            SELECT
+                j.id, j.user_id, j.source, j.title, j.company, j.location, j.modality,
+                j.salary_min, j.salary_max, j.required_skills, j.nice_to_have_skills,
+                j.experience_level, j.description_raw, j.status, j.created_at, j.updated_at,
+                fs.score as fit_score
+            FROM jobs j
+            LEFT JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
+            WHERE j.user_id = %s
+            ORDER BY j.created_at DESC
+            LIMIT %s
+            """,
+            (user_id, user_id, limit)
         )
         return results
     except Exception as e:
