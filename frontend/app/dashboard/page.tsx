@@ -87,9 +87,12 @@ export default function Dashboard() {
       if (log.agent === 'job_discovery' && log.status === 'success') {
         title = `Found ${details.jobs_count || 'new'} roles matching your profile`;
       } else if (log.agent === 'job_parsing' && log.status === 'success') {
-        title = `Parsed job: ${details.title || 'Job'}`;
+        const jobTitle = details.title ? details.title.substring(0, 40) : 'Job';
+        title = `Parsed job: ${jobTitle}`;
       } else if (log.agent === 'job_match' && log.status === 'success') {
-        title = `Scored job - ${details.score || '?'}% fit`;
+        const score = details.score !== undefined ? details.score : '?';
+        const decision = details.decision || 'pending';
+        title = `Scored job - ${score}% fit (${decision})`;
       } else if (log.agent === 'job_match' && log.status === 'failed') {
         title = 'Failed to score job';
       }

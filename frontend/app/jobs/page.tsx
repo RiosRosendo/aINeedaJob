@@ -16,6 +16,7 @@ export default function JobsPage() {
   const [decisionFilter, setDecisionFilter] = useState<DecisionFilter>('all');
   const [modalityFilter, setModalityFilter] = useState<ModalityFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showIgnored, setShowIgnored] = useState(false);
 
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
@@ -48,6 +49,11 @@ export default function JobsPage() {
   // Filter jobs
   const filteredJobs = jobs.filter(job => {
     const decision = getDecision(job.fit_score);
+
+    // Hide ignored jobs by default unless showIgnored is true
+    if (!showIgnored && decision === 'ignore') {
+      return false;
+    }
 
     // Decision filter
     if (decisionFilter !== 'all' && decision !== decisionFilter) {
@@ -125,7 +131,7 @@ export default function JobsPage() {
         </div>
 
         {/* Filter Row */}
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-4 items-start">
           {/* Decision Filter */}
           <div>
             <label
@@ -135,7 +141,7 @@ export default function JobsPage() {
               Decision
             </label>
             <div className="flex gap-2">
-              {(['all', 'apply', 'review', 'ignore'] as DecisionFilter[]).map(
+              {(['all', 'apply', 'review'] as DecisionFilter[]).map(
                 (option) => (
                   <button
                     key={option}
@@ -186,6 +192,23 @@ export default function JobsPage() {
                 )
               )}
             </div>
+          </div>
+
+          {/* Show Ignored Toggle */}
+          <div className="pt-6">
+            <button
+              onClick={() => setShowIgnored(!showIgnored)}
+              className="px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2"
+              style={{
+                backgroundColor: showIgnored ? 'var(--border)' : 'var(--card)',
+                color: 'var(--muted)',
+                borderColor: 'var(--border)',
+                border: '1px solid',
+              }}
+            >
+              <span>{showIgnored ? '✓' : '○'}</span>
+              Show ignored
+            </button>
           </div>
         </div>
       </div>
@@ -398,6 +421,13 @@ interface JobDetailsModalProps {
 }
 
 function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
+  const getScoreColor = (score?: number) => {
+    if (!score && score !== 0) return '#9ca3af';
+    if (score >= 85) return '#10b981';
+    if (score >= 60) return '#f59e0b';
+    return '#ef4444';
+  };
+
   return (
     <>
       {/* Overlay */}
@@ -448,7 +478,7 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
           </p>
 
           {/* Meta */}
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-4">
             <div>
               <span
                 className="text-xs"
@@ -501,16 +531,74 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
                 >
                   Fit Score
                 </span>
-                <p
-                  className="text-sm font-medium"
-                  style={{ color: 'var(--text)' }}
-                >
-                  {Math.round(job.fit_score)}%
-                </p>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-8 h-8 rounded-full border-2 flex items-center justify-center"
+                    style={{
+                      borderColor: getScoreColor(job.fit_score),
+                      backgroundColor: 'var(--bg)',
+                    }}
+                  >
+                    <span
+                      className="text-xs font-bold"
+                      style={{ color: getScoreColor(job.fit_score) }}
+                    >
+                      {Math.round(job.fit_score)}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
         </div>
+
+        {/* Strengths & Gaps */}
+        {(job.strengths || job.gaps) && (
+          <div className="mb-6 pb-6 border-b" style={{ borderColor: 'var(--border)' }}>
+            {job.strengths && job.strengths.length > 0 && (
+              <div className="mb-4">
+                <h3
+                  className="text-sm font-semibold mb-2"
+                  style={{ color: '#10b981' }}
+                >
+                  ✓ Strengths
+                </h3>
+                <ul className="space-y-1">
+                  {job.strengths.map((strength, i) => (
+                    <li
+                      key={i}
+                      className="text-xs"
+                      style={{ color: 'var(--muted)' }}
+                    >
+                      • {strength}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {job.gaps && job.gaps.length > 0 && (
+              <div>
+                <h3
+                  className="text-sm font-semibold mb-2"
+                  style={{ color: '#ef4444' }}
+                >
+                  ✗ Gaps
+                </h3>
+                <ul className="space-y-1">
+                  {job.gaps.map((gap, i) => (
+                    <li
+                      key={i}
+                      className="text-xs"
+                      style={{ color: 'var(--muted)' }}
+                    >
+                      • {gap}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Skills */}
         {job.required_skills && job.required_skills.length > 0 && (

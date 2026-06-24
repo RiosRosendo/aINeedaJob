@@ -29,6 +29,8 @@ export interface Job {
   status: 'discovered' | 'parsed' | 'scored' | 'ignored';
   created_at: string;
   fit_score?: number;
+  strengths?: string[];
+  gaps?: string[];
 }
 
 export interface FitScore {
