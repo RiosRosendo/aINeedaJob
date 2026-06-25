@@ -37,6 +37,10 @@ export default function ApprovalsPage() {
 
       // Deduplicate by job title + description hash (handles duplicate job listings)
       const deduplicatedJobs = deduplicateByJobContent(jobsData);
+
+      // Sort by fit_score descending (highest score first)
+      deduplicatedJobs.sort((a, b) => ((b.application as any).fit_score || 0) - ((a.application as any).fit_score || 0));
+
       setPendingJobs(deduplicatedJobs);
     } catch (err) {
       console.error('Failed to load pending jobs:', err);
