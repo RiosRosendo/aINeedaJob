@@ -1,17 +1,13 @@
 """Job search and listing endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from tools.db import execute_query
 from api.models.schemas import JobResponse, FitScoreResponse, JobSearchRequest
+from api.dependencies import get_user_id
 from agents.pipeline import graph, JobState, processing_node
 
 router = APIRouter()
-
-
-def get_user_id(x_user_id: str = Header(...)) -> str:
-    """Extract user ID from request header. SECURITY: Replace with real auth."""
-    return x_user_id
 
 
 @router.get("", response_model=List[dict])

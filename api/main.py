@@ -30,9 +30,10 @@ app.add_middleware(
 )
 
 # Import routers
-from api.routes import jobs, applications, users
+from api.routes import jobs, applications, users, auth
 
 # Include routers
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"])
 app.include_router(applications.router, prefix="/api/applications", tags=["applications"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])

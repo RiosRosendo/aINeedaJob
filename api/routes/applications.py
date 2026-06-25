@@ -1,6 +1,6 @@
 """Application management endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from datetime import datetime, timedelta
 from tools.db import execute_query
@@ -8,13 +8,9 @@ from tools.update_application import update_application
 from tools.create_notification import create_notification
 from tools.trigger_agent import trigger_agent
 from api.models.schemas import ApplicationResponse, ApplicationApprovalRequest
+from api.dependencies import get_user_id
 
 router = APIRouter()
-
-
-def get_user_id(x_user_id: str = Header(...)) -> str:
-    """Extract user ID from request header. SECURITY: Replace with real auth."""
-    return x_user_id
 
 
 @router.get("", response_model=List[dict])

@@ -1,16 +1,12 @@
 """User profile endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from tools.db import execute_query, execute_update
 from api.models.schemas import UserProfileResponse, UserProfileBase
+from api.dependencies import get_user_id
 import json
 
 router = APIRouter()
-
-
-def get_user_id(x_user_id: str = Header(...)) -> str:
-    """Extract user ID from request header. SECURITY: Replace with real auth."""
-    return x_user_id
 
 
 @router.get("/profile", response_model=dict)
