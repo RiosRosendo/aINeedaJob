@@ -1,5 +1,6 @@
 """Job search and listing endpoints."""
 
+import sys
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from tools.db import execute_query
@@ -9,6 +10,7 @@ from agents.pipeline import graph, JobState, processing_node
 
 router = APIRouter()
 
+print("JOBS ROUTER LOADED", flush=True)
 
 @router.get("", response_model=List[dict])
 async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
@@ -136,7 +138,6 @@ async def trigger_job_search(request: JobSearchRequest):
             "jobs_processed": result.get("processed_count", 0),
             "applied": result.get("applied_count", 0),
             "review": result.get("review_count", 0),
-            "ignored": result.get("ignored_count", 0),
             "summary": summary,
             "message": f"Pipeline complete: {summary.get('applied', 0)} to apply, {summary.get('review', 0)} for review"
         }
@@ -158,6 +159,9 @@ async def process_jobs(user_id: str = Depends(get_user_id), batch_size: int = 10
         batch_size: Number of jobs to process in this batch (default 10)
     """
     try:
+        print(f"[API /process] ENDPOINT CALLED for user {user_id}", flush=True)
+        sys.stdout.flush()
+
         if not user_id:
             raise Exception("user_id required")
 
@@ -186,7 +190,12 @@ async def process_jobs(user_id: str = Depends(get_user_id), batch_size: int = 10
             (user_id, user_id, batch_size)
         )
 
+        print(f"[API /process] Found {len(unprocessed) if unprocessed else 0} unprocessed jobs for user {user_id}", flush=True)
+        sys.stdout.flush()
+
         if not unprocessed:
+            print(f"[API /process] No unprocessed jobs found, returning early", flush=True)
+            sys.stdout.flush()
             return {
                 "status": "completed",
                 "jobs_processed": 0,
@@ -212,7 +221,11 @@ async def process_jobs(user_id: str = Depends(get_user_id), batch_size: int = 10
         )
 
         # Run processing node only (skip discovery)
+        print(f"[API /process] Calling processing_node with {len(unprocessed)} jobs, roles={state['roles']}", flush=True)
+        sys.stdout.flush()
         result = processing_node(state)
+        print(f"[API /process] processing_node returned: processed={result.get('processed_count')}, applied={result.get('applied_count')}, review={result.get('review_count')}, ignored={result.get('ignored_count')}", flush=True)
+        sys.stdout.flush()
 
         if result.get("error"):
             raise HTTPException(status_code=400, detail=result["error"])
@@ -222,11 +235,12 @@ async def process_jobs(user_id: str = Depends(get_user_id), batch_size: int = 10
             "jobs_processed": result.get("processed_count", 0),
             "applied": result.get("applied_count", 0),
             "review": result.get("review_count", 0),
-            "ignored": result.get("ignored_count", 0),
             "summary": result.get("summary", {}),
             "message": f"Processed {result.get('processed_count', 0)} jobs"
         }
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[API /process] EXCEPTION: {str(e)}", flush=True)
+        sys.stdout.flush()
         raise HTTPException(status_code=500, detail=str(e))

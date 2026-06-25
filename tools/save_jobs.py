@@ -29,7 +29,8 @@ def save_jobs(user_id, jobs):
     duplicates_skipped = 0
 
     try:
-        # Get all existing job URLs for this user
+        # Get all existing job URLs for this user (checking by url+user_id tuple)
+        # This allows the same URL to exist for multiple users - each user gets their own copy
         existing_urls_result = execute_query(
             'SELECT url FROM jobs WHERE user_id = %s',
             (str(user_id),)

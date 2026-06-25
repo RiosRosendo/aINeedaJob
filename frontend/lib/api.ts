@@ -1,15 +1,36 @@
 import axios from 'axios';
 import { UserProfile, Job, Application, FitScore } from './types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 const DEFAULT_USER_ID = process.env.NEXT_PUBLIC_USER_ID || '550e8400-e29b-41d4-a716-446655440000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
-    'x-user-id': DEFAULT_USER_ID,
   },
+});
+
+// Add JWT token and user_id to requests
+api.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('access_token');
+    const userId = localStorage.getItem('user_id');
+
+    // Send JWT token in Authorization header
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // Send user_id in x-user-id header (extracted from JWT or stored value)
+    if (userId) {
+      config.headers['x-user-id'] = userId;
+    } else {
+      // Fallback to default user_id for backward compatibility
+      config.headers['x-user-id'] = DEFAULT_USER_ID;
+    }
+  }
+  return config;
 });
 
 // User Profile

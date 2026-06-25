@@ -77,7 +77,9 @@ def discovery_node(state: JobState) -> JobState:
         print(f"[DISCOVERY] Jobs: Adzuna={len(adzuna_jobs)}, Muse={len(themuse_jobs)}, Total={len(all_jobs)}")
         print(f"[DISCOVERY] Save result: {save_result}")
 
-        # Get ALL unprocessed jobs (discovered/parsed without fit_score)
+        # Get ALL unprocessed jobs for this user (discovered/parsed without fit_score for this user)
+        # This scopes jobs to the user's own records. If the same job URL exists for another user,
+        # they have their own separate job record and fit_score - no cross-user deduplication.
         unprocessed = execute_query(
             """
             SELECT j.id, j.title, j.company, j.description_raw, j.source
@@ -152,7 +154,12 @@ def _mark_as_ignored(job_id: str, user_id: str) -> bool:
 
 
 def processing_node(state: JobState) -> JobState:
-    """Batch process all unprocessed jobs: filter → parse → score → decide."""
+    """Batch process all unprocessed jobs: filter → parse → score → decide.
+
+    Important: Jobs are user-scoped. The same job URL can exist for multiple users
+    with different fit_scores, applications, and processing status. This allows
+    sharing of job catalog across users while maintaining per-user evaluations.
+    """
     user_id = state.get("user_id")
     unprocessed = state.get("unprocessed_jobs", [])
     profile = state.get("profile")
@@ -175,6 +182,7 @@ def processing_node(state: JobState) -> JobState:
 
     # Limit to first 10 jobs for efficiency (process in batches in production)
     unprocessed = unprocessed[:10]
+    print(f"[PROCESS DEBUG] Found {len(unprocessed)} unprocessed jobs for user {user_id}")
     print(f"[PROCESSING] Processing {len(unprocessed)} jobs for user {user_id}")
 
     profile_full = execute_query("SELECT * FROM user_profiles WHERE user_id = %s", (user_id,))
@@ -193,12 +201,12 @@ def processing_node(state: JobState) -> JobState:
                 (job_id, user_id)
             )
             if existing_score:
-                print(f"[SKIP] Job {job_id} already scored, skipping duplicate")
+                print(f"[PROCESS DEBUG] Job {job_id}: SKIP - already scored")
                 continue
 
             # FILTER: Check if title is relevant
             if not _is_title_relevant(title, roles):
-                print(f"[FILTER] Skipping '{title}' - title not relevant to {roles}")
+                print(f"[PROCESS DEBUG] Job {job_id}: SKIP - title '{title}' not relevant to {roles}")
                 _mark_as_ignored(job_id, user_id)
                 state["ignored_count"] += 1
                 continue
@@ -210,18 +218,22 @@ def processing_node(state: JobState) -> JobState:
                 update_job(job_id, user_id, parsed)
             except Exception as e:
                 # If parsing fails (e.g., groq not available), skip this job
-                print(f"[PARSE SKIPPED] Job {job_id}: {str(e)[:60]}")
+                print(f"[PROCESS DEBUG] Job {job_id}: SKIP - parse failed: {str(e)[:60]}")
                 state["ignored_count"] += 1
                 continue
 
             # SCORE: Calculate fit score
             job_full = execute_query("SELECT * FROM jobs WHERE id = %s AND user_id = %s", (job_id, user_id))
             if not job_full:
+                print(f"[PROCESS DEBUG] Job {job_id}: SKIP - job not found in database")
                 continue
 
             print(f"[SCORING] Job {job_id}")
             fit_score = score_job(job_id, user_id, job_full[0], profile_full[0])
             save_fit_score(job_id, user_id, fit_score)
+
+            # Job successfully scored - count as processed
+            state["processed_count"] += 1
 
             # DECIDE: Route based on score
             decision = fit_score.get("decision", "ignore")
@@ -251,10 +263,8 @@ def processing_node(state: JobState) -> JobState:
             else:
                 print(f"[ERROR] Failed to create application for job {job_id}")
 
-            state["processed_count"] += 1
-
         except Exception as e:
-            print(f"[JOB ERROR] Job {job_id}: {e}")
+            print(f"[PROCESS DEBUG] Job {job_id}: SKIP - unexpected error: {str(e)[:80]}")
             state["ignored_count"] += 1
 
     # Create summary
@@ -262,9 +272,9 @@ def processing_node(state: JobState) -> JobState:
         "total_processed": state["processed_count"],
         "applied": state["applied_count"],
         "review": state["review_count"],
-        "ignored": state["ignored_count"],
     }
 
+    print(f"[PROCESS DEBUG] Breakdown: processed={state['processed_count']}, applied={state['applied_count']}, review={state['review_count']}, ignored={state['ignored_count']}")
     print(f"[PROCESSING COMPLETE] Summary: {state['summary']}")
     return state
 

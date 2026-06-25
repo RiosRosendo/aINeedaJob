@@ -77,7 +77,7 @@ export default function ApplicationsPage() {
   // Filter applications
   const filteredApplications = applications.filter(item => {
     if (statusFilter === 'all') return true;
-    return item.application.status === statusFilter;
+    return item?.application?.status === statusFilter || item?.status === statusFilter;
   });
 
   const statuses = ['all', 'applied', 'interview', 'offer', 'rejected', 'ignored', 'pending_approval', 'in_review'];
@@ -207,15 +207,16 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
     }
   };
 
-  const createdDate = new Date(application.created_at);
+  const createdDate = application?.created_at ? new Date(application.created_at) : new Date();
   const dateStr = createdDate.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: createdDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
   });
 
-  const jobTitle = application.job_title || 'Unknown Job';
-  const company = application.job_company || 'Unknown Company';
+  const jobTitle = application?.job_title || 'Unknown Job';
+  const company = application?.job_company || 'Unknown Company';
+  const status = application?.status || 'unknown';
 
   return (
     <div
@@ -250,10 +251,10 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
               className="text-xs px-2.5 py-1.5 rounded-full font-medium"
               style={{
                 color: 'white',
-                backgroundColor: getStatusColor(application.status),
+                backgroundColor: getStatusColor(status),
               }}
             >
-              {getStatusLabel(application.status)}
+              {getStatusLabel(status)}
             </span>
 
             {/* Date */}
