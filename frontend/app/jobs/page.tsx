@@ -86,6 +86,9 @@ export default function JobsPage() {
     return true;
   });
 
+  // Sort filtered jobs by fit_score descending (highest first)
+  const sortedJobs = filteredJobs.sort((a, b) => (b.fit_score || 0) - (a.fit_score || 0));
+
   return (
     <div>
       {/* Header */}
@@ -94,7 +97,7 @@ export default function JobsPage() {
           All Jobs
         </h1>
         <p style={{ color: 'var(--muted)' }}>
-          {filteredJobs.length} of {jobs.length} scored jobs • {jobs.length} of {totalJobs} total discovered
+          {sortedJobs.length} of {jobs.length} scored jobs • {jobs.length} of {totalJobs} total discovered
         </p>
       </div>
 
@@ -223,7 +226,7 @@ export default function JobsPage() {
         <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '40px' }}>
           Loading jobs...
         </div>
-      ) : filteredJobs.length === 0 ? (
+      ) : sortedJobs.length === 0 ? (
         <div
           style={{
             padding: '40px 20px',
@@ -239,7 +242,7 @@ export default function JobsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredJobs.map((job, index) => (
+          {sortedJobs.map((job, index) => (
             <JobRow
               key={job.id}
               job={job}

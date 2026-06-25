@@ -28,7 +28,8 @@ export function Sidebar() {
   useEffect(() => {
     const loadApprovalsCount = async () => {
       try {
-        const applications = await getApplications();
+        // Get all applications (high limit to ensure we get all pending approvals)
+        const applications = await getApplications(1000);
         const count = applications.filter(app => app.status === 'pending_approval').length;
         setApprovalsCount(count);
         setNavItems(NAV_ITEMS_BASE.map(item =>

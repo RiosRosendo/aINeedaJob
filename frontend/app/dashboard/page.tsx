@@ -436,7 +436,7 @@ function JobCard({ job, delay, onViewDetails }: JobCardProps) {
             className="text-xs font-medium mb-0.5"
             style={{ color: 'var(--faint)' }}
           >
-            {job.company}
+            {job.company || 'Unknown Company'}
           </div>
           <div
             className="text-base font-semibold"

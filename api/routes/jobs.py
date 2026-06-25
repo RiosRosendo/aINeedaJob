@@ -12,14 +12,20 @@ router = APIRouter()
 
 print("JOBS ROUTER LOADED", flush=True)
 
-@router.get("", response_model=List[dict])
+@router.get("")
 async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
     """
     List all jobs for authenticated user with their fit scores.
 
     Multi-user scoped: returns only jobs for this user.
+    Returns both paginated jobs and total count in format:
+    {
+        "jobs": [...],
+        "total_count": <number>
+    }
     """
     try:
+        # Get paginated jobs
         results = execute_query(
             """
             SELECT
@@ -35,8 +41,22 @@ async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
             """,
             (user_id, user_id, limit)
         )
-        return results
+
+        # Get total count
+        count_result = execute_query(
+            "SELECT COUNT(*) as total FROM jobs WHERE user_id = %s",
+            (user_id,)
+        )
+        total_count = count_result[0]["total"] if count_result else 0
+
+        response = {
+            "jobs": results,
+            "total_count": total_count
+        }
+        print(f"[API /jobs] Returning response: jobs={len(results)}, total_count={total_count}", flush=True)
+        return response
     except Exception as e:
+        print(f"[API /jobs] ERROR: {str(e)}", flush=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

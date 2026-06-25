@@ -57,29 +57,68 @@ export const updateUserProfile = async (profile: Partial<UserProfile>) => {
 // Jobs
 export const getJobs = async (limit: number = 50) => {
   try {
-    const response = await api.get<Job[]>('/api/jobs', {
+    const response = await api.get<{ jobs: Job[]; total_count: number }>('/api/jobs', {
       params: { limit },
     });
-    return response.data;
+    return response.data.jobs || [];
   } catch (error) {
     console.error('Failed to fetch jobs:', error);
     throw error;
   }
 };
 
+export const getJobsCount = async () => {
+  try {
+    const response = await api.get<{ jobs: Job[]; total_count: number }>('/api/jobs', {
+      params: { limit: 1 },
+    });
+    return response.data.total_count || 0;
+  } catch (error) {
+    console.error('Failed to fetch job count:', error);
+    return 0;
+  }
+};
+
 export const getJobsWithStats = async () => {
   try {
     const [jobsResponse, applicationsResponse] = await Promise.all([
-      api.get<Job[]>('/api/jobs', { params: { limit: 100 } }),
+      api.get<{ jobs: Job[]; total_count: number }>('/api/jobs', { params: { limit: 100 } }),
       api.get<Application[]>('/api/applications', { params: { limit: 100 } }),
     ]);
 
-    const jobs = jobsResponse.data || [];
+    console.log('[DEBUG] jobsResponse.data:', jobsResponse.data);
+    console.log('[DEBUG] jobsResponse.data type:', typeof jobsResponse.data);
+    console.log('[DEBUG] Is array?', Array.isArray(jobsResponse.data));
+    console.log('[DEBUG] jobsResponse.data.jobs:', jobsResponse.data.jobs);
+    console.log('[DEBUG] jobsResponse.data.total_count:', jobsResponse.data.total_count);
+
+    // Handle both old format (array) and new format ({jobs, total_count})
+    let jobs: Job[];
+    let totalJobsCount: number;
+
+    if (Array.isArray(jobsResponse.data)) {
+      // Old format: direct array
+      console.log('[DEBUG] Using old array format');
+      jobs = jobsResponse.data;
+      totalJobsCount = jobs.length;
+    } else if (jobsResponse.data.jobs) {
+      // New format: {jobs, total_count}
+      console.log('[DEBUG] Using new object format with jobs and total_count');
+      jobs = jobsResponse.data.jobs;
+      totalJobsCount = jobsResponse.data.total_count || jobs.length;
+    } else {
+      jobs = [];
+      totalJobsCount = 0;
+    }
+
     const applications = applicationsResponse.data || [];
+
+    console.log('[DEBUG] Final jobs.length:', jobs.length);
+    console.log('[DEBUG] Final totalJobsCount:', totalJobsCount);
 
     // Calculate stats
     const stats = {
-      jobs_found: jobs.length,
+      jobs_found: totalJobsCount,
       applied: applications.filter(a => a.status === 'applied').length,
       interviews: applications.filter(a => a.status === 'interview').length,
       needs_approval: applications.filter(a => a.status === 'pending_approval').length,
