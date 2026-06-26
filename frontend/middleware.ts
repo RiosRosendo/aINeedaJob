@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // Protected routes that require authentication
-const PROTECTED_ROUTES = ['/dashboard', '/jobs', '/approvals', '/applications', '/profile'];
+const PROTECTED_ROUTES = ['/dashboard', '/jobs', '/approvals', '/applications', '/profile', '/onboarding'];
 
 // Public auth routes (should redirect to dashboard if already authenticated)
 const AUTH_ROUTES = ['/login', '/register'];
@@ -40,6 +40,7 @@ export const config = {
     '/approvals/:path*',
     '/applications/:path*',
     '/profile/:path*',
+    '/onboarding/:path*',
     // Auth routes
     '/login/:path*',
     '/register/:path*',

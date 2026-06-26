@@ -20,6 +20,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      console.log('Attempting login...', { API_BASE_URL, email });
+
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
@@ -31,23 +33,31 @@ export default function LoginPage() {
         }),
       });
 
+      console.log('Login response status:', response.status, response.statusText);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.log('Login error data:', errorData);
         throw new Error(errorData.detail || 'Login failed');
       }
 
       const data = await response.json();
+      console.log('Login response data:', data);
 
       // Save token to localStorage
       localStorage.setItem('access_token', data.access_token);
       localStorage.setItem('user_id', data.user_id);
+      console.log('Token saved to localStorage');
 
       // Save token to cookie (30 minutes = 1800 seconds)
       document.cookie = `access_token=${data.access_token}; path=/; max-age=1800`;
+      console.log('Token saved to cookie');
 
       // Redirect to dashboard
+      console.log('Redirecting to dashboard...');
       router.push('/dashboard');
     } catch (err) {
+      console.log('Login error:', err instanceof Error ? err.message : err);
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
       setLoading(false);
     }

@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { getApplications } from '@/lib/api';
+import { LogOut } from 'lucide-react';
 
 interface NavItem {
   label: string;
@@ -21,9 +22,17 @@ const NAV_ITEMS_BASE: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [approvalsCount, setApprovalsCount] = useState<number>(0);
   const [navItems, setNavItems] = useState<NavItem[]>(NAV_ITEMS_BASE);
+
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user_id');
+    document.cookie = 'access_token=; path=/; max-age=0';
+    router.push('/login');
+  };
 
   useEffect(() => {
     const loadApprovalsCount = async () => {
@@ -183,6 +192,33 @@ export function Sidebar() {
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Logout Button */}
+      <div
+        className="border-t p-4"
+        style={{ borderColor: 'var(--border-soft)' }}
+      >
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-colors"
+          style={{
+            borderColor: 'var(--border)',
+            backgroundColor: 'var(--card)',
+            color: 'var(--muted)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--border-soft)';
+            e.currentTarget.style.color = 'var(--text)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--card)';
+            e.currentTarget.style.color = 'var(--muted)';
+          }}
+        >
+          <LogOut size={16} />
+          <span>Logout</span>
+        </button>
       </div>
     </aside>
   );

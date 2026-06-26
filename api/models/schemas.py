@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 class UserProfileBase(BaseModel):
     """User profile request/response schema."""
     target_roles: List[str] = Field(default=[], description="Target job titles")
-    preferred_modality: str = Field(default="remote", description="remote, hybrid, or on-site")
+    preferred_modality: Optional[str] = Field(default=None, description="remote, hybrid, on-site, or null for any")
     preferred_countries: List[str] = Field(default=[], description="Preferred countries")
     salary_min: Optional[int] = Field(default=None, description="Minimum annual salary USD")
     tech_stack: List[str] = Field(default=[], description="Technical skills")

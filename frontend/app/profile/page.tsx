@@ -24,7 +24,8 @@ export default function ProfilePage() {
         setFormData({
           target_roles: data.target_roles || [],
           tech_stack: data.tech_stack || [],
-          preferred_modality: data.preferred_modality || 'remote',
+          preferred_countries: data.preferred_countries || [],
+          preferred_modality: data.preferred_modality || null,
           salary_min: data.salary_min || 0,
         });
       } catch (err) {
@@ -325,11 +326,11 @@ export default function ProfilePage() {
             Work Arrangement
           </h2>
           <select
-            value={formData.preferred_modality || 'remote'}
+            value={formData.preferred_modality || ''}
             onChange={(e) =>
               setFormData({
                 ...formData,
-                preferred_modality: e.target.value as 'remote' | 'hybrid' | 'on-site',
+                preferred_modality: e.target.value === '' ? null : (e.target.value as 'remote' | 'hybrid' | 'on-site'),
               })
             }
             className="w-full px-4 py-2 border rounded-lg text-sm outline-none"
@@ -339,10 +340,85 @@ export default function ProfilePage() {
               color: 'var(--text)',
             }}
           >
+            <option value="">Any</option>
             <option value="remote">Remote</option>
             <option value="hybrid">Hybrid</option>
             <option value="on-site">On-site</option>
           </select>
+        </section>
+
+        {/* Preferred Countries */}
+        <section
+          className="border rounded-lg p-6"
+          style={{
+            borderColor: 'var(--border)',
+            backgroundColor: 'var(--card)',
+          }}
+        >
+          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text)' }}>
+            Preferred Countries
+          </h2>
+
+          {/* Display countries as chips */}
+          {(formData.preferred_countries || []).length > 0 ? (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {(formData.preferred_countries || []).map((country, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-2 px-3 py-2 rounded-full text-sm"
+                  style={{
+                    backgroundColor: 'var(--primary-bg)',
+                    color: 'var(--primary-text)',
+                    border: '1px solid var(--primary-bg)',
+                  }}
+                >
+                  <span>{country}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const countries = formData.preferred_countries || [];
+                      setFormData({
+                        ...formData,
+                        preferred_countries: countries.filter((_, i) => i !== index),
+                      });
+                    }}
+                    className="ml-1 font-semibold hover:opacity-70 transition-opacity"
+                    style={{ color: 'var(--primary-text)', cursor: 'pointer' }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '16px' }}>
+              No countries selected
+            </p>
+          )}
+
+          <input
+            type="text"
+            placeholder="Type country and press Enter (e.g., US)"
+            className="w-full px-4 py-2 border rounded-lg text-sm outline-none"
+            style={{
+              borderColor: 'var(--border)',
+              backgroundColor: 'var(--bg)',
+              color: 'var(--text)',
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                const country = e.currentTarget.value.trim().toUpperCase();
+                const countries = formData.preferred_countries || [];
+                if (!countries.includes(country)) {
+                  setFormData({
+                    ...formData,
+                    preferred_countries: [...countries, country],
+                  });
+                }
+                e.currentTarget.value = '';
+              }
+            }}
+          />
         </section>
 
         {/* Salary Minimum */}

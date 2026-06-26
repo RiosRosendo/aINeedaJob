@@ -47,8 +47,8 @@ export default function RegisterPage() {
       // Save token to cookie (30 minutes = 1800 seconds)
       document.cookie = `access_token=${data.access_token}; path=/; max-age=1800`;
 
-      // Redirect to dashboard
-      router.push('/dashboard');
+      // Redirect to onboarding
+      router.push('/onboarding');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
       setLoading(false);

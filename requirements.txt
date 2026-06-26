@@ -93,6 +93,9 @@ redis==5.0.2
 # OPTIONAL / UTILITIES
 # ============================================================================
 
+# PDF text extraction
+pdfplumber>=0.10.0
+
 # Python-dateutil for date handling
 python-dateutil==2.8.2
 

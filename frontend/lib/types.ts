@@ -3,7 +3,7 @@ export interface UserProfile {
   name: string;
   email: string;
   target_roles: string[];
-  preferred_modality: 'remote' | 'hybrid' | 'on-site';
+  preferred_modality: 'remote' | 'hybrid' | 'on-site' | null;
   preferred_countries: string[];
   salary_min: number;
   tech_stack: string[];

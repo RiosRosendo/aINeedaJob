@@ -86,6 +86,9 @@ async def update_user_profile(
     Updates job preferences, skills, and profile URLs.
     """
     try:
+        print(f"[API PROFILE] Update request for user {user_id}")
+        print(f"[API PROFILE] Payload: target_roles={profile.target_roles}, modality={profile.preferred_modality}, countries={profile.preferred_countries}, salary_min={profile.salary_min}")
+        print(f"[API PROFILE] Tech stack: {profile.tech_stack}")
         # Check if user exists, create if not
         user_result = execute_query(
             "SELECT id FROM users WHERE id = %s",
@@ -170,4 +173,7 @@ async def update_user_profile(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[API PROFILE] Error updating profile: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
