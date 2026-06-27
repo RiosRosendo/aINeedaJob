@@ -277,3 +277,24 @@ export const getJobsByCountryDetail = async (countryCode: string) => {
     throw error;
   }
 };
+
+// CV Profile & Tailoring
+export const getCVProfile = async () => {
+  try {
+    const response = await api.get('/api/cv/profile');
+    return response.data.cv_data;
+  } catch (error) {
+    console.error('Failed to fetch CV profile:', error);
+    throw error;
+  }
+};
+
+export const getTailoredCV = async (jobId: string) => {
+  try {
+    const response = await api.get(`/api/applications/tailored/${jobId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to fetch tailored CV for job ${jobId}:`, error);
+    throw error;
+  }
+};

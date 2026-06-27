@@ -455,12 +455,19 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
 
       {/* Modal */}
       <div
-        className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:w-2/3 md:max-w-2xl border rounded-2xl p-8 overflow-y-auto z-50"
+        className="border rounded-2xl overflow-y-auto"
         style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '90%',
+          maxWidth: '600px',
+          maxHeight: '80vh',
+          zIndex: 1000,
+          padding: '32px',
           borderColor: 'var(--border)',
           backgroundColor: 'var(--card)',
-          transform: 'md:translate(-50%, -50%)',
-          maxHeight: '90vh',
           animation: 'slideUp 0.3s ease-out',
         }}
       >

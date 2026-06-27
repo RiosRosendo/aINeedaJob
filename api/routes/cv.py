@@ -1,12 +1,59 @@
-"""CV upload and extraction endpoints."""
+"""CV upload, extraction, and retrieval endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from typing import Optional
 import json
 from api.dependencies import get_user_id
-from tools.db import execute_query
+from tools.db import execute_query, execute_update
 
 router = APIRouter()
+
+
+@router.get("/profile")
+async def get_cv_profile(user_id: str = Depends(get_user_id)):
+    """
+    Get the user's complete CV profile data (cv_data JSONB).
+
+    Returns all stored CV information including:
+    - name, email, phone, contact info
+    - education, experience, projects
+    - skills, languages, summary
+    - github, linkedin, website URLs
+
+    This is the source of truth for all CV data - no hardcoding in frontend.
+    """
+    try:
+        result = execute_query(
+            """
+            SELECT cv_data FROM user_profiles WHERE user_id = %s
+            """,
+            (user_id,)
+        )
+
+        if not result:
+            raise HTTPException(status_code=404, detail="User profile not found")
+
+        cv_data = result[0].get('cv_data')
+        if not cv_data:
+            raise HTTPException(
+                status_code=404,
+                detail="No CV data found. User must upload CV first."
+            )
+
+        # Parse if it's a string
+        if isinstance(cv_data, str):
+            cv_data = json.loads(cv_data)
+
+        return {
+            "status": "success",
+            "cv_data": cv_data
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[CV PROFILE] ERROR: {type(e).__name__}: {str(e)}", flush=True)
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve CV profile: {str(e)}")
 
 
 @router.post("/upload")
@@ -42,10 +89,31 @@ async def upload_cv(
 
         print(f"[CV UPLOAD] Extracted profile: {json.dumps(extracted_data, indent=2)}", flush=True)
 
+        # Save extracted CV data to user_profiles
+        try:
+            print(f"[CV UPLOAD] Saving CV data to database for user {user_id}", flush=True)
+            execute_update(
+                """
+                UPDATE user_profiles
+                SET cv_data = %s, cv_base_url = %s
+                WHERE user_id = %s
+                """,
+                (
+                    json.dumps(extracted_data),
+                    file.filename,
+                    user_id
+                )
+            )
+            print(f"[CV UPLOAD] CV data saved successfully", flush=True)
+        except Exception as db_error:
+            print(f"[CV UPLOAD] Warning: Failed to save CV data: {str(db_error)}", flush=True)
+            # Continue even if save fails - return extracted data to frontend
+
         return {
             "status": "success",
             "extracted_data": extracted_data,
-            "raw_text_length": len(pdf_text)
+            "raw_text_length": len(pdf_text),
+            "message": "CV processed and saved successfully"
         }
 
     except HTTPException:
