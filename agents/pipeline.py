@@ -19,6 +19,7 @@ from tools.save_fit_score import save_fit_score
 from tools.update_application import update_application
 from tools.create_notification import create_notification
 from tools.trigger_agent import trigger_agent
+from tools.llm import call_llm
 
 
 # Country name to Adzuna country code mappings
@@ -168,23 +169,37 @@ def discovery_node(state: JobState) -> JobState:
 
 
 def _is_title_relevant(title: str, roles: list) -> bool:
-    """Check if job title contains keywords from target roles."""
+    """
+    Check if job title is relevant to target roles using LLM.
+
+    Language-agnostic approach: works for English, Spanish, French, German, Japanese, etc.
+    Uses LLM to understand context and semantic relevance, not just keyword matching.
+    """
     if not title or not roles:
         return True
 
-    title_lower = title.lower()
-    # Extract keywords from roles (first word, e.g. "Robotics Engineer" → "robotics")
-    keywords = set()
-    for role in roles:
-        words = role.lower().split()
-        keywords.update(words)
+    try:
+        roles_str = ", ".join(roles)
+        prompt = f"""Is this job title relevant to these target roles?
 
-    # Check if any keyword appears in title
-    for keyword in keywords:
-        if keyword in title_lower:
-            return True
+Job Title: {title}
+Target Roles: {roles_str}
 
-    return False
+Answer only YES or NO."""
+
+        response = call_llm(prompt).strip().upper()
+
+        # Check if response starts with YES
+        is_relevant = response.startswith("YES")
+
+        print(f"[TITLE_RELEVANCE] '{title}' → {response} (relevant={is_relevant})")
+
+        return is_relevant
+
+    except Exception as e:
+        print(f"[TITLE_RELEVANCE] LLM error for '{title}': {str(e)}, defaulting to True")
+        # On error, assume relevant (better to parse and score than skip)
+        return True
 
 
 def _mark_as_ignored(job_id: str, user_id: str) -> bool:
