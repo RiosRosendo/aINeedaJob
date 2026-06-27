@@ -80,8 +80,11 @@ pytest-mock==3.13.0
 playwright==1.42.0
 
 # ============================================================================
-# TASK QUEUE (V2)
+# TASK QUEUE & SCHEDULING
 # ============================================================================
+
+# APScheduler for background job scheduling
+apscheduler>=3.10.0
 
 # Celery for async task execution
 celery==5.3.6
