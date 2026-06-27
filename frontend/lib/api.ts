@@ -256,3 +256,24 @@ export const dismissApplication = async (applicationId: string) => {
     throw error;
   }
 };
+
+// World Map
+export const getJobsByCountry = async () => {
+  try {
+    const response = await api.get('/api/jobs/by-country');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch jobs by country:', error);
+    throw error;
+  }
+};
+
+export const getJobsByCountryDetail = async (countryCode: string) => {
+  try {
+    const response = await api.get(`/api/jobs/by-country/${countryCode}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to fetch jobs for country ${countryCode}:`, error);
+    throw error;
+  }
+};

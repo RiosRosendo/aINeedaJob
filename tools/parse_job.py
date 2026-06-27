@@ -84,7 +84,7 @@ Return only a JSON object with no extra text.
 Fields:
 - title (string)
 - company (string)
-- location (string)
+- location (string: Format as "City, Country" if both available (e.g. "San Francisco, US"), or just location if unclear. Use "Remote" if remote-only job)
 - modality (string: "remote", "hybrid", or "on-site")
 - salary_min (integer, annual USD, null if not mentioned)
 - salary_max (integer, annual USD, null if not mentioned)
@@ -150,6 +150,12 @@ def _validate_fields(parsed, original_title=None):
     for key in ('required_skills', 'nice_to_have_skills', 'responsibilities'):
         if key not in parsed:
             parsed[key] = []
+
+    # Ensure location is present
+    if 'location' not in parsed:
+        parsed['location'] = None
+
+    # Validate modality and experience level
     if parsed.get('modality') not in {'remote', 'hybrid', 'on-site', 'unknown'}:
         parsed['modality'] = 'unknown'
     if parsed.get('experience_level') not in {'junior', 'mid', 'senior', 'unknown'}:

@@ -284,7 +284,7 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
 
   const decision = getDecision(job.fit_score);
   const fitScore = job.fit_score !== undefined ? Math.round(job.fit_score) : null;
-  const location = job.location ? job.location.split(',')[0] : 'Location N/A';
+  const location = job.location ? job.location : 'Location N/A';
   const createdDate = new Date(job.created_at);
   const dateStr = createdDate.toLocaleDateString('en-US', {
     month: 'short',

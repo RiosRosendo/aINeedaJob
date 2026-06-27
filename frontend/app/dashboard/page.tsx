@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Sun, Moon, RotateCw, X } from 'lucide-react';
 import { getUserProfile, getJobsWithStats, getAgentLogs, getPendingApprovalJobs } from '@/lib/api';
 import { Job, UserProfile, DashboardStats } from '@/lib/types';
+import { WorldMap } from '@/components/WorldMap';
 
 interface ActivityLog {
   id: string;
@@ -222,6 +223,9 @@ export default function Dashboard() {
         <StatCard label="Interviews" value={stats.interviews} showDivider />
         <StatCard label="Needs Approval" value={stats.needs_approval} showDivider showDot />
       </section>
+
+      {/* World Map */}
+      <WorldMap />
 
       {/* Agent Activity */}
       <section className="mb-11">

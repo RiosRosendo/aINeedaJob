@@ -21,6 +21,53 @@ from tools.create_notification import create_notification
 from tools.trigger_agent import trigger_agent
 
 
+# Country name to Adzuna country code mappings
+COUNTRY_CODE_MAP = {
+    "united states": "us",
+    "us": "us",
+    "usa": "us",
+    "america": "us",
+    "canada": "ca",
+    "germany": "de",
+    "france": "fr",
+    "japan": "jp",
+    "mexico": "mx",
+    "italy": "it",
+    "uae": "ae",
+    "united arab emirates": "ae",
+    "china": "cn",
+    "uk": "gb",
+    "united kingdom": "gb",
+    "australia": "au",
+    "india": "in",
+    "singapore": "sg",
+    "netherlands": "nl",
+    "spain": "es",
+}
+
+
+def map_country_to_adzuna_code(country_name: str) -> str:
+    """
+    Map country name or code to Adzuna country code.
+
+    Returns the Adzuna code if found, otherwise returns the input (for direct codes like 'us').
+    If country not supported by Adzuna, returns None gracefully.
+    """
+    if not country_name:
+        return None
+
+    normalized = country_name.lower().strip()
+    code = COUNTRY_CODE_MAP.get(normalized)
+
+    # If not in map, assume it's already a valid code (2-letter code)
+    if code:
+        return code
+    elif len(normalized) == 2:
+        return normalized.lower()
+
+    return None  # Country not recognized
+
+
 class JobState(TypedDict):
     """Pipeline state tracking job discovery and batch processing."""
     user_id: str
@@ -37,7 +84,7 @@ class JobState(TypedDict):
 
 
 def discovery_node(state: JobState) -> JobState:
-    """Search Adzuna + Muse, save jobs, get all unprocessed jobs for batch processing."""
+    """Search Adzuna + Muse for ALL preferred countries, save jobs, get unprocessed for batch processing."""
     print(f"[DISCOVERY] Starting for user_id={state.get('user_id')}")
     try:
         user_id = state.get("user_id")
@@ -59,21 +106,40 @@ def discovery_node(state: JobState) -> JobState:
         roles = state.get("roles") or p.get("target_roles")
         state["roles"] = roles
 
-        # Search all job boards
+        # Search ALL preferred countries
         adzuna_jobs = []
-        preferred_countries = p.get("preferred_countries", ["US"])
-        if isinstance(preferred_countries, list) and len(preferred_countries) > 0:
-            for country in preferred_countries:
-                jobs = search_adzuna(roles, country.lower(), p.get("salary_min"))
-                adzuna_jobs.extend(jobs)
-        else:
-            adzuna_jobs = search_adzuna(roles, "us", p.get("salary_min"))
+        preferred_countries = p.get("preferred_countries", [])
+        searched_countries = []
+        skipped_countries = []
 
+        if isinstance(preferred_countries, list) and len(preferred_countries) > 0:
+            for country_name in preferred_countries:
+                country_code = map_country_to_adzuna_code(country_name)
+
+                if country_code:
+                    try:
+                        print(f"[DISCOVERY] Searching {country_name} ({country_code})")
+                        jobs = search_adzuna(roles, country_code, p.get("salary_min"))
+                        adzuna_jobs.extend(jobs)
+                        searched_countries.append(f"{country_name} ({country_code})")
+                    except Exception as e:
+                        print(f"[DISCOVERY] Error searching {country_name}: {str(e)}")
+                        skipped_countries.append(country_name)
+                else:
+                    print(f"[DISCOVERY] Country '{country_name}' not supported by Adzuna, skipping")
+                    skipped_countries.append(country_name)
+        else:
+            print(f"[DISCOVERY] No preferred countries configured, skipping Adzuna search")
+
+        # Search Muse (global, no country filtering needed)
         themuse_jobs = search_themuse(roles, p.get("preferred_modality"))
         all_jobs = adzuna_jobs + themuse_jobs
 
         save_result = save_jobs(user_id, all_jobs)
         state["raw_jobs"] = all_jobs
+        print(f"[DISCOVERY] Searched countries: {searched_countries}")
+        if skipped_countries:
+            print(f"[DISCOVERY] Skipped countries: {skipped_countries}")
         print(f"[DISCOVERY] Jobs: Adzuna={len(adzuna_jobs)}, Muse={len(themuse_jobs)}, Total={len(all_jobs)}")
         print(f"[DISCOVERY] Save result: {save_result}")
 
