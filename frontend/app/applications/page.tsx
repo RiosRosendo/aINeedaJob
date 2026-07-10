@@ -22,6 +22,8 @@ export default function ApplicationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [checking, setChecking] = useState(false);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
 
   useEffect(() => {
     const loadApplications = async () => {
@@ -31,6 +33,12 @@ export default function ApplicationsPage() {
 
         const apps = await getApplications(100);
         setApplications(apps);
+
+        // Try to load last checked time from localStorage
+        const cached = localStorage.getItem('emailCheckTime');
+        if (cached) {
+          setLastChecked(cached);
+        }
       } catch (err) {
         console.error('Failed to load applications:', err);
         setError('Failed to load applications. Please try again.');
@@ -41,6 +49,46 @@ export default function ApplicationsPage() {
 
     loadApplications();
   }, []);
+
+  const handleCheckEmails = async () => {
+    try {
+      setChecking(true);
+      const response = await fetch('http://localhost:8001/api/gmail/check', {
+        method: 'GET',
+        headers: {
+          'x-user-id': localStorage.getItem('user_id') || '',
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[EMAIL CHECK] Result:', data);
+
+      // Save last checked time
+      const now = new Date().toLocaleTimeString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      setLastChecked(now);
+      localStorage.setItem('emailCheckTime', now);
+
+      // Reload applications to reflect any status updates
+      const apps = await getApplications(100);
+      setApplications(apps);
+
+    } catch (err) {
+      console.error('Failed to check emails:', err);
+      setError('Failed to check emails. Make sure Gmail is connected.');
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -85,12 +133,37 @@ export default function ApplicationsPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-semibold mb-2" style={{ color: 'var(--text)' }}>
-          Applications
-        </h1>
-        <p style={{ color: 'var(--muted)' }}>
-          {filteredApplications.length} of {applications.length} applications
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold mb-2" style={{ color: 'var(--text)' }}>
+              Applications
+            </h1>
+            <p style={{ color: 'var(--muted)' }}>
+              {filteredApplications.length} of {applications.length} applications
+            </p>
+            {lastChecked && (
+              <p
+                className="text-xs mt-2"
+                style={{ color: 'var(--faint)' }}
+              >
+                Last email check: {lastChecked}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={handleCheckEmails}
+            disabled={checking}
+            className="px-4 py-2 rounded-lg font-medium text-sm transition-all"
+            style={{
+              backgroundColor: checking ? 'var(--border)' : 'var(--primary-bg)',
+              color: checking ? 'var(--muted)' : 'var(--primary-text)',
+              cursor: checking ? 'not-allowed' : 'pointer',
+              opacity: checking ? 0.6 : 1,
+            }}
+          >
+            {checking ? 'Checking...' : 'Check Emails'}
+          </button>
+        </div>
       </div>
 
       {error && (

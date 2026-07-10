@@ -153,6 +153,85 @@ def run_daily_job_search():
         sys.stdout.flush()
 
 
+def run_email_monitoring():
+    """
+    Monitor Gmail inbox for replies from companies where users have applied.
+
+    Runs every 6 hours to check for interview invites, offers, and rejections.
+    """
+    try:
+        from tools.db import execute_query
+        from tools.monitor_email import check_gmail_for_replies
+
+        print("[SCHEDULER] Starting email monitoring for all users...", flush=True)
+
+        # Get all users with connected Gmail
+        users_result = execute_query(
+            """
+            SELECT DISTINCT u.id, u.email
+            FROM users u
+            JOIN gmail_tokens gt ON u.id = gt.user_id
+            WHERE u.is_active = TRUE
+            """,
+            ()
+        )
+
+        if not users_result:
+            print("[SCHEDULER] No users with connected Gmail found", flush=True)
+            return
+
+        total_users = len(users_result)
+        processed_users = 0
+        total_emails_found = 0
+        total_statuses_updated = 0
+
+        for user in users_result:
+            user_id = user.get('id')
+            email = user.get('email')
+
+            try:
+                print(f"[SCHEDULER] Checking Gmail for user {email}", flush=True)
+
+                # Run email monitoring
+                result = check_gmail_for_replies(user_id)
+
+                total_emails_found += result.get('emails_found', 0)
+                total_statuses_updated += result.get('statuses_updated', 0)
+                processed_users += 1
+
+                if result.get('error'):
+                    print(f"[SCHEDULER] Email check error for {email}: {result['error']}", flush=True)
+                else:
+                    print(f"[SCHEDULER] Email check for {email}: "
+                          f"found={result.get('emails_found', 0)}, "
+                          f"updated={result.get('statuses_updated', 0)}", flush=True)
+
+            except Exception as e:
+                print(
+                    f"[SCHEDULER] ERROR checking Gmail for user {email} ({user_id}): "
+                    f"{type(e).__name__}: {str(e)}",
+                    flush=True
+                )
+                import traceback
+                print(traceback.format_exc(), flush=True)
+                continue
+
+        print(
+            f"[SCHEDULER] Email monitoring complete! "
+            f"Processed {processed_users}/{total_users} users, "
+            f"found {total_emails_found} emails, "
+            f"updated {total_statuses_updated} applications",
+            flush=True
+        )
+        sys.stdout.flush()
+
+    except Exception as e:
+        print(f"[SCHEDULER] FATAL ERROR in email monitoring: {type(e).__name__}: {str(e)}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        sys.stdout.flush()
+
+
 @app.on_event("startup")
 async def startup_event():
     """
@@ -172,9 +251,20 @@ async def startup_event():
             misfire_grace_time=60
         )
 
+        # Schedule email monitoring every 6 hours (0, 6, 12, 18)
+        scheduler.add_job(
+            run_email_monitoring,
+            trigger=CronTrigger(hour='0,6,12,18', minute=0),
+            id='email_monitoring',
+            name='Email Monitoring',
+            replace_existing=True,
+            misfire_grace_time=60
+        )
+
         scheduler.start()
         print("[SCHEDULER] Background scheduler started successfully", flush=True)
         print("[SCHEDULER] Daily job search scheduled for 8:00 AM every day", flush=True)
+        print("[SCHEDULER] Email monitoring scheduled every 6 hours (0, 6, 12, 18 UTC)", flush=True)
 
     except Exception as e:
         print(f"[SCHEDULER] Failed to start scheduler: {type(e).__name__}: {str(e)}", flush=True)

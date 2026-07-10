@@ -625,17 +625,28 @@ export default function ProfilePage() {
                 className="mb-4 p-4 rounded-lg flex items-center justify-between"
                 style={{
                   backgroundColor: '#f0fdf4',
-                  borderColor: '#10b981',
+                  borderColor: '#d1fae5',
                   border: '1px solid',
                 }}
               >
-                <div>
-                  <p style={{ color: '#10b981', fontWeight: '500', marginBottom: '4px' }}>
-                    ✅ Gmail Connected
-                  </p>
-                  <p style={{ color: '#6b7280', fontSize: '14px' }}>
-                    {gmailStatus.email}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: '#10b981',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div>
+                    <p style={{ color: '#10b981', fontWeight: '500', marginBottom: '4px' }}>
+                      Gmail Connected
+                    </p>
+                    <p style={{ color: '#6b7280', fontSize: '14px' }}>
+                      {gmailStatus.email}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -644,15 +655,15 @@ export default function ProfilePage() {
                 onClick={handleDisconnectGmail}
                 className="px-4 py-2 rounded-lg font-medium text-sm transition-all"
                 style={{
-                  backgroundColor: 'var(--border)',
-                  color: 'var(--muted)',
-                  border: '1px solid var(--border)',
+                  backgroundColor: '#fef2f2',
+                  color: '#dc2626',
+                  border: '1px solid #fee2e2',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--primary-bg)';
+                  e.currentTarget.style.backgroundColor = '#fee2e2';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--border)';
+                  e.currentTarget.style.backgroundColor = '#fef2f2';
                 }}
               >
                 Disconnect Gmail

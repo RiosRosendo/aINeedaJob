@@ -351,3 +351,36 @@ def refresh_gmail_token(user_id: str) -> Optional[str]:
     except Exception as e:
         print(f"[GMAIL REFRESH] ERROR: {type(e).__name__}: {str(e)}")
         return None
+
+
+@router.get("/check")
+async def check_emails(user_id: str = Depends(get_user_id)):
+    """
+    Manually trigger email monitoring for the user.
+
+    Checks Gmail inbox for replies from companies where user has applied.
+    Returns list of emails found and their classified statuses.
+    """
+    try:
+        print(f"[GMAIL CHECK] Manual email check requested by user {user_id}", flush=True)
+
+        from tools.monitor_email import check_gmail_for_replies
+
+        # Run email monitoring
+        result = check_gmail_for_replies(user_id)
+
+        if result.get("error"):
+            print(f"[GMAIL CHECK] Error: {result['error']}", flush=True)
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return {
+            "status": "success",
+            "checked_at": result["checked_at"].isoformat(),
+            "emails_found": result["emails_found"],
+            "statuses_updated": result["statuses_updated"],
+            "emails": result["emails"]
+        }
+
+    except Exception as e:
+        print(f"[GMAIL CHECK] ERROR: {type(e).__name__}: {str(e)}", flush=True)
+        raise HTTPException(status_code=500, detail=f"Email check failed: {str(e)}")
