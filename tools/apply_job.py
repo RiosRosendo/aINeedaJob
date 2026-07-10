@@ -73,6 +73,11 @@ async def apply_for_job(user_id: str, job_id: str, application_id: str, job_url:
         company = job_result[0].get('company') if job_result else "Unknown Company"
         job_description = job_result[0].get('description_raw') if job_result else ""
 
+        # Get user's languages from CV data for multilingual support
+        user_languages = cv_data.get('languages', []) if cv_data else []
+        languages_str = ", ".join(user_languages) if user_languages else "English"
+        print(f"[APPLY_JOB] User languages: {languages_str}", flush=True)
+
         # Check if cover letter is needed and generate if so
         if job_description and should_generate_cover_letter(job_description):
             print(f"[APPLY_JOB] Cover letter mentioned in job description, generating", flush=True)
@@ -102,54 +107,109 @@ async def apply_for_job(user_id: str, job_id: str, application_id: str, job_url:
                 print(f"[APPLY_JOB] {result['error']}", flush=True)
                 return result
 
+            # Try to follow redirect to actual apply page (if this is a listing page)
+            print(f"[APPLY_JOB] Checking for apply button redirect", flush=True)
+            redirect_success = await _follow_redirect_to_apply_page(page)
+            if redirect_success:
+                print(f"[APPLY_JOB] Successfully followed redirect to: {page.url}", flush=True)
+            else:
+                print(f"[APPLY_JOB] No redirect button found, analyzing current page", flush=True)
+
             # Extract page content
             print(f"[APPLY_JOB] Extracting page content", flush=True)
             page_content = await _extract_page_content(page)
 
-            # Analyze with LLM
-            print(f"[APPLY_JOB] Analyzing page with LLM", flush=True)
-            analysis = await _analyze_application_method(job_url, page_content, cv_data)
+            # Analyze page and execute autonomously (up to 3 redirects)
+            max_redirects = 3
+            redirect_count = 0
 
-            if not analysis:
-                result["error"] = "Failed to analyze application method"
-                result["status"] = "requires_manual"
-                result["method"] = "manual"
-                return result
+            while redirect_count < max_redirects:
+                print(f"[APPLY_JOB] Analyzing page (attempt {redirect_count + 1}/{max_redirects})", flush=True)
+                analysis = await _analyze_application_method(job_url, page_content, cv_data, languages_str)
 
-            method = analysis.get('method')  # 'email', 'form', or 'manual'
-            instructions = analysis.get('instructions')
-
-            print(f"[APPLY_JOB] Detected method: {method}", flush=True)
-            print(f"[APPLY_JOB] Instructions: {instructions}", flush=True)
-
-            # Execute application method
-            if method == 'email':
-                result["method"] = "email"
-                result["action"] = f"Found email: {instructions}"
-                result["status"] = "requires_manual"  # Will be sent by email agent
-                print(f"[APPLY_JOB] Email application detected: {instructions}", flush=True)
-
-            elif method == 'form':
-                print(f"[APPLY_JOB] Attempting form submission", flush=True)
-                form_result = await _fill_and_submit_form(page, cv_data, instructions)
-
-                if form_result.get('success'):
-                    result["method"] = "form"
-                    result["status"] = "applied"
-                    result["action"] = form_result.get('message', 'Form submitted successfully')
-                    print(f"[APPLY_JOB] Form submitted: {result['action']}", flush=True)
-                else:
-                    result["method"] = "form"
+                if not analysis:
+                    result["error"] = "Failed to analyze application method"
                     result["status"] = "requires_manual"
-                    result["error"] = form_result.get('error', 'Form submission failed')
-                    result["action"] = form_result.get('message', 'Could not auto-fill form')
-                    print(f"[APPLY_JOB] Form submission failed: {result['error']}", flush=True)
+                    result["method"] = "manual"
+                    break
 
-            else:  # manual
-                result["method"] = "manual"
+                method = analysis.get('method')
+                instructions = analysis.get('instructions', '')
+                button_text = analysis.get('button_to_click', '')
+                email = analysis.get('email', '')
+
+                print(f"[APPLY_JOB] Method: {method} | Button: {button_text or 'N/A'}", flush=True)
+
+                # Handle each method type
+                if method == 'click_button':
+                    if not button_text:
+                        result["error"] = "LLM said click_button but no button_to_click provided"
+                        result["status"] = "requires_manual"
+                        result["method"] = "manual"
+                        print(f"[APPLY_JOB] ERROR: {result['error']}", flush=True)
+                        break
+
+                    print(f"[APPLY_JOB] Clicking button: '{button_text}'", flush=True)
+                    click_success = await _click_continuation_button(page, button_text)
+
+                    if click_success:
+                        redirect_count += 1
+                        print(f"[APPLY_JOB] Button clicked, re-analyzing (redirect {redirect_count}/{max_redirects})", flush=True)
+                        page_content = await _extract_page_content(page)
+                        continue  # Loop back to analyze new page
+                    else:
+                        result["error"] = f"Failed to click button: '{button_text}'"
+                        result["status"] = "requires_manual"
+                        result["method"] = "manual"
+                        result["action"] = button_text
+                        print(f"[APPLY_JOB] {result['error']}", flush=True)
+                        break
+
+                elif method == 'form':
+                    print(f"[APPLY_JOB] Attempting form submission", flush=True)
+                    form_result = await _fill_and_submit_form(page, cv_data, instructions)
+
+                    if form_result.get('success'):
+                        result["method"] = "form"
+                        result["status"] = "applied"
+                        result["action"] = form_result.get('message', 'Form submitted successfully')
+                        print(f"[APPLY_JOB] Form submitted: {result['action']}", flush=True)
+                    else:
+                        result["method"] = "form"
+                        result["status"] = "requires_manual"
+                        result["error"] = form_result.get('error', 'Form submission failed')
+                        result["action"] = form_result.get('message', 'Could not auto-fill form')
+                        print(f"[APPLY_JOB] Form submission failed: {result['error']}", flush=True)
+                    break  # Form is final state
+
+                elif method == 'email':
+                    result["method"] = "email"
+                    result["status"] = "requires_manual"  # Will be sent by email agent
+                    result["action"] = f"Found email: {email or instructions}"
+                    print(f"[APPLY_JOB] Email application detected: {result['action']}", flush=True)
+                    break  # Email is final state
+
+                elif method == 'manual':
+                    result["method"] = "manual"
+                    result["status"] = "requires_manual"
+                    result["action"] = instructions or "Application requires manual interaction"
+                    print(f"[APPLY_JOB] Manual application required: {result['action']}", flush=True)
+                    break  # Manual is final state
+
+                else:
+                    result["error"] = f"Unknown method: {method}"
+                    result["status"] = "requires_manual"
+                    result["method"] = "manual"
+                    print(f"[APPLY_JOB] ERROR: {result['error']}", flush=True)
+                    break
+
+            # Check if we exceeded max redirects
+            if redirect_count >= max_redirects:
+                result["error"] = f"Exceeded maximum redirects ({max_redirects})"
                 result["status"] = "requires_manual"
-                result["action"] = instructions or "This application requires manual interaction"
-                print(f"[APPLY_JOB] Manual application required: {result['action']}", flush=True)
+                result["method"] = "manual"
+                result["action"] = "Too many redirects - application flow is too complex"
+                print(f"[APPLY_JOB] {result['error']}", flush=True)
 
             await context.close()
             await browser.close()
@@ -235,6 +295,104 @@ BUTTONS DETECTED:
         return "Unable to extract page content"
 
 
+async def _follow_redirect_to_apply_page(page) -> bool:
+    """
+    Follow redirect to actual apply page by clicking apply button.
+
+    Looks for apply buttons in multiple languages and clicks them.
+    Returns True if button was found and clicked, False otherwise.
+    """
+    # Apply button text in multiple languages
+    apply_button_texts = [
+        "Apply", "Apply Now", "Apply for this job",  # English
+        "Postularme", "Solicitar", "Candidatarse",  # Spanish
+        "Bewerben", "Jetzt bewerben",  # German
+        "Postuler", "Postulez maintenant",  # French
+        "Candidatarsi", "Candidati ora",  # Italian
+        "応募する", "今すぐ応募",  # Japanese
+        "申请", "立即申请",  # Chinese
+    ]
+
+    try:
+        # Look for apply button
+        for button_text in apply_button_texts:
+            # Try exact match first
+            button = await page.query_selector(f'button:has-text("{button_text}"), a:has-text("{button_text}")')
+
+            if button:
+                print(f"[APPLY_JOB REDIRECT] Found apply button: '{button_text}'", flush=True)
+                try:
+                    await button.click()
+                    print(f"[APPLY_JOB REDIRECT] Clicked apply button", flush=True)
+
+                    # Wait for redirect/navigation
+                    await page.wait_for_timeout(3000)
+                    print(f"[APPLY_JOB REDIRECT] Redirect complete, new URL: {page.url}", flush=True)
+                    return True
+                except Exception as e:
+                    print(f"[APPLY_JOB REDIRECT] Failed to click button: {str(e)}", flush=True)
+                    continue
+
+        print(f"[APPLY_JOB REDIRECT] No apply button found", flush=True)
+        return False
+
+    except Exception as e:
+        print(f"[APPLY_JOB REDIRECT] Error: {type(e).__name__}: {str(e)}", flush=True)
+        return False
+
+
+async def _click_continuation_button(page, button_text: str) -> bool:
+    """
+    Click a button by exact text match using Playwright's get_by_text().
+
+    Returns True if button was found and clicked, False otherwise.
+    """
+    try:
+        print(f"[APPLY_JOB CONTINUE] Looking for button: '{button_text}'", flush=True)
+
+        # Try to find button/link by exact text using Playwright's locator
+        try:
+            # First try to find a button with exact text
+            button = page.get_by_role("button", name=button_text)
+            button_count = await button.count()
+
+            if button_count == 0:
+                # Try link role
+                button = page.get_by_role("link", name=button_text)
+                button_count = await button.count()
+
+            if button_count == 0:
+                # Try getting by text as fallback (case-insensitive partial match)
+                button = page.get_by_text(button_text)
+                button_count = await button.count()
+
+            if button_count > 0:
+                print(f"[APPLY_JOB CONTINUE] Found {button_count} element(s) matching '{button_text}'", flush=True)
+                try:
+                    # Click the first matching element
+                    await button.first.click()
+                    print(f"[APPLY_JOB CONTINUE] Clicked button, waiting for redirect", flush=True)
+
+                    # Wait for navigation/redirect
+                    await page.wait_for_timeout(3000)
+                    print(f"[APPLY_JOB CONTINUE] Navigation complete, new URL: {page.url}", flush=True)
+                    return True
+                except Exception as e:
+                    print(f"[APPLY_JOB CONTINUE] Failed to click button: {str(e)}", flush=True)
+                    return False
+            else:
+                print(f"[APPLY_JOB CONTINUE] Button '{button_text}' not found on page", flush=True)
+                return False
+
+        except Exception as e:
+            print(f"[APPLY_JOB CONTINUE] Error finding button: {str(e)}", flush=True)
+            return False
+
+    except Exception as e:
+        print(f"[APPLY_JOB CONTINUE] Error: {type(e).__name__}: {str(e)}", flush=True)
+        return False
+
+
 def _extract_json(text: str) -> Dict:
     """
     Extract JSON from text that may contain markdown code blocks or extra text.
@@ -266,43 +424,63 @@ def _extract_json(text: str) -> Dict:
     raise ValueError(f"No valid JSON found in text: {text[:200]}")
 
 
-async def _analyze_application_method(job_url: str, page_content: str, cv_data: dict) -> Optional[Dict]:
+async def _analyze_application_method(job_url: str, page_content: str, cv_data: dict, user_languages: str = "English") -> Optional[Dict]:
     """
-    Use LLM to analyze the job page and decide application method.
+    Use LLM to analyze the job page and decide how to proceed.
+
+    Args:
+        job_url: URL of the job page
+        page_content: HTML/text content of the page
+        cv_data: User's CV data
+        user_languages: User's languages (e.g. "Spanish (Native), English (B2)")
 
     Returns:
         {
-            "method": "email" | "form" | "manual",
-            "instructions": str (specific instructions for the method)
+            "method": "click_button" | "form" | "email" | "manual",
+            "button_to_click": str (exact button text, only if method is "click_button"),
+            "instructions": str (method-specific details),
+            "email": str (email address, only if method is "email")
         }
     """
     try:
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-        prompt = f"""Analyze this job application page and decide HOW to apply.
+        prompt = f"""Analyze this job application page and decide HOW to proceed.
+
+USER CONTEXT:
+- Languages: {user_languages}
+- The applicant may interact with forms in any of these languages
+- Prefer to fill forms in the language of the job posting, or in English if the applicant speaks it
 
 JOB URL: {job_url}
 
 PAGE CONTENT:
 {page_content}
 
-DETERMINE:
-1. Can this be auto-filled with a form? Look for input fields, textareas, etc.
-2. Is there an "Apply" or "Submit" button visible?
-3. Is there a company email for applications? Look for "apply@", "careers@", "hr@"
-4. Does it require uploading files/attachments?
-5. Are there required custom fields that can't be auto-filled?
+ANALYZE THE PAGE:
+1. Is there a clickable button/link to proceed to the next step? (e.g., "Apply", "Continue", "Next", "Seguir", "Candidatarse", "Bewerben", etc.)
+2. Is there a visible application form with standard fields (name, email, CV)?
+3. Is there a company email visible for applications? (apply@, careers@, hr@, etc.)
+4. Does it require complex interactions, account creation, or external sites?
 
-DECIDE ONE:
-- "form" → If there's a visible application form with standard fields (name, email, CV) that can be auto-filled. Provide specific field IDs or names to fill.
-- "email" → If there's no form but a recruiter email is visible. Provide the email address.
-- "manual" → If the page requires complex interactions, external sites, custom questions, or account creation.
+DECIDE ONE METHOD:
+- "click_button" → If there's a button/link to click to proceed to the next step. Provide the EXACT button text.
+- "form" → If there's a visible application form ready to fill. Provide field IDs or instructions.
+- "email" → If there's an email address to contact. Provide the email address.
+- "manual" → If the page is too complex or requires account creation/external sites.
 
-RESPOND AS JSON:
+RESPOND AS JSON (all fields required):
 {{
-  "method": "form" | "email" | "manual",
-  "instructions": "specific details for this method (field IDs for form, email address for email, explanation for manual)"
-}}"""
+  "method": "click_button" | "form" | "email" | "manual",
+  "button_to_click": "EXACT button text (only if method is 'click_button')",
+  "instructions": "details for the method",
+  "email": "email address (only if method is 'email')"
+}}
+
+IMPORTANT:
+- Only set button_to_click if method is "click_button"
+- Use EXACT button text as it appears on the page
+- For other methods, leave button_to_click empty string"""
 
         response = client.chat.completions.create(
             model=os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
@@ -316,11 +494,23 @@ RESPOND AS JSON:
         # Parse JSON from response (handles code blocks and raw JSON)
         try:
             result = _extract_json(response_text)
-            if result.get('method') in ['email', 'form', 'manual']:
-                print(f"[APPLY_JOB ANALYZE] Method: {result['method']}", flush=True)
+            method = result.get('method', '').strip() if result.get('method') else ''
+
+            # Normalize method value (lowercase, trim whitespace)
+            method_lower = method.lower().strip()
+            valid_methods = ['click_button', 'form', 'email', 'manual']
+
+            print(f"[APPLY_JOB ANALYZE] Parsed method: '{method}' (normalized: '{method_lower}')", flush=True)
+            print(f"[APPLY_JOB ANALYZE] Full result: {result}", flush=True)
+
+            if method_lower in valid_methods:
+                print(f"[APPLY_JOB ANALYZE] Method validated: {method_lower}", flush=True)
+                # Update result with normalized method
+                result['method'] = method_lower
                 return result
             else:
-                print(f"[APPLY_JOB ANALYZE] Invalid method in response: {result.get('method')}", flush=True)
+                print(f"[APPLY_JOB ANALYZE] Invalid method in response: '{method}' (normalized: '{method_lower}')", flush=True)
+                print(f"[APPLY_JOB ANALYZE] Valid methods are: {valid_methods}", flush=True)
                 return None
         except ValueError as e:
             print(f"[APPLY_JOB ANALYZE] Failed to extract JSON: {str(e)}", flush=True)
