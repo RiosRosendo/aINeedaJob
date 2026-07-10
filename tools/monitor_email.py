@@ -67,14 +67,14 @@ def check_gmail_for_replies(user_id: str) -> Dict:
         # Build Gmail service
         service = build('gmail', 'v1', credentials=credentials)
 
-        # Get applications for this user where status is "applied" or "in_review"
+        # Get applications for this user where status is "applied"
         apps_result = execute_query(
             """
-            SELECT a.application_id, a.job_id, a.status, j.company
+            SELECT a.id as application_id, a.job_id, a.status, j.company
             FROM applications a
-            JOIN jobs j ON a.job_id = j.job_id
-            WHERE a.user_id = %s AND a.status IN ('applied', 'in_review')
-            ORDER BY a.applied_at DESC
+            JOIN jobs j ON a.job_id = j.id
+            WHERE a.user_id = %s AND a.status = 'applied'
+            ORDER BY a.created_at DESC
             """,
             (user_id,)
         )
@@ -260,10 +260,10 @@ def _log_error(user_id: str, application_id: Optional[str], error_msg: str):
     try:
         execute_update(
             """
-            INSERT INTO agent_logs (user_id, application_id, agent_name, error_message, logged_at)
-            VALUES (%s, %s, %s, %s, NOW())
+            INSERT INTO agent_logs (user_id, application_id, agent, status, details)
+            VALUES (%s, %s, %s, %s, %s)
             """,
-            (user_id, application_id, "email_monitor", error_msg)
+            (user_id, application_id, "email_monitor", "error", error_msg)
         )
     except Exception as e:
         print(f"[EMAIL MONITOR] Failed to log error: {str(e)}", flush=True)
