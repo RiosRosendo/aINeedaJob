@@ -57,6 +57,12 @@ python-jose[cryptography]>=3.3.0
 # Email validation for Pydantic
 email-validator>=2.0.0
 
+# Google OAuth for Gmail integration
+google-auth>=2.28.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.107.0
+
 # ============================================================================
 # ENVIRONMENT & CONFIG
 # ============================================================================
