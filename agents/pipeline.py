@@ -20,6 +20,8 @@ from tools.update_application import update_application
 from tools.create_notification import create_notification
 from tools.trigger_agent import trigger_agent
 from tools.llm import call_llm
+from tools.apply_job import apply_for_job_sync
+import asyncio
 
 
 # Country name to Adzuna country code mappings
@@ -320,29 +322,70 @@ def processing_node(state: JobState) -> JobState:
             decision = fit_score.get("decision", "ignore")
             score = fit_score.get("score", 0)
 
+            # Create application record first
+            app_result = execute_query(
+                "INSERT INTO applications (job_id, user_id, status) VALUES (%s, %s, %s) RETURNING id",
+                (job_id, user_id, "pending_application")
+            )
+
+            if not app_result:
+                print(f"[ERROR] Failed to create application for job {job_id}")
+                state["ignored_count"] += 1
+                continue
+
+            application_id = app_result[0].get('id')
+
             if decision == "apply":
-                status = "pending_application"
-                trigger_agent("cv_tailoring", user_id, job_id)
-                state["applied_count"] += 1
+                # Get job URL for application
+                job_url_result = execute_query(
+                    "SELECT url FROM jobs WHERE id = %s",
+                    (job_id,)
+                )
+                job_url = job_url_result[0].get('url') if job_url_result else None
+
+                if job_url:
+                    try:
+                        print(f"[AUTO_APPLY] Starting auto-apply for job {job_id}")
+                        # Attempt autonomous application
+                        apply_result = apply_for_job_sync(user_id, job_id, application_id, job_url, None)
+
+                        if apply_result.get("status") == "applied":
+                            status = "applied"
+                            print(f"[AUTO_APPLY] Success for job {job_id}: {apply_result.get('method')}")
+                        else:
+                            status = "requires_manual"
+                            print(f"[AUTO_APPLY] Manual required for job {job_id}: {apply_result.get('action')}")
+
+                        state["applied_count"] += 1
+
+                    except Exception as e:
+                        print(f"[AUTO_APPLY] Error for job {job_id}: {str(e)}")
+                        status = "requires_manual"
+                        state["applied_count"] += 1
+                else:
+                    print(f"[AUTO_APPLY] No URL found for job {job_id}, marking as pending")
+                    status = "pending_application"
+                    state["applied_count"] += 1
+
+                # Update application status
+                execute_query(
+                    "UPDATE applications SET status = %s WHERE id = %s",
+                    (status, application_id)
+                )
+                print(f"[DECISION] Job {job_id} → {status} (score: {score}%)")
+
             elif decision == "review":
                 status = "pending_approval"
                 create_notification(user_id, "approval_required",
                                   f"Job matching {score}% needs approval", job_id,
                                   datetime.utcnow() + timedelta(hours=48))
                 state["review_count"] += 1
+                print(f"[DECISION] Job {job_id} → {status} (score: {score}%)")
+
             else:
                 status = "ignored"
                 state["ignored_count"] += 1
-
-            # Create application record
-            app_result = execute_query(
-                "INSERT INTO applications (job_id, user_id, status) VALUES (%s, %s, %s) RETURNING id",
-                (job_id, user_id, status)
-            )
-            if app_result:
                 print(f"[DECISION] Job {job_id} → {status} (score: {score}%)")
-            else:
-                print(f"[ERROR] Failed to create application for job {job_id}")
 
         except Exception as e:
             print(f"[PROCESS DEBUG] Job {job_id}: SKIP - unexpected error: {str(e)[:80]}")

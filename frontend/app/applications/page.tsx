@@ -15,6 +15,9 @@ interface ApplicationData {
   updated_at: string;
   job_title?: string;
   job_company?: string;
+  job_url?: string;
+  application_method?: 'email' | 'form' | 'manual';
+  application_notes?: string;
 }
 
 export default function ApplicationsPage() {
@@ -24,6 +27,7 @@ export default function ApplicationsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [checking, setChecking] = useState(false);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [showIgnored, setShowIgnored] = useState(false);
 
   useEffect(() => {
     const loadApplications = async () => {
@@ -124,11 +128,19 @@ export default function ApplicationsPage() {
 
   // Filter applications
   const filteredApplications = applications.filter(item => {
+    const status = item?.application?.status || item?.status;
+
+    // Hide ignored by default unless showIgnored is true
+    if (!showIgnored && status === 'ignored') {
+      return false;
+    }
+
     if (statusFilter === 'all') return true;
-    return item?.application?.status === statusFilter || item?.status === statusFilter;
+    return status === statusFilter;
   });
 
-  const statuses = ['all', 'applied', 'interview', 'offer', 'rejected', 'ignored', 'pending_approval', 'in_review'];
+  const statuses = ['all', 'pending_approval', 'pending_application', 'applied', 'interview', 'offer', 'rejected'];
+  const ignoredCount = applications.filter(item => (item?.application?.status || item?.status) === 'ignored').length;
 
   return (
     <div>
@@ -181,12 +193,28 @@ export default function ApplicationsPage() {
 
       {/* Status Filter */}
       <div className="mb-8">
-        <label
-          className="text-xs font-semibold uppercase mb-3 block"
-          style={{ color: 'var(--faint)' }}
-        >
-          Filter by Status
-        </label>
+        <div className="flex items-center justify-between mb-3">
+          <label
+            className="text-xs font-semibold uppercase"
+            style={{ color: 'var(--faint)' }}
+          >
+            Filter by Status
+          </label>
+          {ignoredCount > 0 && (
+            <button
+              onClick={() => setShowIgnored(!showIgnored)}
+              className="text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all"
+              style={{
+                backgroundColor: showIgnored ? 'var(--primary-bg)' : 'var(--card)',
+                color: showIgnored ? 'var(--primary-text)' : 'var(--muted)',
+                borderColor: 'var(--border)',
+                border: '1px solid',
+              }}
+            >
+              {showIgnored ? `Hide ignored (${ignoredCount})` : `Show ignored (${ignoredCount})`}
+            </button>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2">
           {statuses.map(status => (
             <button
@@ -290,6 +318,22 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
   const jobTitle = application?.job_title || 'Unknown Job';
   const company = application?.job_company || 'Unknown Company';
   const status = application?.status || 'unknown';
+  const jobUrl = application?.job_url;
+  const applicationMethod = application?.application_method;
+  const applicationNotes = application?.application_notes;
+
+  const getMethodColor = (method?: string) => {
+    switch (method) {
+      case 'form':
+        return '#3b82f6'; // blue
+      case 'email':
+        return '#8b5cf6'; // purple
+      case 'manual':
+        return '#f59e0b'; // amber
+      default:
+        return 'var(--border)';
+    }
+  };
 
   return (
     <div
@@ -303,15 +347,28 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
       <div className="flex items-start justify-between gap-4">
         {/* Left: Job Info */}
         <div className="flex-1 min-w-0">
-          <h3
-            className="font-semibold text-sm mb-1 truncate"
-            style={{
-              color: 'var(--text)',
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {jobTitle}
-          </h3>
+          <div className="flex items-start gap-2 mb-1">
+            <h3
+              className="font-semibold text-sm truncate"
+              style={{
+                color: 'var(--text)',
+                letterSpacing: '-0.01em',
+              }}
+            >
+              {jobTitle}
+            </h3>
+            {jobUrl && (
+              <a
+                href={jobUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-500 hover:text-blue-600 flex-shrink-0 mt-0.5"
+                title="View job posting"
+              >
+                ↗
+              </a>
+            )}
+          </div>
           <p
             className="text-xs mb-3"
             style={{ color: 'var(--muted)' }}
@@ -330,6 +387,19 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
               {getStatusLabel(status)}
             </span>
 
+            {/* Application Method Badge */}
+            {applicationMethod && (
+              <span
+                className="text-xs px-2.5 py-1.5 rounded-full font-medium"
+                style={{
+                  color: 'white',
+                  backgroundColor: getMethodColor(applicationMethod),
+                }}
+              >
+                Applied via {applicationMethod}
+              </span>
+            )}
+
             {/* Date */}
             <span
               className="text-xs px-2 py-1 rounded-full border"
@@ -341,6 +411,20 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
               {dateStr}
             </span>
           </div>
+
+          {/* Manual Required Instructions */}
+          {status === 'requires_manual' && applicationNotes && (
+            <div
+              className="mt-3 p-2.5 rounded-lg border text-xs"
+              style={{
+                backgroundColor: '#fef3c7',
+                borderColor: '#fcd34d',
+                color: '#92400e',
+              }}
+            >
+              {applicationNotes}
+            </div>
+          )}
         </div>
       </div>
     </div>

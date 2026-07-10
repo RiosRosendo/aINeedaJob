@@ -138,14 +138,50 @@ Job description:
         return parsed
 
 
+def _is_valid_title(title):
+    """Check if extracted title looks like a real job title (not garbage)."""
+    if not title or not str(title).strip():
+        return False
+
+    title_str = str(title).strip()
+
+    # Check 1: Starts with numbers (e.g., "2024 Job Description")
+    if title_str and title_str[0].isdigit():
+        print(f"[PARSE VALIDATION] Title starts with number: '{title_str}'")
+        return False
+
+    # Check 2: Contains salary keywords
+    if any(keyword in title_str.lower() for keyword in ['salary', 'salaire', 'compensation', '$', '€', '£']):
+        print(f"[PARSE VALIDATION] Title contains salary keyword: '{title_str}'")
+        return False
+
+    # Check 3: Longer than 80 characters (likely not a title)
+    if len(title_str) > 80:
+        print(f"[PARSE VALIDATION] Title too long ({len(title_str)} chars): '{title_str}'")
+        return False
+
+    # Check 4: Contains marketing/generic phrases
+    garbage_phrases = ['join us', 'we are', 'looking for', 'rethink', 'about us', 'welcome to', 'come work with us']
+    if any(phrase in title_str.lower() for phrase in garbage_phrases):
+        print(f"[PARSE VALIDATION] Title contains generic phrase: '{title_str}'")
+        return False
+
+    return True
+
+
 def _validate_fields(parsed, original_title=None):
-    # If parsed title is empty, use original title as fallback
-    if not parsed.get('title') or not str(parsed.get('title')).strip():
-        if original_title and original_title.strip():
-            print(f"[PARSE FALLBACK] Empty parsed title, using original: '{original_title}'")
+    # Validate and potentially fix parsed title
+    parsed_title = parsed.get('title')
+
+    if not _is_valid_title(parsed_title):
+        # Parsed title is invalid, try original title
+        if original_title and _is_valid_title(original_title):
+            print(f"[PARSE FALLBACK] Invalid parsed title, using original: '{original_title}'")
             parsed['title'] = original_title
         else:
-            raise Exception("title is required (both parsed and original missing)")
+            raise Exception(f"title is invalid (parsed: '{parsed_title}', original: '{original_title}')")
+    else:
+        print(f"[PARSE VALIDATION] Title is valid: '{parsed_title}'")
 
     for key in ('required_skills', 'nice_to_have_skills', 'responsibilities'):
         if key not in parsed:

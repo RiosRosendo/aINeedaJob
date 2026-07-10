@@ -257,6 +257,16 @@ export const dismissApplication = async (applicationId: string) => {
   }
 };
 
+export const autoApplyForJob = async (applicationId: string) => {
+  try {
+    const response = await api.post(`/api/applications/${applicationId}/auto-apply`, {});
+    return response.data;
+  } catch (error) {
+    console.error('Failed to auto-apply for job:', error);
+    throw error;
+  }
+};
+
 // World Map
 export const getJobsByCountry = async () => {
   try {

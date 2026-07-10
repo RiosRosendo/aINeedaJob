@@ -8,6 +8,7 @@ from tools.update_application import update_application
 from tools.create_notification import create_notification
 from tools.trigger_agent import trigger_agent
 from tools.tailor_cv import tailor_cv_for_job, get_tailored_cv
+from tools.apply_job import apply_for_job_sync
 from api.models.schemas import ApplicationResponse, ApplicationApprovalRequest
 from api.dependencies import get_user_id
 
@@ -167,6 +168,69 @@ async def dismiss_application(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{application_id}/auto-apply")
+async def auto_apply_for_job(
+    application_id: str,
+    user_id: str = Depends(get_user_id)
+):
+    """
+    Manually trigger autonomous application for an approved job.
+
+    Calls the Application Agent to attempt applying via form or email.
+    Returns the application method and result.
+    """
+    try:
+        print(f"[AUTO_APPLY] Endpoint called for application {application_id}, user {user_id}", flush=True)
+
+        # Verify application exists and user owns it
+        app_result = execute_query(
+            "SELECT id, job_id, status FROM applications WHERE id = %s AND user_id = %s",
+            (application_id, user_id)
+        )
+        if not app_result:
+            raise HTTPException(status_code=404, detail="Application not found")
+
+        app = app_result[0]
+        job_id = app.get("job_id")
+
+        # Get job URL
+        job_result = execute_query(
+            "SELECT url FROM jobs WHERE id = %s AND user_id = %s",
+            (job_id, user_id)
+        )
+        if not job_result or not job_result[0].get('url'):
+            raise HTTPException(status_code=400, detail="Job URL not found")
+
+        job_url = job_result[0].get('url')
+
+        print(f"[AUTO_APPLY] Attempting to apply for job {job_id}, URL: {job_url}", flush=True)
+
+        # Call Application Agent
+        apply_result = apply_for_job_sync(user_id, job_id, application_id, job_url, None)
+
+        print(f"[AUTO_APPLY] Result: {apply_result}", flush=True)
+
+        # Update application status based on result
+        new_status = apply_result.get("status", "requires_manual")
+        execute_query(
+            "UPDATE applications SET status = %s, last_updated = NOW() WHERE id = %s",
+            (new_status, application_id)
+        )
+
+        return {
+            "status": apply_result.get("status"),
+            "method": apply_result.get("method"),
+            "action": apply_result.get("action"),
+            "error": apply_result.get("error")
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[AUTO_APPLY] Error: {type(e).__name__}: {str(e)}", flush=True)
+        raise HTTPException(status_code=500, detail=f"Auto-apply failed: {str(e)}")
 
 
 @router.get("/tailored/{job_id}")

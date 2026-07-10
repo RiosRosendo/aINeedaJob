@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getApplications, getJob, approveApplication, dismissApplication, getTailoredCV, getCVProfile } from '@/lib/api';
+import { getApplications, getJob, approveApplication, dismissApplication, getTailoredCV, getCVProfile, autoApplyForJob } from '@/lib/api';
 import { Application, Job } from '@/lib/types';
 import { generateCVHTML, downloadCVAsHTML } from '@/lib/cvGenerator';
-import { X } from 'lucide-react';
+import { X, ExternalLink } from 'lucide-react';
 
 interface PendingJob {
   application: Application;
@@ -202,6 +202,9 @@ function ApprovalCard({
 }: ApprovalCardProps) {
   const [isApproving, setIsApproving] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
+  const [isAutoApplying, setIsAutoApplying] = useState(false);
+  const [autoApplyResult, setAutoApplyResult] = useState<any>(null);
+  const [autoApplyError, setAutoApplyError] = useState<string | null>(null);
 
   const handleApproveClick = async () => {
     setIsApproving(true);
@@ -218,6 +221,22 @@ function ApprovalCard({
       await onDismiss(application.id);
     } finally {
       setIsDismissing(false);
+    }
+  };
+
+  const handleAutoApplyClick = async () => {
+    setIsAutoApplying(true);
+    setAutoApplyError(null);
+    setAutoApplyResult(null);
+    try {
+      const result = await autoApplyForJob(application.id);
+      setAutoApplyResult(result);
+      console.log('[AUTO_APPLY] Result:', result);
+    } catch (err) {
+      console.error('Auto-apply failed:', err);
+      setAutoApplyError(err instanceof Error ? err.message : 'Auto-apply failed. Please try again.');
+    } finally {
+      setIsAutoApplying(false);
     }
   };
 
@@ -312,26 +331,39 @@ function ApprovalCard({
         <div className="flex flex-col gap-2">
           <button
             onClick={handleApproveClick}
-            disabled={isApproving || isDismissing}
+            disabled={isApproving || isDismissing || isAutoApplying}
             className="px-4 py-2 rounded-lg font-medium text-sm transition-all"
             style={{
               backgroundColor: '#10b981',
               color: 'white',
-              opacity: isApproving || isDismissing ? 0.6 : 1,
-              cursor: isApproving || isDismissing ? 'not-allowed' : 'pointer',
+              opacity: isApproving || isDismissing || isAutoApplying ? 0.6 : 1,
+              cursor: isApproving || isDismissing || isAutoApplying ? 'not-allowed' : 'pointer',
             }}
           >
             {isApproving ? 'Approving...' : 'Approve'}
           </button>
           <button
+            onClick={handleAutoApplyClick}
+            disabled={isApproving || isDismissing || isAutoApplying}
+            className="px-4 py-2 rounded-lg font-medium text-sm transition-all"
+            style={{
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              opacity: isApproving || isDismissing || isAutoApplying ? 0.6 : 1,
+              cursor: isApproving || isDismissing || isAutoApplying ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isAutoApplying ? 'Applying...' : 'Auto-Apply'}
+          </button>
+          <button
             onClick={handleDismissClick}
-            disabled={isApproving || isDismissing}
+            disabled={isApproving || isDismissing || isAutoApplying}
             className="px-4 py-2 rounded-lg font-medium text-sm transition-all"
             style={{
               backgroundColor: 'var(--border)',
               color: 'var(--muted)',
-              opacity: isApproving || isDismissing ? 0.6 : 1,
-              cursor: isApproving || isDismissing ? 'not-allowed' : 'pointer',
+              opacity: isApproving || isDismissing || isAutoApplying ? 0.6 : 1,
+              cursor: isApproving || isDismissing || isAutoApplying ? 'not-allowed' : 'pointer',
             }}
           >
             {isDismissing ? 'Dismissing...' : 'Dismiss'}
@@ -347,6 +379,65 @@ function ApprovalCard({
         >
           {job.description_raw.substring(0, 200)}...
         </p>
+      )}
+
+      {/* Auto-Apply Result */}
+      {autoApplyResult && (
+        <div
+          className="mt-4 p-3 rounded-lg border"
+          style={{
+            backgroundColor: autoApplyResult.status === 'applied' ? '#f0fdf4' : '#fef3c7',
+            borderColor: autoApplyResult.status === 'applied' ? '#d1fae5' : '#fcd34d',
+          }}
+        >
+          <p
+            className="text-sm font-medium mb-1"
+            style={{
+              color: autoApplyResult.status === 'applied' ? '#10b981' : '#d97706',
+            }}
+          >
+            {autoApplyResult.status === 'applied'
+              ? `Applied via ${autoApplyResult.method || 'form'}`
+              : 'Manual application required'}
+          </p>
+          {autoApplyResult.action && (
+            <p
+              className="text-xs"
+              style={{
+                color: autoApplyResult.status === 'applied' ? '#6b7280' : '#92400e',
+              }}
+            >
+              {autoApplyResult.action}
+            </p>
+          )}
+          {autoApplyResult.status !== 'applied' && job.url && (
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 mt-2 text-xs font-medium"
+              style={{
+                color: '#d97706',
+              }}
+            >
+              Open Job Page <ExternalLink size={12} />
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Auto-Apply Error */}
+      {autoApplyError && (
+        <div
+          className="mt-4 p-3 rounded-lg border"
+          style={{
+            backgroundColor: '#fee',
+            borderColor: '#fcc',
+            color: '#c00',
+          }}
+        >
+          <p className="text-xs font-medium">{autoApplyError}</p>
+        </div>
       )}
     </div>
   );
