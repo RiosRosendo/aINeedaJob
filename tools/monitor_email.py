@@ -236,14 +236,14 @@ def _update_application_status(application_id: str, status: str):
     """
     Update application status in database.
 
-    Also updates last_updated timestamp.
+    Also updates updated_at timestamp.
     """
     try:
         execute_update(
             """
             UPDATE applications
-            SET status = %s, last_updated = NOW()
-            WHERE application_id = %s
+            SET status = %s, updated_at = NOW()
+            WHERE id = %s
             """,
             (status, application_id)
         )

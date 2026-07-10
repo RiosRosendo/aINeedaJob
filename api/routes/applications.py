@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from datetime import datetime, timedelta
-from tools.db import execute_query
+from tools.db import execute_query, execute_update
 from tools.update_application import update_application
 from tools.create_notification import create_notification
 from tools.trigger_agent import trigger_agent
@@ -214,16 +214,20 @@ async def auto_apply_for_job(
 
         # Update application status based on result
         new_status = apply_result.get("status", "requires_manual")
-        execute_query(
-            "UPDATE applications SET status = %s, last_updated = NOW() WHERE id = %s",
+        execute_update(
+            "UPDATE applications SET status = %s, updated_at = NOW() WHERE id = %s",
             (new_status, application_id)
         )
 
+        # Return result directly from apply_for_job_sync()
         return {
-            "status": apply_result.get("status"),
-            "method": apply_result.get("method"),
-            "action": apply_result.get("action"),
-            "error": apply_result.get("error")
+            "status": "success",
+            "result": {
+                "status": apply_result.get("status"),
+                "method": apply_result.get("method"),
+                "action": apply_result.get("action"),
+                "error": apply_result.get("error")
+            }
         }
 
     except HTTPException:

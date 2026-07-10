@@ -7,6 +7,9 @@ Handles email applications, form submissions, and manual application detection.
 
 import os
 import asyncio
+import concurrent.futures
+import json
+import re
 from typing import Optional, Dict
 from datetime import datetime
 from groq import Groq
@@ -232,6 +235,37 @@ BUTTONS DETECTED:
         return "Unable to extract page content"
 
 
+def _extract_json(text: str) -> Dict:
+    """
+    Extract JSON from text that may contain markdown code blocks or extra text.
+
+    Tries multiple strategies:
+    1. Extract from ```json...``` code blocks
+    2. Extract raw JSON object
+    3. Raise error if no JSON found
+    """
+    if not text:
+        raise ValueError("Empty text provided")
+
+    # Try to find JSON in code blocks first
+    match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError as e:
+            print(f"[APPLY_JOB JSON] Failed to parse JSON from code block: {str(e)}", flush=True)
+
+    # Try to find raw JSON object
+    match = re.search(r'\{.*?\}', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError as e:
+            print(f"[APPLY_JOB JSON] Failed to parse JSON from raw object: {str(e)}", flush=True)
+
+    raise ValueError(f"No valid JSON found in text: {text[:200]}")
+
+
 async def _analyze_application_method(job_url: str, page_content: str, cv_data: dict) -> Optional[Dict]:
     """
     Use LLM to analyze the job page and decide application method.
@@ -270,27 +304,27 @@ RESPOND AS JSON:
   "instructions": "specific details for this method (field IDs for form, email address for email, explanation for manual)"
 }}"""
 
-        response = client.messages.create(
+        response = client.chat.completions.create(
             model=os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
             max_tokens=300
         )
 
-        import json
-        response_text = response.content[0].text.strip()
+        response_text = response.choices[0].message.content.strip()
 
-        # Parse JSON from response
+        # Parse JSON from response (handles code blocks and raw JSON)
         try:
-            result = json.loads(response_text)
+            result = _extract_json(response_text)
             if result.get('method') in ['email', 'form', 'manual']:
                 print(f"[APPLY_JOB ANALYZE] Method: {result['method']}", flush=True)
                 return result
-        except json.JSONDecodeError:
-            print(f"[APPLY_JOB ANALYZE] Failed to parse JSON: {response_text}", flush=True)
+            else:
+                print(f"[APPLY_JOB ANALYZE] Invalid method in response: {result.get('method')}", flush=True)
+                return None
+        except ValueError as e:
+            print(f"[APPLY_JOB ANALYZE] Failed to extract JSON: {str(e)}", flush=True)
             return None
-
-        return None
 
     except Exception as e:
         print(f"[APPLY_JOB ANALYZE] ERROR: {type(e).__name__}: {str(e)}", flush=True)
@@ -377,7 +411,7 @@ def _update_application_status(application_id: str, status: str):
         execute_update(
             """
             UPDATE applications
-            SET status = %s, last_updated = NOW()
+            SET status = %s, updated_at = NOW()
             WHERE id = %s
             """,
             (status, application_id)
@@ -392,21 +426,62 @@ def _log_application_action(user_id: str, application_id: str, method: str, acti
     Log application action to agent_logs table.
     """
     try:
+        # Wrap details in JSON object as required by agent_logs schema
+        details = json.dumps({
+            "method": method,
+            "action": action
+        })
         execute_update(
             """
             INSERT INTO agent_logs (user_id, application_id, agent, status, details)
             VALUES (%s, %s, %s, %s, %s)
             """,
-            (user_id, application_id, "application", "applied", f"Method: {method}. {action}")
+            (user_id, application_id, "application", "applied", details)
         )
         print(f"[APPLY_JOB] Logged action for application {application_id}", flush=True)
     except Exception as e:
         print(f"[APPLY_JOB] Error logging action: {str(e)}", flush=True)
 
 
-# Helper function for sync wrapper (if needed in non-async context)
 def apply_for_job_sync(user_id: str, job_id: str, application_id: str, job_url: str, cv_url: str) -> Dict:
     """
-    Synchronous wrapper for apply_for_job (for use in non-async contexts).
+    Synchronous wrapper that runs Playwright in a thread pool.
+
+    This avoids asyncio.run() conflicts with FastAPI's event loop.
+    Runs Playwright in its own thread with its own event loop.
     """
-    return asyncio.run(apply_for_job(user_id, job_id, application_id, job_url, cv_url))
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_run_playwright_in_thread, user_id, job_id, application_id, job_url, cv_url)
+            return future.result(timeout=120)
+    except concurrent.futures.TimeoutError:
+        return {
+            "application_id": application_id,
+            "status": "requires_manual",
+            "method": "manual",
+            "action": "Application attempt timed out",
+            "error": "Browser automation took too long (>2 minutes)"
+        }
+    except Exception as e:
+        return {
+            "application_id": application_id,
+            "status": "requires_manual",
+            "method": "manual",
+            "action": None,
+            "error": f"Thread pool error: {str(e)}"
+        }
+
+
+def _run_playwright_in_thread(user_id: str, job_id: str, application_id: str, job_url: str, cv_url: str) -> Dict:
+    """
+    Runs Playwright in its own thread with its own event loop.
+
+    This allows Playwright to run independently from FastAPI's async event loop.
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        result = loop.run_until_complete(apply_for_job(user_id, job_id, application_id, job_url, cv_url))
+        return result
+    finally:
+        loop.close()
