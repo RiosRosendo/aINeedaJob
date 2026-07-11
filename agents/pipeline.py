@@ -376,6 +376,11 @@ def processing_node(state: JobState) -> JobState:
 
             elif decision == "review":
                 status = "pending_approval"
+                # Update application status for review tier
+                execute_query(
+                    "UPDATE applications SET status = %s WHERE id = %s",
+                    (status, application_id)
+                )
                 create_notification(user_id, "approval_required",
                                   f"Job matching {score}% needs approval", job_id,
                                   datetime.utcnow() + timedelta(hours=48))
@@ -384,6 +389,11 @@ def processing_node(state: JobState) -> JobState:
 
             else:
                 status = "ignored"
+                # Update application status for ignored tier
+                execute_query(
+                    "UPDATE applications SET status = %s WHERE id = %s",
+                    (status, application_id)
+                )
                 state["ignored_count"] += 1
                 print(f"[DECISION] Job {job_id} → {status} (score: {score}%)")
 
