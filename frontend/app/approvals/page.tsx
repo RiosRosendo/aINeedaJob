@@ -229,9 +229,40 @@ function ApprovalCard({
     setAutoApplyError(null);
     setAutoApplyResult(null);
     try {
-      const result = await autoApplyForJob(application.id);
-      setAutoApplyResult(result);
-      console.log('[AUTO_APPLY] Result:', result);
+      const response = await autoApplyForJob(application.id);
+
+      // Debug logging to understand response structure
+      console.log('[AUTO-APPLY] Raw response type:', typeof response);
+      console.log('[AUTO-APPLY] Response keys:', Object.keys(response || {}));
+      console.log('[AUTO-APPLY] response.result:', response?.result);
+      console.log('[AUTO-APPLY] response.data:', response?.data);
+      console.log('[AUTO-APPLY] Full response:', JSON.stringify(response));
+
+      // autoApplyForJob() returns response.data directly, so response.result is the nested result
+      if (response && response.result) {
+        console.log('[AUTO-APPLY] what_i_tried:', response.result.what_i_tried);
+        console.log('[AUTO-APPLY] why_i_need_help:', response.result.why_i_need_help);
+        console.log('[AUTO-APPLY] status:', response.result.status);
+        console.log('[AUTO-APPLY] method:', response.result.method);
+
+        setAutoApplyResult({
+          status: response.result.status,
+          method: response.result.method,
+          action: response.result.action,
+          what_i_tried: response.result.what_i_tried,
+          why_i_need_help: response.result.why_i_need_help,
+          error: response.result.error
+        });
+        console.log('[AUTO_APPLY] Successfully set autoApplyResult:', {
+          status: response.result.status,
+          method: response.result.method,
+          what_i_tried: response.result.what_i_tried,
+          why_i_need_help: response.result.why_i_need_help
+        });
+      } else {
+        console.error('[AUTO_APPLY] Invalid response structure - no result field', response);
+        setAutoApplyError('Invalid response from server');
+      }
     } catch (err) {
       console.error('Auto-apply failed:', err);
       setAutoApplyError(err instanceof Error ? err.message : 'Auto-apply failed. Please try again.');
@@ -384,44 +415,109 @@ function ApprovalCard({
       {/* Auto-Apply Result */}
       {autoApplyResult && (
         <div
-          className="mt-4 p-3 rounded-lg border"
+          className="mt-4 p-4 rounded-lg border"
           style={{
             backgroundColor: autoApplyResult.status === 'applied' ? '#f0fdf4' : '#fef3c7',
             borderColor: autoApplyResult.status === 'applied' ? '#d1fae5' : '#fcd34d',
           }}
         >
-          <p
-            className="text-sm font-medium mb-1"
-            style={{
-              color: autoApplyResult.status === 'applied' ? '#10b981' : '#d97706',
-            }}
-          >
-            {autoApplyResult.status === 'applied'
-              ? `Applied via ${autoApplyResult.method || 'form'}`
-              : 'Manual application required'}
-          </p>
-          {autoApplyResult.action && (
-            <p
-              className="text-xs"
-              style={{
-                color: autoApplyResult.status === 'applied' ? '#6b7280' : '#92400e',
-              }}
-            >
-              {autoApplyResult.action}
-            </p>
+          {/* Success Case */}
+          {autoApplyResult.status === 'applied' && (
+            <>
+              <p
+                className="text-sm font-medium mb-2"
+                style={{ color: '#10b981' }}
+              >
+                ✓ Applied Successfully
+              </p>
+              <p
+                className="text-xs"
+                style={{ color: '#6b7280' }}
+              >
+                Applied via <strong>{autoApplyResult.method || 'form'}</strong>
+              </p>
+            </>
           )}
-          {autoApplyResult.status !== 'applied' && job.url && (
-            <a
-              href={job.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 mt-2 text-xs font-medium"
-              style={{
-                color: '#d97706',
-              }}
-            >
-              Open Job Page <ExternalLink size={12} />
-            </a>
+
+          {/* Manual Required Case */}
+          {autoApplyResult.status !== 'applied' && (
+            <>
+              <p
+                className="text-sm font-medium mb-3"
+                style={{ color: '#d97706' }}
+              >
+                Manual Action Required
+              </p>
+
+              {/* What the agent tried */}
+              <div className="mb-3 p-3 rounded bg-white/50">
+                <p
+                  className="text-xs font-semibold mb-1"
+                  style={{ color: '#92400e' }}
+                >
+                  What I tried:
+                </p>
+                <p
+                  className="text-xs"
+                  style={{ color: '#78350f' }}
+                >
+                  {autoApplyResult.what_i_tried || 'I attempted to apply for this job'}
+                </p>
+              </div>
+
+              {/* Why it couldn't complete */}
+              <div className="mb-3 p-3 rounded bg-white/50">
+                <p
+                  className="text-xs font-semibold mb-1"
+                  style={{ color: '#92400e' }}
+                >
+                  Why I need your help:
+                </p>
+                <p
+                  className="text-xs"
+                  style={{ color: '#78350f' }}
+                >
+                  {autoApplyResult.why_i_need_help || 'The application requires manual completion'}
+                </p>
+              </div>
+
+              {/* Call to action */}
+              {job.url && (
+                <div className="p-3 rounded bg-white/50">
+                  <p
+                    className="text-xs font-semibold mb-2"
+                    style={{ color: '#92400e' }}
+                  >
+                    What you can do:
+                  </p>
+                  <a
+                    href={job.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium text-white transition-all"
+                    style={{
+                      backgroundColor: '#d97706',
+                    }}
+                    onMouseEnter={(e) => {
+                      const el = e.currentTarget as HTMLAnchorElement;
+                      el.style.backgroundColor = '#b45309';
+                    }}
+                    onMouseLeave={(e) => {
+                      const el = e.currentTarget as HTMLAnchorElement;
+                      el.style.backgroundColor = '#d97706';
+                    }}
+                  >
+                    Open Job Page <ExternalLink size={14} />
+                  </a>
+                  <p
+                    className="text-xs mt-2"
+                    style={{ color: '#92400e' }}
+                  >
+                    Click to apply directly on the company website
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

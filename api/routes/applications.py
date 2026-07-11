@@ -226,6 +226,8 @@ async def auto_apply_for_job(
                 "status": apply_result.get("status"),
                 "method": apply_result.get("method"),
                 "action": apply_result.get("action"),
+                "what_i_tried": apply_result.get("what_i_tried"),
+                "why_i_need_help": apply_result.get("why_i_need_help"),
                 "error": apply_result.get("error")
             }
         }

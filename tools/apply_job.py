@@ -41,6 +41,8 @@ async def apply_for_job(user_id: str, job_id: str, application_id: str, job_url:
         "status": None,
         "method": None,
         "action": None,
+        "what_i_tried": None,
+        "why_i_need_help": None,
         "error": None
     }
 
@@ -161,7 +163,14 @@ async def apply_for_job(user_id: str, job_id: str, application_id: str, job_url:
                         result["error"] = f"Failed to click button: '{button_text}'"
                         result["status"] = "requires_manual"
                         result["method"] = "manual"
-                        result["action"] = button_text
+                        messages = await _generate_user_friendly_message(
+                            f"couldn't click the '{button_text}' button",
+                            "click_button",
+                            f"The button '{button_text}' was not accessible"
+                        )
+                        result["action"] = messages.get("why_i_need_help")
+                        result["what_i_tried"] = messages.get("what_i_tried")
+                        result["why_i_need_help"] = messages.get("why_i_need_help")
                         print(f"[APPLY_JOB] {result['error']}", flush=True)
                         break
 
@@ -178,21 +187,42 @@ async def apply_for_job(user_id: str, job_id: str, application_id: str, job_url:
                         result["method"] = "form"
                         result["status"] = "requires_manual"
                         result["error"] = form_result.get('error', 'Form submission failed')
-                        result["action"] = form_result.get('message', 'Could not auto-fill form')
+                        messages = await _generate_user_friendly_message(
+                            "form submission failed",
+                            "form",
+                            form_result.get('error', '')
+                        )
+                        result["action"] = messages.get("why_i_need_help")
+                        result["what_i_tried"] = messages.get("what_i_tried")
+                        result["why_i_need_help"] = messages.get("why_i_need_help")
                         print(f"[APPLY_JOB] Form submission failed: {result['error']}", flush=True)
                     break  # Form is final state
 
                 elif method == 'email':
                     result["method"] = "email"
                     result["status"] = "requires_manual"  # Will be sent by email agent
-                    result["action"] = f"Found email: {email or instructions}"
+                    messages = await _generate_user_friendly_message(
+                        "email application detected",
+                        "email",
+                        f"Email: {email or instructions}"
+                    )
+                    result["action"] = messages.get("why_i_need_help")
+                    result["what_i_tried"] = messages.get("what_i_tried")
+                    result["why_i_need_help"] = messages.get("why_i_need_help")
                     print(f"[APPLY_JOB] Email application detected: {result['action']}", flush=True)
                     break  # Email is final state
 
                 elif method == 'manual':
                     result["method"] = "manual"
                     result["status"] = "requires_manual"
-                    result["action"] = instructions or "Application requires manual interaction"
+                    messages = await _generate_user_friendly_message(
+                        "application page requires manual interaction",
+                        "manual",
+                        instructions
+                    )
+                    result["action"] = messages.get("why_i_need_help")
+                    result["what_i_tried"] = messages.get("what_i_tried")
+                    result["why_i_need_help"] = messages.get("why_i_need_help")
                     print(f"[APPLY_JOB] Manual application required: {result['action']}", flush=True)
                     break  # Manual is final state
 
@@ -208,7 +238,14 @@ async def apply_for_job(user_id: str, job_id: str, application_id: str, job_url:
                 result["error"] = f"Exceeded maximum redirects ({max_redirects})"
                 result["status"] = "requires_manual"
                 result["method"] = "manual"
-                result["action"] = "Too many redirects - application flow is too complex"
+                messages = await _generate_user_friendly_message(
+                    "too many application page redirects",
+                    "manual",
+                    "The application flow has too many steps"
+                )
+                result["action"] = messages.get("why_i_need_help")
+                result["what_i_tried"] = messages.get("what_i_tried")
+                result["why_i_need_help"] = messages.get("why_i_need_help")
                 print(f"[APPLY_JOB] {result['error']}", flush=True)
 
             await context.close()
@@ -221,6 +258,7 @@ async def apply_for_job(user_id: str, job_id: str, application_id: str, job_url:
         _log_application_action(user_id, application_id, result['method'], result['action'])
 
         print(f"[APPLY_JOB] Application complete: status={result['status']}, method={result['method']}", flush=True)
+        print(f"[APPLY_JOB] Final result: what_i_tried='{result.get('what_i_tried')}', why_i_need_help='{result.get('why_i_need_help')}'", flush=True)
 
         return result
 
@@ -519,6 +557,85 @@ IMPORTANT:
     except Exception as e:
         print(f"[APPLY_JOB ANALYZE] ERROR: {type(e).__name__}: {str(e)}", flush=True)
         return None
+
+
+async def _generate_user_friendly_message(reason: str, method: str, details: str = "") -> Dict:
+    """
+    Generate human-readable messages explaining what the agent tried and why it needs manual help.
+
+    Returns:
+        {
+            "what_i_tried": "one sentence describing what the agent attempted",
+            "why_i_need_help": "friendly explanation of what went wrong"
+        }
+    """
+    try:
+        print(f"[APPLY_JOB MESSAGE] Called with reason='{reason}', method='{method}', details='{details}'", flush=True)
+
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+        prompt = f"""You are a helpful job application assistant. Explain to the user what happened when trying to apply for this job.
+
+WHAT THE AGENT TRIED:
+- Method attempted: {method}
+- Details: {details}
+
+WHAT WENT WRONG:
+- Reason: {reason}
+
+Generate a JSON response with two fields:
+1. "what_i_tried" - ONE sentence describing what you attempted to do (e.g., "I tried to fill out the application form")
+2. "why_i_need_help" - ONE sentence explaining what went wrong in plain language (no technical jargon like "403", "HTTP", "error code")
+
+Be friendly and conversational. Explain it like talking to a friend.
+
+Respond with ONLY the JSON, no markdown, no extra text:
+{{
+  "what_i_tried": "...",
+  "why_i_need_help": "..."
+}}"""
+
+        print(f"[APPLY_JOB MESSAGE] Calling Groq API", flush=True)
+        response = client.chat.completions.create(
+            model=os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=200
+        )
+
+        response_text = response.choices[0].message.content.strip()
+        print(f"[APPLY_JOB MESSAGE] Raw response: '{response_text}'", flush=True)
+
+        # Parse JSON response
+        try:
+            result = _extract_json(response_text)
+            what_i_tried = result.get("what_i_tried", "I attempted to apply for this job").strip()
+            why_i_need_help = result.get("why_i_need_help", "The application requires manual completion").strip()
+
+            print(f"[APPLY_JOB MESSAGE] Parsed what_i_tried: '{what_i_tried}'", flush=True)
+            print(f"[APPLY_JOB MESSAGE] Parsed why_i_need_help: '{why_i_need_help}'", flush=True)
+
+            return {
+                "what_i_tried": what_i_tried,
+                "why_i_need_help": why_i_need_help
+            }
+        except ValueError as e:
+            print(f"[APPLY_JOB MESSAGE] Failed to parse JSON: {str(e)}", flush=True)
+            # Return defaults if JSON parsing fails
+            return {
+                "what_i_tried": "I attempted to apply for this job",
+                "why_i_need_help": "Please complete the application manually"
+            }
+
+    except Exception as e:
+        print(f"[APPLY_JOB MESSAGE] ERROR generating message: {type(e).__name__}: {str(e)}", flush=True)
+        import traceback
+        print(f"[APPLY_JOB MESSAGE] Traceback: {traceback.format_exc()}", flush=True)
+        # Fallback messages
+        return {
+            "what_i_tried": "I attempted to apply for this job",
+            "why_i_need_help": "Please complete the application manually"
+        }
 
 
 async def _fill_and_submit_form(page, cv_data: dict, instructions: str) -> Dict:
