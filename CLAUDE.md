@@ -217,3 +217,33 @@ Every failure is an opportunity to make the system more robust:
 5. Resume with a stronger system
 
 This loop is how aINeedJob improves over time.
+
+---
+
+## Progress Tracking
+
+Always update [PROGRESS.md](PROGRESS.md) and [TODO.md](TODO.md) after completing any task:
+- Move completed features to PROGRESS.md → Completed section
+- Add bugs fixed to PROGRESS.md → Known Bugs Fixed section
+- Update TODO.md priorities and checkboxes
+- Commit changes with the update
+
+This keeps the roadmap in sync with actual system state.
+
+---
+
+## Git Rules
+
+After every significant change, commit automatically:
+- `git add .`
+- `git commit -m "descriptive message"`
+- `git push`
+
+Never appear as a contributor. Use the existing git config (`user.name` and `user.email` from environment or `.git/config`).
+
+Always report what was committed at the end of each response. Example:
+```
+✅ Committed: "Fix database query issue in pipeline - use execute_update() for INSERT/UPDATE"
+```
+
+This keeps the git history clean and actionable.

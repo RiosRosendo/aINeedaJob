@@ -8,7 +8,7 @@ Processes all unprocessed jobs with title filtering to avoid irrelevant results.
 from typing import TypedDict, Literal
 from datetime import datetime, timedelta
 from langgraph.graph import StateGraph, END
-from tools.db import execute_query
+from tools.db import execute_query, execute_update
 from tools.search_adzuna import search_adzuna
 from tools.search_themuse import search_themuse
 from tools.save_jobs import save_jobs
@@ -368,8 +368,8 @@ def processing_node(state: JobState) -> JobState:
                     state["applied_count"] += 1
 
                 # Update application status
-                execute_query(
-                    "UPDATE applications SET status = %s WHERE id = %s",
+                execute_update(
+                    "UPDATE applications SET status = %s, updated_at = NOW() WHERE id = %s",
                     (status, application_id)
                 )
                 print(f"[DECISION] Job {job_id} → {status} (score: {score}%)")
@@ -377,8 +377,8 @@ def processing_node(state: JobState) -> JobState:
             elif decision == "review":
                 status = "pending_approval"
                 # Update application status for review tier
-                execute_query(
-                    "UPDATE applications SET status = %s WHERE id = %s",
+                execute_update(
+                    "UPDATE applications SET status = %s, updated_at = NOW() WHERE id = %s",
                     (status, application_id)
                 )
                 create_notification(user_id, "approval_required",
@@ -390,8 +390,8 @@ def processing_node(state: JobState) -> JobState:
             else:
                 status = "ignored"
                 # Update application status for ignored tier
-                execute_query(
-                    "UPDATE applications SET status = %s WHERE id = %s",
+                execute_update(
+                    "UPDATE applications SET status = %s, updated_at = NOW() WHERE id = %s",
                     (status, application_id)
                 )
                 state["ignored_count"] += 1
