@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Sun, Moon, RotateCw, X } from 'lucide-react';
+import { Sun, Moon, RotateCw, X, RefreshCw } from 'lucide-react';
 import { getUserProfile, getJobsWithStats, getAgentLogs, getPendingApprovalJobs } from '@/lib/api';
 import { Job, UserProfile, DashboardStats } from '@/lib/types';
 import { WorldMap } from '@/components/WorldMap';
@@ -31,6 +31,60 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [weeklySummary, setWeeklySummary] = useState<any>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  const fetchWeeklySummary = async () => {
+    try {
+      setSummaryLoading(true);
+      const response = await fetch('http://localhost:8001/api/summary/weekly', {
+        method: 'GET',
+        headers: {
+          'x-user-id': localStorage.getItem('user_id') || '',
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.summary) {
+        setWeeklySummary(data.summary);
+      }
+    } catch (err) {
+      console.error('Failed to fetch weekly summary:', err);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  const regenerateWeeklySummary = async () => {
+    try {
+      setSummaryLoading(true);
+      const response = await fetch('http://localhost:8001/api/summary/weekly/regenerate', {
+        method: 'POST',
+        headers: {
+          'x-user-id': localStorage.getItem('user_id') || '',
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.summary) {
+        setWeeklySummary(data.summary);
+      }
+    } catch (err) {
+      console.error('Failed to regenerate summary:', err);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -61,6 +115,9 @@ export default function Dashboard() {
         setJobs(pendingJobs);
         setActivityLogs(logs);
         setStats(jobsData.stats);
+
+        // Fetch weekly summary
+        await fetchWeeklySummary();
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
         setError('Failed to load dashboard data. Please try again.');
@@ -226,6 +283,15 @@ export default function Dashboard() {
 
       {/* World Map */}
       <WorldMap />
+
+      {/* Weekly Summary */}
+      {weeklySummary && (
+        <WeeklySummaryCard
+          summary={weeklySummary}
+          isLoading={summaryLoading}
+          onRegenerate={regenerateWeeklySummary}
+        />
+      )}
 
       {/* Agent Activity */}
       <section className="mb-11">
@@ -759,5 +825,130 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
         </div>
       </div>
     </>
+  );
+}
+
+interface WeeklySummaryCardProps {
+  summary: any;
+  isLoading: boolean;
+  onRegenerate: () => void;
+}
+
+function WeeklySummaryCard({ summary, isLoading, onRegenerate }: WeeklySummaryCardProps) {
+  const stats = summary.stats || {};
+  const actionItems = summary.action_items || [];
+  const summaryText = summary.summary_text || '';
+  const createdAt = summary.created_at ? new Date(summary.created_at) : null;
+
+  const getDaysAgo = (date: Date | null) => {
+    if (!date) return 'now';
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return 'today';
+    if (diffDays === 1) return '1 day ago';
+    return `${diffDays} days ago`;
+  };
+
+  return (
+    <section className="mb-11">
+      <div className="flex items-center justify-between mb-5">
+        <h2
+          className="text-xs font-semibold uppercase tracking-wide"
+          style={{ color: 'var(--muted)' }}
+        >
+          Weekly Summary
+        </h2>
+        <button
+          onClick={onRegenerate}
+          disabled={isLoading}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+          style={{
+            backgroundColor: isLoading ? 'var(--border)' : 'var(--accent-bg)',
+            color: isLoading ? 'var(--muted)' : 'var(--accent)',
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+            opacity: isLoading ? 0.6 : 1,
+          }}
+        >
+          <RefreshCw size={12} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
+          Regenerate
+        </button>
+      </div>
+
+      <div
+        className="border rounded-2xl p-6"
+        style={{
+          borderColor: 'var(--border)',
+          backgroundColor: 'var(--card)',
+        }}
+      >
+        {/* Summary Text */}
+        <p
+          className="text-sm leading-relaxed mb-6"
+          style={{ color: 'var(--text)' }}
+        >
+          {summaryText}
+        </p>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-4 gap-4 mb-6 pb-6 border-b" style={{ borderColor: 'var(--border)' }}>
+          <div>
+            <div className="text-xs" style={{ color: 'var(--faint)' }}>Jobs Found</div>
+            <div className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
+              {stats.jobs_found || 0}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs" style={{ color: 'var(--faint)' }}>Applied</div>
+            <div className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
+              {stats.applied || 0}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs" style={{ color: 'var(--faint)' }}>Interviews</div>
+            <div className="text-lg font-semibold" style={{ color: '#f59e0b' }}>
+              {stats.interviews || 0}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs" style={{ color: 'var(--faint)' }}>Pending</div>
+            <div className="text-lg font-semibold" style={{ color: '#3b82f6' }}>
+              {stats.pending_approval || 0}
+            </div>
+          </div>
+        </div>
+
+        {/* Action Items */}
+        {actionItems.length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text)' }}>
+              Action Items
+            </h3>
+            <ul className="space-y-2">
+              {actionItems.map((item, i) => (
+                <li key={i} className="text-xs flex items-start gap-2" style={{ color: 'var(--muted)' }}>
+                  <span style={{ color: 'var(--accent)' }}>•</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Last Updated */}
+        <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-xs" style={{ color: 'var(--faint)' }}>
+            Last updated: {getDaysAgo(createdAt)}
+          </p>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </section>
   );
 }
