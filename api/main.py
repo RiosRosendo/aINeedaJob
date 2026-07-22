@@ -38,7 +38,7 @@ app.add_middleware(
 )
 
 # Import routers
-from api.routes import jobs, applications, users, auth, cv, gmail
+from api.routes import jobs, applications, users, auth, cv, gmail, summary
 
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
@@ -47,6 +47,7 @@ app.include_router(applications.router, prefix="/api/applications", tags=["appli
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(cv.router, prefix="/api/cv", tags=["cv"])
 app.include_router(gmail.router, prefix="/api/gmail", tags=["gmail"])
+app.include_router(summary.router, prefix="/api/summary", tags=["summary"])
 
 # Initialize scheduler (will be started on app startup)
 scheduler = BackgroundScheduler()
@@ -148,6 +149,74 @@ def run_daily_job_search():
 
     except Exception as e:
         print(f"[SCHEDULER] FATAL ERROR: {type(e).__name__}: {str(e)}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        sys.stdout.flush()
+
+
+def run_weekly_summaries():
+    """
+    Generate weekly summaries for all users.
+
+    Runs every Monday at 9:00 AM to create summary reports
+    of each user's job search activity from the past week.
+    """
+    try:
+        from tools.db import execute_query
+        from tools.weekly_summary import generate_weekly_summary
+
+        print("[SCHEDULER] Starting weekly summary generation for all users...", flush=True)
+
+        # Get all active users
+        users_result = execute_query(
+            """
+            SELECT u.id, u.email
+            FROM users u
+            WHERE u.is_active = TRUE
+            ORDER BY u.created_at DESC
+            """,
+            ()
+        )
+
+        if not users_result:
+            print("[SCHEDULER] No active users found for summaries", flush=True)
+            return
+
+        total_users = len(users_result)
+        processed_users = 0
+
+        for user in users_result:
+            user_id = user.get('id')
+            email = user.get('email')
+
+            try:
+                print(f"[SCHEDULER] Generating weekly summary for user {email}", flush=True)
+
+                # Generate weekly summary
+                summary = generate_weekly_summary(user_id)
+
+                processed_users += 1
+                print(f"[SCHEDULER] Weekly summary for {email}: stats={summary.get('stats')}", flush=True)
+
+            except Exception as e:
+                print(
+                    f"[SCHEDULER] ERROR generating summary for user {email} ({user_id}): "
+                    f"{type(e).__name__}: {str(e)}",
+                    flush=True
+                )
+                import traceback
+                print(traceback.format_exc(), flush=True)
+                continue
+
+        print(
+            f"[SCHEDULER] Weekly summary generation complete! "
+            f"Processed {processed_users}/{total_users} users",
+            flush=True
+        )
+        sys.stdout.flush()
+
+    except Exception as e:
+        print(f"[SCHEDULER] FATAL ERROR in weekly summaries: {type(e).__name__}: {str(e)}", flush=True)
         import traceback
         print(traceback.format_exc(), flush=True)
         sys.stdout.flush()
@@ -261,10 +330,21 @@ async def startup_event():
             misfire_grace_time=60
         )
 
+        # Schedule weekly summary generation every Monday at 9:00 AM
+        scheduler.add_job(
+            run_weekly_summaries,
+            trigger=CronTrigger(day_of_week=0, hour=9, minute=0),
+            id='weekly_summaries',
+            name='Weekly Summary Generation',
+            replace_existing=True,
+            misfire_grace_time=60
+        )
+
         scheduler.start()
         print("[SCHEDULER] Background scheduler started successfully", flush=True)
         print("[SCHEDULER] Daily job search scheduled for 8:00 AM every day", flush=True)
         print("[SCHEDULER] Email monitoring scheduled every 6 hours (0, 6, 12, 18 UTC)", flush=True)
+        print("[SCHEDULER] Weekly summaries scheduled for Monday 9:00 AM", flush=True)
 
     except Exception as e:
         print(f"[SCHEDULER] Failed to start scheduler: {type(e).__name__}: {str(e)}", flush=True)

@@ -1,21 +1,35 @@
 # aINeedJob - TODO
 
+## Setup Required
+
+**Before using LinkedIn jobs search**, add to your `.env` file:
+```
+RAPIDAPI_KEY=your_rapidapi_key_here
+```
+
+Get a free API key from https://rapidapi.com/laimoon-laimoon/api/jsearch/
+
+---
+
 ## High Priority
 
 ### Critical Fixes
 - [x] Fix database query errors (execute_query vs execute_update)
-- [ ] Test pipeline end-to-end after database fixes
-- [ ] Verify auto-apply messages display correctly after fixes
+- [x] Test pipeline end-to-end after database fixes
+- [x] Verify auto-apply messages display correctly after fixes
 
 ### V2 Features (Job Sourcing)
-- [ ] LinkedIn API integration (jobs, recruiter outreach)
-- [ ] Jobs in all user preferred countries (Mexico, Japan, UAE, China)
+- [x] LinkedIn jobs integration (via RapidAPI Jsearch)
+- [x] Jobs in all user preferred countries
 - [ ] Indeed API integration
 - [ ] Glassdoor API integration
 - [ ] Work eligibility check (visa/work permit verification)
 - [ ] Salary range parsing and storage
 
 ### V2 Features (Communication)
+- [x] Weekly summary agent (LLM-generated activity reports)
+- [x] Weekly summary API endpoint
+- [x] Weekly summary scheduler (Monday 9am)
 - [ ] Weekly summary email/push notification
 - [ ] Follow-up agent (email after X days without response)
 - [ ] Interview confirmation tracking

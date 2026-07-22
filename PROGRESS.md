@@ -10,6 +10,8 @@
 
 ### Discovery & Scoring
 - [x] Job discovery from Adzuna API (9+ countries)
+- [x] Job discovery from LinkedIn (via RapidAPI Jsearch)
+- [x] Job discovery from The Muse API
 - [x] Job parsing with LLM-based title validation (language-agnostic)
 - [x] Semantic job scoring with Groq LLM
 - [x] Fit score calculation (0-100)
@@ -44,6 +46,7 @@
 - [x] APScheduler integration
 - [x] Daily job discovery (configurable time)
 - [x] 6-hour email monitoring cycle
+- [x] Weekly summary generation (every Monday 9am)
 - [x] Async task execution
 
 ### Dashboard & Analytics
@@ -51,6 +54,10 @@
 - [x] Statistics dashboard (jobs found, applied, interviews, offers)
 - [x] Applications list with status filtering
 - [x] Job details with fit score breakdown
+- [x] Weekly summary agent (natural language activity summaries)
+- [x] Weekly summary endpoint (GET /api/summary/weekly)
+- [x] Weekly summary display on dashboard
+- [x] On-demand summary generation ("Generate now" button)
 
 ### Developer Experience
 - [x] Comprehensive logging throughout pipeline
