@@ -44,10 +44,19 @@ def save_jobs(user_id, jobs):
                 continue
 
             try:
+                # Convert 0 salary values to None to pass database check constraint
+                salary_min = job.get('salary_min')
+                if salary_min == 0:
+                    salary_min = None
+
+                salary_max = job.get('salary_max')
+                if salary_max == 0:
+                    salary_max = None
+
                 params = (str(user_id), job.get('source', ''), job.get('url', ''),
                           job.get('title', ''), job.get('title', ''), job.get('company', ''),
                           job.get('location', ''), job.get('modality', 'unknown'),
-                          job.get('salary_min'), job.get('salary_max'), json.dumps([]),
+                          salary_min, salary_max, json.dumps([]),
                           json.dumps([]), job.get('description_raw', ''), 'discovered')
                 query = """INSERT INTO jobs (user_id, source, url, title_raw, title, company,
                             location, modality, salary_min, salary_max, required_skills,
