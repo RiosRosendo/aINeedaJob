@@ -21,11 +21,8 @@ async def list_applications(user_id: str = Depends(get_user_id), limit: int = 50
     List all applications for user with job details.
 
     Multi-user scoped: returns only applications for this user.
-    Deduplicates by job title + description hash to handle duplicate job listings.
-    Shows only the most recent application per unique job.
+    Each application is returned distinctly, even if multiple jobs share the same title.
     """
-    import hashlib
-
     try:
         # Sort by status first (pending_approval first) to ensure all approvals are visible
         # This prevents pending approvals from being pushed beyond the limit parameter
@@ -47,23 +44,13 @@ async def list_applications(user_id: str = Depends(get_user_id), limit: int = 50
             (user_id,)
         )
 
-        # Deduplicate by title + description hash (handles duplicate job listings)
-        seen_jobs = {}
+        # Return all results without deduplication - each application is distinct
+        # even if the job title appears multiple times (e.g., 2 separate jobs with same title)
         deduped = []
-
         for app in results:
-            job_id = app.get('job_id')
-            title = app.get('job_title', '')
-            desc_preview = app.get('desc_preview', '')
-
-            # Create hash of title + description to identify duplicate jobs
-            job_hash = hashlib.md5((title + desc_preview).encode()).hexdigest()
-
-            if job_hash not in seen_jobs:
-                seen_jobs[job_hash] = True
-                # Remove desc_preview before returning (internal field only)
-                app_clean = {k: v for k, v in app.items() if k != 'desc_preview'}
-                deduped.append(app_clean)
+            # Remove desc_preview before returning (internal field only)
+            app_clean = {k: v for k, v in app.items() if k != 'desc_preview'}
+            deduped.append(app_clean)
 
         return deduped[:limit]
     except Exception as e:
