@@ -15,6 +15,7 @@ from tools.search_jobicy import search_jobicy_jobs
 from tools.search_remotive import search_remotive_jobs
 from tools.save_jobs import save_jobs
 from tools.check_job_active import check_job_still_active
+from tools.check_eligibility import check_work_eligibility
 from tools.parse_job import parse_job
 from tools.update_job import update_job
 from tools.score_job import score_job
@@ -357,6 +358,51 @@ def processing_node(state: JobState) -> JobState:
 
             # Job successfully scored - count as processed
             state["processed_count"] += 1
+
+            # CHECK: Work eligibility for on-site positions
+            print(f"[ELIGIBILITY] Checking work eligibility for job {job_id}")
+            eligibility_result = check_work_eligibility(user_id, job_id)
+
+            # Store eligibility info on job record
+            eligibility_note = {
+                "eligible": eligibility_result.get("eligible"),
+                "confidence": eligibility_result.get("confidence"),
+                "reason": eligibility_result.get("reason"),
+                "visa_required": eligibility_result.get("visa_required"),
+                "visa_type": eligibility_result.get("visa_type"),
+                "recommendation": eligibility_result.get("recommendation")
+            }
+
+            # Update job with eligibility info
+            try:
+                import json
+                execute_update(
+                    "UPDATE jobs SET eligibility_note = %s WHERE id = %s",
+                    (json.dumps(eligibility_note), job_id)
+                )
+            except Exception as e:
+                print(f"[ELIGIBILITY] Warning - could not save eligibility note: {str(e)}", flush=True)
+
+            # Adjust fit score if not eligible or visa required
+            if not eligibility_result.get("eligible"):
+                print(f"[ELIGIBILITY] Job {job_id}: NOT ELIGIBLE - reducing score to 0")
+                fit_score["score"] = 0
+                fit_score["decision"] = "ignore"
+                # Update the saved fit score
+                execute_update(
+                    "UPDATE fit_scores SET score = %s, decision = %s WHERE job_id = %s AND user_id = %s",
+                    (0, "ignore", job_id, user_id)
+                )
+            elif eligibility_result.get("visa_required"):
+                # Reduce score by 20 points if visa is required (adds complexity)
+                original_score = fit_score.get("score", 0)
+                reduced_score = max(0, original_score - 20)
+                print(f"[ELIGIBILITY] Job {job_id}: Visa required - reducing score from {original_score} to {reduced_score}")
+                fit_score["score"] = reduced_score
+                execute_update(
+                    "UPDATE fit_scores SET score = %s WHERE job_id = %s AND user_id = %s",
+                    (reduced_score, job_id, user_id)
+                )
 
             # DECIDE: Route based on score
             decision = fit_score.get("decision", "ignore")

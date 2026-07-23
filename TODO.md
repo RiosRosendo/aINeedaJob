@@ -11,10 +11,10 @@
 - [x] Jobicy API integration (free, remote jobs)
 - [x] Remotive API integration (free, remote jobs)
 - [x] Jobs in all user preferred countries
+- [x] Work eligibility check (visa/work permit verification - LLM-powered)
 - [ ] LinkedIn API integration (official, requires partner access)
 - [ ] Indeed API integration
 - [ ] Glassdoor API integration
-- [ ] Work eligibility check (visa/work permit verification)
 - [ ] Salary range parsing and storage
 
 ### V2 Features (Communication)

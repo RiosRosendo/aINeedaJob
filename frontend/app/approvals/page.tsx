@@ -327,6 +327,7 @@ function ApprovalCard({
             >
               {location}
             </span>
+            <EligibilityBadge job={job} />
           </div>
         </div>
 
@@ -402,10 +403,13 @@ function ApprovalCard({
         </div>
       </div>
 
+      {/* Eligibility Details */}
+      <EligibilityDetails job={job} />
+
       {/* Description snippet */}
       {job.description_raw && (
         <p
-          className="text-sm line-clamp-2"
+          className="text-sm line-clamp-2 mt-4"
           style={{ color: 'var(--faint)' }}
         >
           {job.description_raw.substring(0, 200)}...
@@ -535,6 +539,100 @@ function ApprovalCard({
           <p className="text-xs font-medium">{autoApplyError}</p>
         </div>
       )}
+    </div>
+  );
+}
+
+interface EligibilityBadgeProps {
+  job: Job;
+}
+
+function EligibilityBadge({ job }: EligibilityBadgeProps) {
+  const eligibility = (job as any).eligibility_note;
+
+  if (!eligibility) {
+    return null;
+  }
+
+  const getBadgeColor = () => {
+    if (!eligibility.eligible) {
+      return { bg: '#fee', border: '#fcc', text: '#c00' };
+    }
+    if (eligibility.visa_required) {
+      return { bg: '#fef3c7', border: '#fcd34d', text: '#92400e' };
+    }
+    return { bg: '#f0fdf4', border: '#d1fae5', text: '#10b981' };
+  };
+
+  const colors = getBadgeColor();
+  const label = !eligibility.eligible
+    ? 'Work permit required'
+    : eligibility.visa_required
+    ? 'Visa may be required'
+    : 'No visa required';
+
+  return (
+    <span
+      className="text-xs px-2 py-1 border rounded-full font-medium"
+      style={{
+        backgroundColor: colors.bg,
+        borderColor: colors.border,
+        color: colors.text,
+      }}
+      title={eligibility.reason}
+    >
+      {label}
+    </span>
+  );
+}
+
+function EligibilityDetails({ job }: { job: Job }) {
+  const eligibility = (job as any).eligibility_note;
+
+  if (!eligibility) {
+    return null;
+  }
+
+  const backgroundColor = !eligibility.eligible
+    ? '#fee'
+    : eligibility.visa_required
+    ? '#fef3c7'
+    : '#f0fdf4';
+
+  const borderColor = !eligibility.eligible
+    ? '#fcc'
+    : eligibility.visa_required
+    ? '#fcd34d'
+    : '#d1fae5';
+
+  const textColor = !eligibility.eligible
+    ? '#c00'
+    : eligibility.visa_required
+    ? '#92400e'
+    : '#10b981';
+
+  return (
+    <div
+      className="mt-3 p-3 rounded-lg border text-xs space-y-2"
+      style={{
+        backgroundColor,
+        borderColor,
+      }}
+    >
+      <p style={{ color: textColor, fontWeight: '500' }}>
+        ℹ️ {eligibility.reason}
+      </p>
+      {eligibility.visa_type && (
+        <p style={{ color: textColor }}>
+          <strong>Visa type:</strong> {eligibility.visa_type}
+        </p>
+      )}
+      <p style={{ color: textColor }}>
+        <strong>Recommendation:</strong> {eligibility.recommendation}
+      </p>
+      <p style={{ color: textColor, fontSize: '0.7rem', fontStyle: 'italic' }}>
+        Confidence: {eligibility.confidence}
+      </p>
     </div>
   );
 }

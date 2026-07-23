@@ -35,6 +35,7 @@
 - [x] Up to 3 page redirects to reach application page
 - [x] Form filling with email/name auto-fill
 - [x] Manual vs. automated decision tracking
+- [x] Work eligibility verification (visa/work permit checks)
 
 ### Email & Communication
 - [x] Gmail OAuth2 integration
@@ -65,6 +66,8 @@
 - [x] Dashboard stats exclude jobs older than 30 days
 - [x] Job freshness verification (autonomous weekly URL checks)
 - [x] Dashboard shows only recently verified active jobs
+- [x] Eligibility badge on approvals page (visa/work permit status)
+- [x] Work eligibility details with LLM-generated explanation
 
 ### Developer Experience
 - [x] Comprehensive logging throughout pipeline
