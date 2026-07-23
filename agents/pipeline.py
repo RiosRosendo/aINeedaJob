@@ -203,10 +203,12 @@ def _is_title_relevant(title: str, roles: list) -> bool:
 
     try:
         roles_str = ", ".join(roles)
-        prompt = f"""Is this job title relevant to these target roles?
+        prompt = f"""Is this job title DIRECTLY relevant to robotics, embedded systems, computer vision, AI/ML engineering, or autonomous systems?
 
 Job Title: {title}
 Target Roles: {roles_str}
+
+IMPORTANT: Generic engineering titles (Controls Engineer, Process Engineer, Data Engineer, Quality Engineer, Civil Engineer, Manufacturing Engineer, etc.) should be NO unless they specifically mention robotics, embedded, autonomous, AI, ML, vision, or related terms in the title itself.
 
 Answer only YES or NO."""
 

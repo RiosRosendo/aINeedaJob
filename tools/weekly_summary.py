@@ -110,6 +110,14 @@ def _fetch_weekly_stats(user_id: str, start_date: datetime, end_date: datetime) 
         for app in applications:
             app_stats[app.get('status')] = app.get('count', 0)
 
+        # Total pending approvals (all time, not just this week - matches Approvals page)
+        pending_total = execute_query(
+            """SELECT COUNT(*) as count FROM applications
+               WHERE user_id = %s AND status = 'pending_approval'""",
+            (user_id,)
+        )
+        pending_approval_count = pending_total[0].get('count', 0) if pending_total else 0
+
         # Emails received this week (interview/offer/rejection)
         emails = execute_query(
             """SELECT status, COUNT(*) as count FROM applications
@@ -129,7 +137,7 @@ def _fetch_weekly_stats(user_id: str, start_date: datetime, end_date: datetime) 
             "applied": app_stats.get('applied', 0),
             "interviews": email_stats.get('interview', 0),
             "rejections": email_stats.get('rejected', 0),
-            "pending_approval": app_stats.get('pending_approval', 0)
+            "pending_approval": pending_approval_count
         }
 
         return stats
