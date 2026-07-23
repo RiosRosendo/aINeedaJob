@@ -39,6 +39,7 @@ export default function ProfilePage() {
           target_roles: data.target_roles || [],
           tech_stack: data.tech_stack || [],
           preferred_countries: data.preferred_countries || [],
+          priority_country: data.priority_country || null,
           preferred_modality: data.preferred_modality || null,
           salary_min: data.salary_min || 0,
         });
@@ -548,6 +549,44 @@ export default function ProfilePage() {
               }
             }}
           />
+        </section>
+
+        {/* Priority Country */}
+        <section
+          className="border rounded-lg p-6"
+          style={{
+            borderColor: 'var(--border)',
+            backgroundColor: 'var(--card)',
+          }}
+        >
+          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text)' }}>
+            Priority Country
+          </h2>
+          <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '12px' }}>
+            Select one country to prioritize (must be in your preferred countries list)
+          </p>
+          <select
+            value={formData.priority_country || ''}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                priority_country: e.target.value === '' ? null : e.target.value,
+              })
+            }
+            className="w-full px-4 py-2 border rounded-lg text-sm outline-none"
+            style={{
+              borderColor: 'var(--border)',
+              backgroundColor: 'var(--bg)',
+              color: 'var(--text)',
+            }}
+          >
+            <option value="">None - Search all countries equally</option>
+            {(formData.preferred_countries || []).map((country) => (
+              <option key={country} value={country}>
+                {country}
+              </option>
+            ))}
+          </select>
         </section>
 
         {/* Salary Minimum */}

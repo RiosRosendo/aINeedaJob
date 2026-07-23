@@ -129,7 +129,20 @@ def discovery_node(state: JobState) -> JobState:
                 if country_code:
                     try:
                         print(f"[DISCOVERY] Searching {country_name} ({country_code})")
-                        jobs = search_adzuna(roles, country_code, p.get("salary_min"))
+                        search_roles = roles
+
+                        # For Mexico, also search with Spanish translations
+                        if country_code.lower() == "mx":
+                            spanish_roles = _translate_roles_to_spanish(roles)
+                            print(f"[DISCOVERY] Spanish roles for Mexico: {spanish_roles}")
+                            # Search with both English and Spanish roles
+                            jobs_en = search_adzuna(roles, country_code, p.get("salary_min"))
+                            jobs_es = search_adzuna(spanish_roles, country_code, p.get("salary_min"))
+                            jobs = jobs_en + jobs_es
+                            print(f"[DISCOVERY] Mexico search: English={len(jobs_en)}, Spanish={len(jobs_es)}")
+                        else:
+                            jobs = search_adzuna(roles, country_code, p.get("salary_min"))
+
                         adzuna_jobs.extend(jobs)
                         searched_countries.append(f"{country_name} ({country_code})")
                     except Exception as e:
@@ -192,6 +205,31 @@ def discovery_node(state: JobState) -> JobState:
     except Exception as e:
         state["error"] = f"Discovery failed: {str(e)}"
         return state
+
+
+def _translate_roles_to_spanish(roles: list) -> list:
+    """Translate English job roles to Spanish for Mexico search."""
+    if not roles:
+        return []
+
+    try:
+        roles_str = ", ".join(roles)
+        prompt = f"""Translate these English job roles to Spanish equivalents used in Mexico job boards.
+Return ONLY the Spanish translations as a simple comma-separated list. No explanations.
+
+English roles: {roles_str}
+
+Spanish translations:"""
+
+        response = call_llm(prompt).strip()
+        spanish_roles = [r.strip() for r in response.split(',') if r.strip()]
+        print(f"[TRANSLATION] English roles: {roles}")
+        print(f"[TRANSLATION] Spanish roles: {spanish_roles}")
+        return spanish_roles
+
+    except Exception as e:
+        print(f"[TRANSLATION] Error translating roles: {str(e)}, falling back to English")
+        return roles
 
 
 def _is_title_relevant(title: str, roles: list) -> bool:

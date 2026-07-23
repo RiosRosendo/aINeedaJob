@@ -10,6 +10,7 @@ class UserProfileBase(BaseModel):
     target_roles: List[str] = Field(default=[], description="Target job titles")
     preferred_modality: Optional[str] = Field(default=None, description="remote, hybrid, on-site, or null for any")
     preferred_countries: List[str] = Field(default=[], description="Preferred countries")
+    priority_country: Optional[str] = Field(default=None, description="Priority country for job search (must be in preferred_countries)")
     salary_min: Optional[int] = Field(default=None, description="Minimum annual salary USD")
     tech_stack: List[str] = Field(default=[], description="Technical skills")
     cv_base_url: Optional[str] = None

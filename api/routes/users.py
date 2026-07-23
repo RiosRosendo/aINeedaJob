@@ -113,6 +113,7 @@ async def update_user_profile(
               target_roles = %s,
               preferred_modality = %s,
               preferred_countries = %s,
+              priority_country = %s,
               salary_min = %s,
               tech_stack = %s,
               cv_base_url = %s,
@@ -126,6 +127,7 @@ async def update_user_profile(
             json.dumps(profile.target_roles),
             profile.preferred_modality,
             json.dumps(profile.preferred_countries),
+            profile.priority_country,
             profile.salary_min,
             json.dumps(profile.tech_stack),
             profile.cv_base_url,
@@ -140,14 +142,15 @@ async def update_user_profile(
             # Create new profile if it doesn't exist
             insert_query = """
                 INSERT INTO user_profiles
-                (user_id, target_roles, preferred_modality, preferred_countries, salary_min, tech_stack, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+                (user_id, target_roles, preferred_modality, preferred_countries, priority_country, salary_min, tech_stack, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
             """
             insert_params = (
                 user_id,
                 json.dumps(profile.target_roles),
                 profile.preferred_modality,
                 json.dumps(profile.preferred_countries),
+                profile.priority_country,
                 profile.salary_min,
                 json.dumps(profile.tech_stack)
             )

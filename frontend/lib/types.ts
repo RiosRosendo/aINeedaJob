@@ -5,6 +5,7 @@ export interface UserProfile {
   target_roles: string[];
   preferred_modality: 'remote' | 'hybrid' | 'on-site' | null;
   preferred_countries: string[];
+  priority_country?: string | null;
   salary_min: number;
   tech_stack: string[];
   cv_base_url?: string;
