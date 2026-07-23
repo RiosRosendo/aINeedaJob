@@ -27,6 +27,8 @@ async def list_applications(user_id: str = Depends(get_user_id), limit: int = 50
     import hashlib
 
     try:
+        # Sort by status first (pending_approval first) to ensure all approvals are visible
+        # This prevents pending approvals from being pushed beyond the limit parameter
         results = execute_query(
             """
             SELECT
@@ -39,7 +41,8 @@ async def list_applications(user_id: str = Depends(get_user_id), limit: int = 50
             LEFT JOIN jobs j ON a.job_id = j.id
             LEFT JOIN fit_scores fs ON fs.job_id = a.job_id AND fs.user_id = a.user_id
             WHERE a.user_id = %s
-            ORDER BY a.job_id DESC, a.created_at DESC
+            ORDER BY CASE WHEN a.status = 'pending_approval' THEN 0 ELSE 1 END,
+                     a.created_at DESC
             """,
             (user_id,)
         )
