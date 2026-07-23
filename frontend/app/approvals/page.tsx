@@ -39,10 +39,16 @@ export default function ApprovalsPage() {
       for (const app of pending) {
         try {
           const jobData = await getJob(app.job_id);
-          jobsData.push({
-            application: app,
-            job: jobData.job || jobData,
-          });
+          const job = jobData.job || jobData;
+
+          // Filter: only show jobs with fit_score >= 60
+          const fitScore = (app as any).fit_score || job.fit_score || 0;
+          if (fitScore >= 60) {
+            jobsData.push({
+              application: app,
+              job: job,
+            });
+          }
         } catch (err) {
           console.error(`Failed to fetch job ${app.job_id}:`, err);
         }

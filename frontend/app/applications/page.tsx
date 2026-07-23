@@ -18,6 +18,7 @@ interface ApplicationData {
   job_url?: string;
   application_method?: 'email' | 'form' | 'manual';
   application_notes?: string;
+  fit_score?: number;
 }
 
 export default function ApplicationsPage() {
@@ -119,6 +120,8 @@ export default function ApplicationsPage() {
         return 'Pending Review';
       case 'pending_application':
         return 'Pending Apply';
+      case 'requires_manual':
+        return 'Manual Apply';
       case 'in_review':
         return 'In Review';
       default:
@@ -126,12 +129,31 @@ export default function ApplicationsPage() {
     }
   };
 
+  const extractCompanyFromUrl = (url?: string, company?: string): string => {
+    if (company && company !== 'Unknown Company') return company;
+    if (!url) return 'Unknown Company';
+
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname.replace('www.', '').split('.')[0];
+      return domain.charAt(0).toUpperCase() + domain.slice(1);
+    } catch {
+      return company || 'Unknown Company';
+    }
+  };
+
   // Filter applications
   const filteredApplications = applications.filter(item => {
     const status = item?.application?.status || item?.status;
+    const fitScore = item?.fit_score || (item?.application?.fit_score as any) || 0;
 
     // Hide ignored by default unless showIgnored is true
     if (!showIgnored && status === 'ignored') {
+      return false;
+    }
+
+    // Filter out low-relevance jobs (fit_score < 60)
+    if (fitScore < 60 && status !== 'ignored') {
       return false;
     }
 
@@ -290,6 +312,8 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
         return '#6b7280'; // gray
       case 'pending_approval':
         return '#f59e0b'; // amber
+      case 'requires_manual':
+        return '#f59e0b'; // amber
       default:
         return '#9ca3af'; // neutral gray
     }
@@ -301,10 +325,25 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
         return 'Pending Review';
       case 'pending_application':
         return 'Pending Apply';
+      case 'requires_manual':
+        return 'Manual Apply';
       case 'in_review':
         return 'In Review';
       default:
         return status.charAt(0).toUpperCase() + status.slice(1);
+    }
+  };
+
+  const extractCompanyFromUrl = (url?: string, company?: string): string => {
+    if (company && company !== 'Unknown Company') return company;
+    if (!url) return 'Unknown Company';
+
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname.replace('www.', '').split('.')[0];
+      return domain.charAt(0).toUpperCase() + domain.slice(1);
+    } catch {
+      return company || 'Unknown Company';
     }
   };
 
@@ -316,7 +355,7 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
   });
 
   const jobTitle = application?.job_title || 'Unknown Job';
-  const company = application?.job_company || 'Unknown Company';
+  const company = extractCompanyFromUrl(application?.job_url, application?.job_company);
   const status = application?.status || 'unknown';
   const jobUrl = application?.job_url;
   const applicationMethod = application?.application_method;
@@ -412,14 +451,15 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
             </span>
           </div>
 
-          {/* Manual Required Instructions */}
+          {/* Manual Apply Instructions */}
           {status === 'requires_manual' && applicationNotes && (
             <div
               className="mt-3 p-2.5 rounded-lg border text-xs"
               style={{
-                backgroundColor: '#fef3c7',
+                backgroundColor: '#fffbeb',
                 borderColor: '#fcd34d',
                 color: '#92400e',
+                fontWeight: '500',
               }}
             >
               {applicationNotes}
