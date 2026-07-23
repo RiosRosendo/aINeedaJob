@@ -13,6 +13,7 @@ from tools.search_adzuna import search_adzuna
 from tools.search_themuse import search_themuse
 from tools.search_jobicy import search_jobicy_jobs
 from tools.search_remotive import search_remotive_jobs
+from tools.search_occ import search_occ_for_mexico
 from tools.save_jobs import save_jobs
 from tools.check_job_active import check_job_still_active
 from tools.check_eligibility import check_work_eligibility
@@ -140,11 +141,20 @@ def discovery_node(state: JobState) -> JobState:
                         jobs_local = []
                         if local_roles and local_roles != roles:
                             jobs_local = search_adzuna(local_roles, country_code, p.get("salary_min"))
-                            print(f"[DISCOVERY] {country_name} ({country_code}): English={len(jobs_en)}, Local={len(jobs_local)}")
+                            print(f"[DISCOVERY] {country_name} ({country_code}): Adzuna English={len(jobs_en)}, Adzuna Local={len(jobs_local)}")
                         else:
-                            print(f"[DISCOVERY] {country_name} ({country_code}): English={len(jobs_en)} (no local translation needed)")
+                            print(f"[DISCOVERY] {country_name} ({country_code}): Adzuna English={len(jobs_en)} (no local translation needed)")
 
                         jobs = jobs_en + jobs_local
+
+                        # For Mexico, also search OCC Mundial (Mexico's biggest job board)
+                        jobs_occ = []
+                        if country_code.lower() == "mx":
+                            print(f"[DISCOVERY] Searching OCC Mundial for Mexico (translated roles: {local_roles})")
+                            jobs_occ = search_occ_for_mexico(local_roles if local_roles else roles)
+                            print(f"[DISCOVERY] OCC Mundial found {len(jobs_occ)} jobs")
+                            jobs = jobs + jobs_occ
+                            print(f"[DISCOVERY] {country_name} ({country_code}): Adzuna+OCC total={len(jobs)}")
                         adzuna_jobs.extend(jobs)
                         searched_countries.append(f"{country_name} ({country_code})")
                     except Exception as e:
