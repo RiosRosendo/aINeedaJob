@@ -5,6 +5,49 @@ from tools.db import execute_update
 from tools.logger import log_agent_run
 
 
+def _extract_country_code(location_str):
+    """Extract 2-letter country code from location string using LLM (called once during parsing)."""
+    if not location_str:
+        return None
+
+    location_lower = location_str.lower().strip()
+
+    # Quick check for remote/non-location strings
+    if location_lower in ("remote", "flexible", "hybrid", "on-site", "unknown", "n/a", "not specified", ""):
+        return None
+
+    try:
+        from tools.llm import call_llm
+
+        prompt = f"""Extract the 2-letter country code from this location string.
+
+Location: {location_str}
+
+Rules:
+- Return ONLY the 2-letter ISO country code (e.g., "us", "mx", "de", "jp", "br")
+- Handle any language: English, Spanish, German, Portuguese, French, etc.
+- Recognize country names and city names
+- Examples: "Ciudad de Mexico, MX" → "mx", "Berlin, Germany" → "de"
+- If location is remote/flexible/unknown, return "none"
+
+Country code (2 letters only):"""
+
+        response = call_llm(prompt).strip().lower()
+
+        # Validate it's a 2-letter code or "none"
+        if response == "none":
+            return None
+        elif len(response) == 2 and response.isalpha():
+            return response
+        else:
+            print(f"[UPDATE_JOB] Invalid country code response '{response}' for location '{location_str}', skipping", flush=True)
+            return None
+
+    except Exception as e:
+        print(f"[UPDATE_JOB] Warning - LLM error extracting country for '{location_str}': {str(e)}", flush=True)
+        return None
+
+
 def update_job(job_id, user_id, parsed_fields):
     """Update job with parsed fields. Validates title and modality, sets status='parsed'."""
     try:
@@ -43,6 +86,14 @@ def update_job(job_id, user_id, parsed_fields):
                 print(f"[UPDATE_JOB WARNING] experience_years_min is not numeric: {experience_years_min}, setting to NULL", flush=True)
                 experience_years_min = None
 
+        # Extract country code from location (done once during parsing, not on every request)
+        location = parsed_fields.get('location')
+        country_code = None
+        if location:
+            country_code = _extract_country_code(location)
+            if country_code:
+                print(f"[UPDATE_JOB] Extracted country code '{country_code}' from location '{location}'", flush=True)
+
         # Build params tuple with validated values
         params = (
             parsed_fields.get('title'),
@@ -56,6 +107,7 @@ def update_job(job_id, user_id, parsed_fields):
             parsed_fields.get('experience_level', 'unknown'),
             experience_years_min,
             json.dumps(parsed_fields.get('responsibilities', [])),
+            country_code,
             str(job_id),
             str(user_id)
         )
@@ -63,7 +115,7 @@ def update_job(job_id, user_id, parsed_fields):
         query = """UPDATE jobs SET title=%s, company=%s, location=%s, modality=%s,
                    salary_min=%s, salary_max=%s, required_skills=%s, nice_to_have_skills=%s,
                    experience_level=%s, experience_years_min=%s, responsibilities=%s,
-                   status='parsed' WHERE id=%s AND user_id=%s"""
+                   country_code=%s, status='parsed' WHERE id=%s AND user_id=%s"""
 
         print(f"[UPDATE_JOB] Updating job {job_id} with parsed fields", flush=True)
         rows = execute_update(query, params)
