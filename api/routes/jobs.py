@@ -1,6 +1,8 @@
 """Job search and listing endpoints."""
 
 import sys
+import json
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from tools.db import execute_query
@@ -11,6 +13,17 @@ from agents.pipeline import graph, JobState, processing_node
 router = APIRouter()
 
 print("JOBS ROUTER LOADED", flush=True)
+
+
+def serialize_row(row):
+    """Convert database row (RealDictRow) to JSON-serializable dict, handling datetime objects."""
+    if row is None:
+        return None
+    result = dict(row)
+    for key, value in result.items():
+        if isinstance(value, datetime):
+            result[key] = value.isoformat()
+    return result
 
 @router.get("")
 async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
@@ -56,7 +69,7 @@ async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
         total_count = count_result[0]["total"] if count_result else 0
 
         response = {
-            "jobs": results,
+            "jobs": [serialize_row(job) for job in results],
             "total_count": total_count
         }
         print(f"[API /jobs] Returning response: jobs={len(results)}, total_count={total_count}", flush=True)
@@ -87,7 +100,7 @@ async def get_agent_logs(user_id: str = Depends(get_user_id), limit: int = 5):
             """,
             (user_id, user_id, limit)
         )
-        return results or []
+        return [serialize_row(row) for row in (results or [])]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
