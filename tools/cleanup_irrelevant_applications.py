@@ -1,6 +1,12 @@
 """
 Clean up historical applications that are not relevant to user's profile.
 Uses LLM to evaluate title relevance for each application.
+
+IMPORTANT: Only marks jobs as ignored if BOTH conditions are met:
+1. fit_score < 60 (low relevance score)
+2. Title is not relevant to user's target roles
+
+Never touches jobs with fit_score >= 60 regardless of title relevance.
 """
 
 import sys
@@ -12,9 +18,9 @@ ROSENDO_USER_ID = "14ab2d63-1eef-43d9-b3f4-748566bad8da"
 
 def cleanup_irrelevant_applications(user_id=ROSENDO_USER_ID):
     """
-    Find applications with non-relevant titles and mark them as ignored.
+    Find applications with low fit_score AND non-relevant titles, mark as ignored.
 
-    Returns: {total_checked, marked_ignored, errors}
+    Returns: {total_checked, marked_ignored, errors, skipped_high_score}
     """
     print(f"[CLEANUP] Starting cleanup for user {user_id}")
 
@@ -25,50 +31,60 @@ def cleanup_irrelevant_applications(user_id=ROSENDO_USER_ID):
     )
     if not profile_result:
         print(f"[CLEANUP] User profile not found")
-        return {"total_checked": 0, "marked_ignored": 0, "errors": 1}
+        return {"total_checked": 0, "marked_ignored": 0, "errors": 0, "skipped_high_score": 0}
 
     target_roles = profile_result[0].get("target_roles", [])
     print(f"[CLEANUP] User target roles: {target_roles}")
 
-    # Fetch all applications that might have low relevance
+    # Fetch all applications with their fit scores
     applications = execute_query(
         """
-        SELECT a.id, a.job_id, j.title, j.company, j.id as job_id_check
+        SELECT a.id, a.job_id, a.status, j.title, j.company, fs.score
         FROM applications a
         LEFT JOIN jobs j ON a.job_id = j.id
+        LEFT JOIN fit_scores fs ON a.job_id = fs.job_id AND fs.user_id = a.user_id
         WHERE a.user_id = %s
-        AND a.status IN ('pending_approval', 'pending_application', 'requires_manual')
+        AND a.status IN ('pending_approval', 'pending_application', 'requires_manual', 'ignored')
         AND j.id IS NOT NULL
-        ORDER BY a.created_at DESC
+        ORDER BY fs.score DESC NULLS LAST
         """,
         (user_id,)
     )
 
     if not applications:
         print(f"[CLEANUP] No applications to check")
-        return {"total_checked": 0, "marked_ignored": 0, "errors": 0}
+        return {"total_checked": 0, "marked_ignored": 0, "errors": 0, "skipped_high_score": 0}
 
     print(f"[CLEANUP] Found {len(applications)} applications to evaluate")
 
     total_checked = 0
     marked_ignored = 0
     errors = 0
+    skipped_high_score = 0
 
     for app in applications:
         app_id = app.get("id")
         job_id = app.get("job_id")
         title = app.get("title", "Unknown")
         company = app.get("company", "Unknown")
+        fit_score = app.get("score") or 0
 
-        print(f"\n[CLEANUP] Evaluating: {title} at {company}")
+        print(f"\n[CLEANUP] Evaluating: {title} at {company} (score={fit_score})")
+
+        # SAFETY CHECK: Never touch jobs with fit_score >= 60
+        if fit_score >= 60:
+            print(f"[CLEANUP] SKIPPING (fit_score >= 60): {title}")
+            skipped_high_score += 1
+            continue
+
+        total_checked += 1
 
         try:
-            # Check if title is relevant using LLM
+            # Only evaluate low-score jobs for title relevance
             is_relevant = _is_title_relevant(title, target_roles)
-            total_checked += 1
 
             if not is_relevant:
-                print(f"[CLEANUP] MARKING AS IGNORED: {title}")
+                print(f"[CLEANUP] MARKING AS IGNORED (low score + irrelevant): {title}")
                 # Mark application as ignored
                 execute_update(
                     "UPDATE applications SET status = %s, updated_at = NOW() WHERE id = %s",
@@ -76,7 +92,7 @@ def cleanup_irrelevant_applications(user_id=ROSENDO_USER_ID):
                 )
                 marked_ignored += 1
             else:
-                print(f"[CLEANUP] KEEPING (relevant): {title}")
+                print(f"[CLEANUP] KEEPING (low score but relevant): {title}")
 
         except Exception as e:
             error_msg = str(e)[:100]
@@ -86,7 +102,8 @@ def cleanup_irrelevant_applications(user_id=ROSENDO_USER_ID):
     result = {
         "total_checked": total_checked,
         "marked_ignored": marked_ignored,
-        "errors": errors
+        "errors": errors,
+        "skipped_high_score": skipped_high_score
     }
     print(f"\n[CLEANUP] Summary: {result}")
     return result
