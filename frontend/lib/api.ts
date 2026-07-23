@@ -82,7 +82,7 @@ export const getJobsCount = async () => {
 export const getJobsWithStats = async () => {
   try {
     const [jobsResponse, applicationsResponse] = await Promise.all([
-      api.get<{ jobs: Job[]; total_count: number }>('/api/jobs', { params: { limit: 100 } }),
+      api.get<{ jobs: Job[]; total_count: number; total_discovered: number }>('/api/jobs', { params: { limit: 100 } }),
       api.get<Application[]>('/api/applications', { params: { limit: 100 } }),
     ]);
 
@@ -91,34 +91,40 @@ export const getJobsWithStats = async () => {
     console.log('[DEBUG] Is array?', Array.isArray(jobsResponse.data));
     console.log('[DEBUG] jobsResponse.data.jobs:', jobsResponse.data.jobs);
     console.log('[DEBUG] jobsResponse.data.total_count:', jobsResponse.data.total_count);
+    console.log('[DEBUG] jobsResponse.data.total_discovered:', jobsResponse.data.total_discovered);
 
-    // Handle both old format (array) and new format ({jobs, total_count})
+    // Handle both old format (array) and new format ({jobs, total_count, total_discovered})
     let jobs: Job[];
     let totalJobsCount: number;
+    let totalDiscovered: number;
 
     if (Array.isArray(jobsResponse.data)) {
       // Old format: direct array
       console.log('[DEBUG] Using old array format');
       jobs = jobsResponse.data;
       totalJobsCount = jobs.length;
+      totalDiscovered = jobs.length;
     } else if (jobsResponse.data.jobs) {
-      // New format: {jobs, total_count}
-      console.log('[DEBUG] Using new object format with jobs and total_count');
+      // New format: {jobs, total_count, total_discovered}
+      console.log('[DEBUG] Using new object format with jobs and totals');
       jobs = jobsResponse.data.jobs;
       totalJobsCount = jobsResponse.data.total_count || jobs.length;
+      totalDiscovered = jobsResponse.data.total_discovered || totalJobsCount;
     } else {
       jobs = [];
       totalJobsCount = 0;
+      totalDiscovered = 0;
     }
 
     const applications = applicationsResponse.data || [];
 
     console.log('[DEBUG] Final jobs.length:', jobs.length);
     console.log('[DEBUG] Final totalJobsCount:', totalJobsCount);
+    console.log('[DEBUG] Final totalDiscovered:', totalDiscovered);
 
-    // Calculate stats
+    // Calculate stats (use total_discovered for "Jobs Found" to match Weekly Summary)
     const stats = {
-      jobs_found: totalJobsCount,
+      jobs_found: totalDiscovered,
       applied: applications.filter(a => a.status === 'applied').length,
       interviews: applications.filter(a => a.status === 'interview').length,
       needs_approval: applications.filter(a => a.status === 'pending_approval').length,

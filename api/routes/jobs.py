@@ -31,10 +31,11 @@ async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
     List all jobs for authenticated user with their fit scores.
 
     Multi-user scoped: returns only jobs for this user.
-    Returns both paginated jobs and total count in format:
+    Returns paginated scored jobs and two counts:
     {
         "jobs": [...],
-        "total_count": <number>
+        "total_count": <scored jobs>,
+        "total_discovered": <all jobs discovered, used for dashboard header>
     }
     """
     try:
@@ -68,11 +69,22 @@ async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
         )
         total_count = count_result[0]["total"] if count_result else 0
 
+        # Get total discovered jobs (all jobs, including expired)
+        discovered_result = execute_query(
+            """
+            SELECT COUNT(*) as total FROM jobs
+            WHERE user_id = %s
+            """,
+            (user_id,)
+        )
+        total_discovered = discovered_result[0]["total"] if discovered_result else 0
+
         response = {
             "jobs": [serialize_row(job) for job in results],
-            "total_count": total_count
+            "total_count": total_count,
+            "total_discovered": total_discovered
         }
-        print(f"[API /jobs] Returning response: jobs={len(results)}, total_count={total_count}", flush=True)
+        print(f"[API /jobs] Returning response: jobs={len(results)}, scored={total_count}, discovered={total_discovered}", flush=True)
         return response
     except Exception as e:
         print(f"[API /jobs] ERROR: {str(e)}", flush=True)
