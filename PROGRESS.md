@@ -10,7 +10,8 @@
 
 ### Discovery & Scoring
 - [x] Job discovery from Adzuna API (9+ countries)
-- [x] Job discovery from LinkedIn (via RapidAPI Jsearch)
+- [x] Job discovery from Jobicy API (free, remote jobs)
+- [x] Job discovery from Remotive API (free, remote jobs)
 - [x] Job discovery from The Muse API
 - [x] Job parsing with LLM-based title validation (language-agnostic)
 - [x] Semantic job scoring with Groq LLM

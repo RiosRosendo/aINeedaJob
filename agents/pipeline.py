@@ -11,7 +11,8 @@ from langgraph.graph import StateGraph, END
 from tools.db import execute_query, execute_update
 from tools.search_adzuna import search_adzuna
 from tools.search_themuse import search_themuse
-from tools.search_linkedin import search_linkedin_jobs
+from tools.search_jobicy import search_jobicy_jobs
+from tools.search_remotive import search_remotive_jobs
 from tools.save_jobs import save_jobs
 from tools.parse_job import parse_job
 from tools.update_job import update_job
@@ -138,24 +139,30 @@ def discovery_node(state: JobState) -> JobState:
         # Search Muse (global, no country filtering needed)
         themuse_jobs = search_themuse(roles, p.get("preferred_modality"))
 
-        # Search LinkedIn (global, uses RapidAPI Jsearch)
-        linkedin_jobs = []
+        # Search Jobicy (free API, no auth, remote jobs only)
+        jobicy_jobs = []
         try:
-            # Search LinkedIn for each country preference
-            for country_name in preferred_countries:
-                linkedin_jobs.extend(search_linkedin_jobs(roles, country_name, count=10))
+            jobicy_jobs = search_jobicy_jobs(roles, count=50)
         except Exception as e:
-            print(f"[DISCOVERY] LinkedIn search error: {str(e)}")
-            # Continue with other sources if LinkedIn fails
+            print(f"[DISCOVERY] Jobicy search error: {str(e)}")
+            # Continue with other sources if Jobicy fails
 
-        all_jobs = adzuna_jobs + themuse_jobs + linkedin_jobs
+        # Search Remotive (free API, no auth, remote jobs only)
+        remotive_jobs = []
+        try:
+            remotive_jobs = search_remotive_jobs(roles, limit=50)
+        except Exception as e:
+            print(f"[DISCOVERY] Remotive search error: {str(e)}")
+            # Continue with other sources if Remotive fails
+
+        all_jobs = adzuna_jobs + themuse_jobs + jobicy_jobs + remotive_jobs
 
         save_result = save_jobs(user_id, all_jobs)
         state["raw_jobs"] = all_jobs
         print(f"[DISCOVERY] Searched countries: {searched_countries}")
         if skipped_countries:
             print(f"[DISCOVERY] Skipped countries: {skipped_countries}")
-        print(f"[DISCOVERY] Jobs: Adzuna={len(adzuna_jobs)}, Muse={len(themuse_jobs)}, LinkedIn={len(linkedin_jobs)}, Total={len(all_jobs)}")
+        print(f"[DISCOVERY] Jobs: Adzuna={len(adzuna_jobs)}, Muse={len(themuse_jobs)}, Jobicy={len(jobicy_jobs)}, Remotive={len(remotive_jobs)}, Total={len(all_jobs)}")
         print(f"[DISCOVERY] Save result: {save_result}")
 
         # Get ALL unprocessed jobs for this user (discovered/parsed without fit_score for this user)
