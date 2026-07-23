@@ -278,6 +278,41 @@ def run_job_cleanup():
         sys.stdout.flush()
 
 
+def run_verify_active_jobs():
+    """
+    Verify that job URLs are still active for jobs 7-30 days old.
+
+    Runs every Tuesday at 2:00 AM to check job freshness across all users.
+    Updates last_verified_at for active jobs, marks expired ones.
+    Autonomous background maintenance - no user intervention needed.
+    """
+    try:
+        from tools.verify_active_jobs import verify_active_jobs
+
+        print("[SCHEDULER] Starting autonomous job verification...", flush=True)
+
+        # Run verification for all jobs in the 7-30 day window
+        result = verify_active_jobs()
+
+        total = result.get('total_checked', 0)
+        active = result.get('still_active', 0)
+        expired = result.get('newly_expired', 0)
+        errors = result.get('errors', 0)
+
+        print(
+            f"[SCHEDULER] Weekly job verification complete: "
+            f"checked={total}, active={active}, newly_expired={expired}, errors={errors}",
+            flush=True
+        )
+        sys.stdout.flush()
+
+    except Exception as e:
+        print(f"[SCHEDULER] FATAL ERROR in job verification: {type(e).__name__}: {str(e)}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        sys.stdout.flush()
+
+
 def run_email_monitoring():
     """
     Monitor Gmail inbox for replies from companies where users have applied.
@@ -406,12 +441,23 @@ async def startup_event():
             misfire_grace_time=60
         )
 
+        # Schedule autonomous job verification every Tuesday at 2:00 AM (day_of_week=1)
+        scheduler.add_job(
+            run_verify_active_jobs,
+            trigger=CronTrigger(day_of_week=1, hour=2, minute=0),
+            id='verify_active_jobs',
+            name='Autonomous Job Verification',
+            replace_existing=True,
+            misfire_grace_time=60
+        )
+
         scheduler.start()
         print("[SCHEDULER] Background scheduler started successfully", flush=True)
         print("[SCHEDULER] Daily job search scheduled for 8:00 AM every day", flush=True)
         print("[SCHEDULER] Email monitoring scheduled every 6 hours (0, 6, 12, 18 UTC)", flush=True)
         print("[SCHEDULER] Weekly summaries scheduled for Monday 9:00 AM", flush=True)
         print("[SCHEDULER] Job cleanup scheduled for Sunday 12:00 AM (midnight)", flush=True)
+        print("[SCHEDULER] Autonomous job verification scheduled for Tuesday 2:00 AM", flush=True)
 
     except Exception as e:
         print(f"[SCHEDULER] Failed to start scheduler: {type(e).__name__}: {str(e)}", flush=True)

@@ -40,6 +40,7 @@
 
 ### Data Quality
 - [x] Clean up expired job listings (> 30 days old - automatic weekly cleanup)
+- [x] Verify job freshness (autonomous weekly URL checks, 7-30 day window)
 - [ ] Improve title filter precision (currently too permissive for generic "Engineer" titles)
 - [ ] Remove duplicate jobs from same company in same week
 - [ ] Standardize location parsing (extract city/state/country consistently)

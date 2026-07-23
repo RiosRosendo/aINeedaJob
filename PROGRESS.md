@@ -49,6 +49,7 @@
 - [x] 6-hour email monitoring cycle
 - [x] Weekly summary generation (every Monday 9am)
 - [x] Job expiry cleanup (every Sunday midnight)
+- [x] Autonomous job verification (every Tuesday 2am)
 - [x] Async task execution
 
 ### Dashboard & Analytics
@@ -62,6 +63,8 @@
 - [x] On-demand summary generation ("Generate now" button)
 - [x] Job expiry system (exclude expired jobs from dashboard stats)
 - [x] Dashboard stats exclude jobs older than 30 days
+- [x] Job freshness verification (autonomous weekly URL checks)
+- [x] Dashboard shows only recently verified active jobs
 
 ### Developer Experience
 - [x] Comprehensive logging throughout pipeline
