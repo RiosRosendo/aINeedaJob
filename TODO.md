@@ -21,10 +21,16 @@
 - [x] Weekly summary agent (LLM-generated activity reports)
 - [x] Weekly summary API endpoint
 - [x] Weekly summary scheduler (Monday 9am)
+- [x] Follow-up agent (email after 7+ days without response, Monday 10am)
+- [x] Interview prep agent (generates prep materials, Tuesday 3am)
 - [ ] Weekly summary email/push notification
-- [ ] Follow-up agent (email after X days without response)
 - [ ] Interview confirmation tracking
 - [ ] Offer acceptance/rejection workflow
+
+### V2 Features (Mexico & Priority)
+- [x] Mexico job search with Spanish role translations
+- [x] Priority country field (user selects one preferred country)
+- [x] Priority country UI (dropdown in profile page)
 
 ### Deployment
 - [ ] Deploy to production (Railway/Render/AWS)
@@ -69,7 +75,7 @@
 ## Low Priority
 
 ### Advanced Features
-- [ ] Interview preparation agent (technical + behavioral questions, mock interview)
+- [x] Interview preparation agent (technical + behavioral questions, company research)
 - [ ] Salary benchmarking agent (collect from Glassdoor, Levels.fyi, Stack Overflow)
 - [ ] Career memory agent (track recurring skill gaps, recommend learning paths)
 - [ ] Competitor analysis (track jobs at similar companies)

@@ -13,10 +13,12 @@
 - [x] Job discovery from Jobicy API (free, remote jobs)
 - [x] Job discovery from Remotive API (free, remote jobs)
 - [x] Job discovery from The Muse API
+- [x] Mexico job search with Spanish role translations
 - [x] Job parsing with LLM-based title validation (language-agnostic)
 - [x] Semantic job scoring with Groq LLM
 - [x] Fit score calculation (0-100)
 - [x] Decision routing (Apply / Review / Ignore)
+- [x] Priority country field (highlight preferred country for user)
 
 ### User Approvals & Decisions
 - [x] Human-in-the-loop approval system
@@ -43,6 +45,9 @@
 - [x] Email monitoring agent (6-hour checks)
 - [x] Email classification (Interview/Offer/Rejected/Follow-up)
 - [x] Application status updates from emails
+- [x] Follow-up agent (generates and sends follow-up emails after 7+ days)
+- [x] Interview prep agent (detects interviews and generates prep materials)
+- [x] Interview prep API endpoint (GET /api/applications/{id}/interview-prep)
 
 ### Scheduling & Automation
 - [x] APScheduler integration
@@ -51,6 +56,8 @@
 - [x] Weekly summary generation (every Monday 9am)
 - [x] Job expiry cleanup (every Sunday midnight)
 - [x] Autonomous job verification (every Tuesday 2am)
+- [x] Follow-up agent (Monday 10am) - auto-sends follow-up emails after 7 days
+- [x] Interview prep agent (Tuesday 3am) - generates interview materials
 - [x] Async task execution
 
 ### Dashboard & Analytics
