@@ -13,6 +13,7 @@ export default function JobsPage() {
   const [totalJobs, setTotalJobs] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [priorityCountry, setPriorityCountry] = useState<string | null>(null);
 
   const [decisionFilter, setDecisionFilter] = useState<DecisionFilter>('all');
   const [modalityFilter, setModalityFilter] = useState<ModalityFilter>('all');
@@ -26,6 +27,19 @@ export default function JobsPage() {
       try {
         setLoading(true);
         setError(null);
+
+        // Load user profile to get priority country
+        const profileResponse = await fetch('http://localhost:8001/api/users/profile', {
+          headers: {
+            'x-user-id': localStorage.getItem('user_id') || '',
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+          },
+        });
+        if (profileResponse.ok) {
+          const profile = await profileResponse.json();
+          setPriorityCountry(profile.priority_country || null);
+        }
+
         const [scoredData, allJobsData] = await Promise.all([
           getScoredJobs(1000),
           getJobs(1000),
@@ -86,8 +100,19 @@ export default function JobsPage() {
     return true;
   });
 
-  // Sort filtered jobs by fit_score descending (highest first)
-  const sortedJobs = filteredJobs.sort((a, b) => (b.fit_score || 0) - (a.fit_score || 0));
+  // Sort filtered jobs: priority country first, then by fit_score descending
+  const sortedJobs = filteredJobs.sort((a, b) => {
+    // Check if jobs are from priority country
+    const aInPriorityCountry = priorityCountry && (a.location || '').includes(priorityCountry);
+    const bInPriorityCountry = priorityCountry && (b.location || '').includes(priorityCountry);
+
+    // If only one is from priority country, put it first
+    if (aInPriorityCountry && !bInPriorityCountry) return -1;
+    if (!aInPriorityCountry && bInPriorityCountry) return 1;
+
+    // Otherwise sort by fit_score descending (highest first)
+    return (b.fit_score || 0) - (a.fit_score || 0);
+  });
 
   return (
     <div>

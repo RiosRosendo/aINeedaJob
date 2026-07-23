@@ -25,7 +25,7 @@ async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
     }
     """
     try:
-        # Get paginated jobs (excluding expired, only active verified jobs)
+        # Get paginated jobs (all jobs that have been scored, excluding expired)
         results = execute_query(
             """
             SELECT
@@ -34,32 +34,24 @@ async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
                 j.experience_level, j.description_raw, j.status, j.created_at, j.updated_at,
                 fs.score as fit_score, fs.strengths, fs.gaps
             FROM jobs j
-            LEFT JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
+            INNER JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
             WHERE j.user_id = %s
               AND j.expires_at IS NULL
-              AND (
-                j.last_verified_at > NOW() - INTERVAL '7 days'
-                OR j.created_at > NOW() - INTERVAL '7 days'
-              )
-            ORDER BY j.created_at DESC
+            ORDER BY fs.score DESC, j.created_at DESC
             LIMIT %s
             """,
             (user_id, user_id, limit)
         )
 
-        # Get total count (excluding expired, only showing active verified jobs)
-        # Count jobs that are either recently created OR recently verified as active
+        # Get total count (all scored jobs, excluding expired)
         count_result = execute_query(
             """
-            SELECT COUNT(*) as total FROM jobs
-            WHERE user_id = %s
-              AND expires_at IS NULL
-              AND (
-                last_verified_at > NOW() - INTERVAL '7 days'
-                OR created_at > NOW() - INTERVAL '7 days'
-              )
+            SELECT COUNT(*) as total FROM jobs j
+            INNER JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
+            WHERE j.user_id = %s
+              AND j.expires_at IS NULL
             """,
-            (user_id,)
+            (user_id, user_id)
         )
         total_count = count_result[0]["total"] if count_result else 0
 

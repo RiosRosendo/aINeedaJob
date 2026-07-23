@@ -22,6 +22,7 @@ export default function ApprovalsPage() {
   const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [priorityCountry, setPriorityCountry] = useState<string | null>(null);
   const [tailoringModalData, setTailoringModalData] = useState<{
     job: Job;
     tailored: TailoredCV;
@@ -31,6 +32,18 @@ export default function ApprovalsPage() {
     try {
       setLoading(true);
       setError(null);
+
+      // Load user profile to get priority country
+      const profileResponse = await fetch('http://localhost:8001/api/users/profile', {
+        headers: {
+          'x-user-id': localStorage.getItem('user_id') || '',
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+        },
+      });
+      if (profileResponse.ok) {
+        const profile = await profileResponse.json();
+        setPriorityCountry(profile.priority_country || null);
+      }
 
       const applications = await getApplications(100);
       const pending = applications.filter(app => app.status === 'pending_approval');
@@ -57,8 +70,19 @@ export default function ApprovalsPage() {
       // Deduplicate by job title + description hash (handles duplicate job listings)
       const deduplicatedJobs = deduplicateByJobContent(jobsData);
 
-      // Sort by fit_score descending (highest score first)
-      deduplicatedJobs.sort((a, b) => ((b.application as any).fit_score || 0) - ((a.application as any).fit_score || 0));
+      // Sort by priority country first, then by fit_score descending
+      deduplicatedJobs.sort((a, b) => {
+        // Check if jobs are from priority country
+        const aInPriorityCountry = priorityCountry && (a.job?.location || '').includes(priorityCountry);
+        const bInPriorityCountry = priorityCountry && (b.job?.location || '').includes(priorityCountry);
+
+        // If only one is from priority country, put it first
+        if (aInPriorityCountry && !bInPriorityCountry) return -1;
+        if (!aInPriorityCountry && bInPriorityCountry) return 1;
+
+        // Otherwise sort by fit_score descending (highest score first)
+        return ((b.application as any).fit_score || 0) - ((a.application as any).fit_score || 0);
+      });
 
       setPendingJobs(deduplicatedJobs);
     } catch (err) {

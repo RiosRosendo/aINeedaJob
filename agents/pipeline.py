@@ -129,20 +129,22 @@ def discovery_node(state: JobState) -> JobState:
                 if country_code:
                     try:
                         print(f"[DISCOVERY] Searching {country_name} ({country_code})")
-                        search_roles = roles
 
-                        # For Mexico, also search with Spanish translations
-                        if country_code.lower() == "mx":
-                            spanish_roles = _translate_roles_to_spanish(roles)
-                            print(f"[DISCOVERY] Spanish roles for Mexico: {spanish_roles}")
-                            # Search with both English and Spanish roles
-                            jobs_en = search_adzuna(roles, country_code, p.get("salary_min"))
-                            jobs_es = search_adzuna(spanish_roles, country_code, p.get("salary_min"))
-                            jobs = jobs_en + jobs_es
-                            print(f"[DISCOVERY] Mexico search: English={len(jobs_en)}, Spanish={len(jobs_es)}")
+                        # Search with English roles
+                        jobs_en = search_adzuna(roles, country_code, p.get("salary_min"))
+
+                        # Autonomously detect country language and translate roles
+                        local_roles = _translate_roles_for_country(roles, country_code)
+
+                        # If translations are different from English, also search with local language
+                        jobs_local = []
+                        if local_roles and local_roles != roles:
+                            jobs_local = search_adzuna(local_roles, country_code, p.get("salary_min"))
+                            print(f"[DISCOVERY] {country_name} ({country_code}): English={len(jobs_en)}, Local={len(jobs_local)}")
                         else:
-                            jobs = search_adzuna(roles, country_code, p.get("salary_min"))
+                            print(f"[DISCOVERY] {country_name} ({country_code}): English={len(jobs_en)} (no local translation needed)")
 
+                        jobs = jobs_en + jobs_local
                         adzuna_jobs.extend(jobs)
                         searched_countries.append(f"{country_name} ({country_code})")
                     except Exception as e:
@@ -207,28 +209,37 @@ def discovery_node(state: JobState) -> JobState:
         return state
 
 
-def _translate_roles_to_spanish(roles: list) -> list:
-    """Translate English job roles to Spanish for Mexico search."""
-    if not roles:
+def _translate_roles_for_country(roles: list, country_code: str) -> list:
+    """
+    Translate English job roles to the primary language of a country.
+
+    Works for any country by auto-detecting the primary language and translating roles.
+    No hardcoded translations - uses LLM for all language pairs.
+    """
+    if not roles or not country_code:
         return []
 
     try:
         roles_str = ", ".join(roles)
-        prompt = f"""Translate these English job roles to Spanish equivalents used in Mexico job boards.
-Return ONLY the Spanish translations as a simple comma-separated list. No explanations.
+        prompt = f"""You are a job market expert. Translate these English job roles to the PRIMARY professional language used in job postings for {country_code.upper()}.
+
+First, identify the primary job-search language for {country_code.upper()}, then translate the roles to that language.
 
 English roles: {roles_str}
 
-Spanish translations:"""
+Return ONLY the translated roles as a comma-separated list. No explanations, no language names, no parentheses.
+
+Translated roles:"""
 
         response = call_llm(prompt).strip()
-        spanish_roles = [r.strip() for r in response.split(',') if r.strip()]
-        print(f"[TRANSLATION] English roles: {roles}")
-        print(f"[TRANSLATION] Spanish roles: {spanish_roles}")
-        return spanish_roles
+        translated_roles = [r.strip() for r in response.split(',') if r.strip()]
+
+        print(f"[TRANSLATION] Country: {country_code}, English roles: {roles}")
+        print(f"[TRANSLATION] {country_code.upper()} roles: {translated_roles}")
+        return translated_roles
 
     except Exception as e:
-        print(f"[TRANSLATION] Error translating roles: {str(e)}, falling back to English")
+        print(f"[TRANSLATION] Error translating for {country_code}: {str(e)}, falling back to English")
         return roles
 
 
