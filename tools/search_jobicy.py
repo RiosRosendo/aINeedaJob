@@ -79,22 +79,41 @@ def _parse_jobicy_job(job_data: Dict) -> Dict or None:
     Parse Jobicy job response into standardized format.
 
     Jobicy doesn't provide salary data, so salary fields are None.
+    Extracts title from URL slug since API doesn't provide it directly.
     """
     try:
         job_id = job_data.get("id")
         if not job_id:
             return None
 
-        # Jobicy doesn't provide salary data
+        # Extract title from URL slug (format: /jobs/id-title-slug)
+        url = job_data.get("url", "")
+        title = "Unknown"
+        if url:
+            # Extract the part after the job ID in the URL
+            # Format: /jobs/144246-ai-engineer-latam-remote -> "ai-engineer-latam-remote"
+            try:
+                url_parts = url.split('/')
+                if len(url_parts) > 0:
+                    slug_part = url_parts[-1]  # Get the last part
+                    # Remove the job ID and dash prefix
+                    if '-' in slug_part:
+                        title_slug = slug_part.split('-', 1)[1]  # Skip first dash and ID
+                        # Convert slug to title case
+                        title = ' '.join(word.capitalize() for word in title_slug.split('-'))
+            except:
+                pass
+
+        # Jobicy doesn't provide salary data or company name
         job = {
             "id": str(job_id),
-            "title": job_data.get("title", "Unknown"),
+            "title": title if title != "Unknown" else job_data.get("title", "Unknown"),
             "company": job_data.get("company", "Unknown"),
             "description": job_data.get("description", ""),
             "location": "Remote",  # Jobicy only has remote jobs
             "salary_min": None,
             "salary_max": None,
-            "url": job_data.get("url", ""),
+            "url": url,
             "source": "jobicy",
             "posted_date": job_data.get("posted_at"),
             "job_type": "Remote"
