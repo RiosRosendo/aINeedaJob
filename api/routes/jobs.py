@@ -405,54 +405,112 @@ COUNTRY_COORDS = {
 
 def extract_country_from_location(location_str: str) -> str:
     """
-    Extract country code from location string using LLM.
+    Extract country code from location string.
 
-    Works autonomously for any country format:
-    - "Ciudad de Mexico, MX" → "mx"
-    - "Berlin, Deutschland" → "de"
-    - "São Paulo, Brasil" → "br"
-    - "Remote" → None
+    Supports formats:
+    - "City, Country" (e.g., "New York, US")
+    - "City, State/Province, Country" (e.g., "Toronto, ON, Canada")
+    - "City, County" (assumes US for common US counties)
 
-    Uses Groq LLM to handle any language and location format.
+    Returns lowercase 2-letter country code or None.
     """
     if not location_str:
         return None
 
     location_lower = location_str.lower().strip()
 
-    # Quick check for remote/non-location strings
-    if location_lower in ("remote", "flexible", "hybrid", "on-site", "unknown", "n/a", "not specified", ""):
+    # Quick check for explicit country codes or names
+    if location_lower in ("remote", "flexible", "hybrid", "on-site", "unknown", "n/a", "not specified"):
         return None
 
-    try:
-        from tools.llm import call_llm
+    # Split by comma and analyze
+    parts = [p.strip().lower() for p in location_str.split(",")]
 
-        prompt = f"""Extract the 2-letter country code from this location string.
+    # Try to match against known country names (check each part)
+    country_map = {
+        "united states": "us",
+        "usa": "us",
+        "america": "us",
+        "us": "us",
+        "canada": "ca",
+        "ca": "ca",
+        "mexico": "mx",
+        "mx": "mx",
+        "japan": "jp",
+        "germany": "de",
+        "de": "de",
+        "france": "fr",
+        "fr": "fr",
+        "italy": "it",
+        "it": "it",
+        "uae": "ae",
+        "united arab emirates": "ae",
+        "ae": "ae",
+        "china": "cn",
+        "cn": "cn",
+        "uk": "gb",
+        "united kingdom": "gb",
+        "gb": "gb",
+        "australia": "au",
+        "au": "au",
+        "india": "in",
+        "in": "in",
+        "singapore": "sg",
+        "sg": "sg",
+        "netherlands": "nl",
+        "nl": "nl",
+        "spain": "es",
+        "es": "es",
+    }
 
-Location: {location_str}
+    # Check if any part matches a known country
+    for part in parts:
+        if part in country_map:
+            return country_map[part]
 
-Rules:
-- Return ONLY the 2-letter ISO country code (e.g., "us", "mx", "de", "jp", "br")
-- Handle any language: English, Spanish, German, Portuguese, French, etc.
-- Recognize country names and city names
-- Examples: "Ciudad de Mexico, MX" → "mx", "Berlin, Germany" → "de"
-- If location is remote/flexible/unknown, return "none"
+    # US state/territory abbreviations (indicates US location)
+    us_states = {
+        "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut",
+        "delaware", "florida", "georgia", "hawaii", "idaho", "illinois", "indiana", "iowa",
+        "kansas", "kentucky", "louisiana", "maine", "maryland", "massachusetts", "michigan",
+        "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada",
+        "new hampshire", "new jersey", "new mexico", "new york", "north carolina", "north dakota",
+        "ohio", "oklahoma", "oregon", "pennsylvania", "rhode island", "south carolina", "south dakota",
+        "tennessee", "texas", "utah", "vermont", "virginia", "washington", "west virginia",
+        "wisconsin", "wyoming", "district of columbia", "d.c.", "dc",
+        "al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl", "ga", "hi", "id", "il", "in",
+        "ia", "ks", "ky", "la", "me", "md", "ma", "mi", "mn", "ms", "mo", "mt", "ne", "nv",
+        "nh", "nj", "nm", "ny", "nc", "nd", "oh", "ok", "or", "pa", "ri", "sc", "sd", "tn",
+        "tx", "ut", "vt", "va", "wa", "wv", "wi", "wy",
+    }
 
-Country code (2 letters only):"""
+    # Check if any part matches a known US state
+    for part in parts:
+        if part in us_states:
+            return "us"
 
-        response = call_llm(prompt).strip().lower()
+    # US county patterns (contains "county", "co.", "parish", "borough", etc.)
+    # Check for county patterns
+    if "county" in location_lower:
+        return "us"
+    if " co" in location_lower or location_lower.endswith("co"):  # Matches "Co" or " Co"
+        return "us"
+    if any(pattern in location_lower for pattern in ["parish", "borough", "census"]):
+        return "us"
 
-        # Validate it's a 2-letter code or "none"
-        if response == "none":
-            return None
-        elif len(response) == 2 and response.isalpha():
-            return response
-        else:
-            print(f"[COUNTRY_EXTRACT] Invalid response '{response}' for location '{location_str}', skipping")
-            return None
+    # Known major US cities (when in doubt)
+    us_cities = {
+        "new york", "los angeles", "chicago", "houston", "phoenix", "philadelphia", "san antonio",
+        "san diego", "dallas", "san jose", "austin", "jacksonville", "miami", "denver", "boston",
+        "seattle", "detroit", "minneapolis", "kansas city", "san francisco", "atlanta", "austin",
+    }
 
-    except Exception as e:
-        print(f"[COUNTRY_EXTRACT] LLM error for '{location_str}': {str(e)}, skipping")
-        return None
+    # Check first part (usually city name)
+    if parts and parts[0] in us_cities:
+        return "us"
+
+    # Default: if we can't determine, assume None
+    # This prevents incorrect country assignments
+    return None
 
 
