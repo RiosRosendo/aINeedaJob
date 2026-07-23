@@ -139,7 +139,7 @@ Job description:
 
 
 def _is_valid_title(title):
-    """Check if extracted title looks like a real job title (not garbage)."""
+    """Check if extracted title looks like a real job title (not garbage or description)."""
     if not title or not str(title).strip():
         return False
 
@@ -155,12 +155,18 @@ def _is_valid_title(title):
         print(f"[PARSE VALIDATION] Title contains salary keyword: '{title_str}'")
         return False
 
-    # Check 3: Longer than 80 characters (likely not a title)
-    if len(title_str) > 80:
-        print(f"[PARSE VALIDATION] Title too long ({len(title_str)} chars): '{title_str}'")
+    # Check 3: Longer than 70 characters (likely a description, not a title)
+    if len(title_str) > 70:
+        print(f"[PARSE VALIDATION] Title too long ({len(title_str)} chars, max 70): '{title_str}'")
         return False
 
-    # Check 4: Contains marketing/generic phrases
+    # Check 4: Contains organizational structure words (suggests description, not title)
+    org_words = ['team', 'organization', 'department', 'division', 'group']
+    if any(word in title_str.lower() for word in org_words):
+        print(f"[PARSE VALIDATION] Title contains organizational word (likely description): '{title_str}'")
+        return False
+
+    # Check 5: Contains marketing/generic phrases
     garbage_phrases = ['join us', 'we are', 'looking for', 'rethink', 'about us', 'welcome to', 'come work with us']
     if any(phrase in title_str.lower() for phrase in garbage_phrases):
         print(f"[PARSE VALIDATION] Title contains generic phrase: '{title_str}'")
