@@ -512,12 +512,12 @@ async def startup_event():
             misfire_grace_time=60
         )
 
-        # Schedule weekly summary generation every Monday at 9:00 AM
+        # Schedule daily summary generation every day at 9:00 AM
         scheduler.add_job(
             run_weekly_summaries,
-            trigger=CronTrigger(day_of_week=0, hour=9, minute=0),
-            id='weekly_summaries',
-            name='Weekly Summary Generation',
+            trigger=CronTrigger(hour=9, minute=0),
+            id='daily_summaries',
+            name='Daily Summary Generation',
             replace_existing=True,
             misfire_grace_time=60
         )
@@ -566,7 +566,7 @@ async def startup_event():
         print("[SCHEDULER] Background scheduler started successfully", flush=True)
         print("[SCHEDULER] Daily job search scheduled for 8:00 AM every day", flush=True)
         print("[SCHEDULER] Email monitoring scheduled every 6 hours (0, 6, 12, 18 UTC)", flush=True)
-        print("[SCHEDULER] Weekly summaries scheduled for Monday 9:00 AM", flush=True)
+        print("[SCHEDULER] Daily summaries scheduled for 9:00 AM every day", flush=True)
         print("[SCHEDULER] Job cleanup scheduled for Sunday 12:00 AM (midnight)", flush=True)
         print("[SCHEDULER] Autonomous job verification scheduled for Tuesday 2:00 AM", flush=True)
         print("[SCHEDULER] Follow-up agent scheduled for Monday 10:00 AM", flush=True)

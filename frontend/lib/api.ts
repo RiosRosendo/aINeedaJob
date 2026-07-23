@@ -82,7 +82,7 @@ export const getJobsCount = async () => {
 export const getJobsWithStats = async () => {
   try {
     const [jobsResponse, applicationsResponse] = await Promise.all([
-      api.get<{ jobs: Job[]; total_count: number }>('/api/jobs', { params: { limit: 100 } }),
+      api.get<{ jobs: Job[]; total_count: number }>('/api/jobs', { params: { limit: 1000 } }),
       api.get<Application[]>('/api/applications', { params: { limit: 100 } }),
     ]);
 
