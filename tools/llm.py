@@ -18,12 +18,15 @@ Example usage:
 """
 
 import os
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
 
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 GROQ_MODEL = os.getenv('GROQ_MODEL', 'llama-3.1-8b-instant')
+MAX_RETRIES = 3
+RETRY_DELAYS = [2, 4, 8, 16]  # Exponential backoff: 2, 4, 8, 16 seconds
 
 
 def call_llm(prompt, model=None):
@@ -51,18 +54,33 @@ def call_llm(prompt, model=None):
 
 
 def _call_groq(prompt, model):
-    """Call Groq API."""
+    """Call Groq API with exponential backoff retry on rate limits."""
     try:
         from groq import Groq
-
-        client = Groq(api_key=GROQ_API_KEY)
-        message = client.chat.completions.create(
-            model=model,
-            max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return message.choices[0].message.content
     except ImportError:
         raise Exception("groq package not installed. Run: pip install groq")
-    except Exception as e:
-        raise Exception(f"Groq API call failed: {str(e)}")
+
+    client = Groq(api_key=GROQ_API_KEY)
+
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            message = client.chat.completions.create(
+                model=model,
+                max_tokens=2048,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return message.choices[0].message.content
+
+        except Exception as e:
+            error_str = str(e)
+
+            if "429" in error_str or "rate" in error_str.lower():
+                if attempt < MAX_RETRIES:
+                    wait_time = RETRY_DELAYS[attempt] if attempt < len(RETRY_DELAYS) else RETRY_DELAYS[-1]
+                    print(f"[LLM_RETRY] Rate limited, waiting {wait_time}s before retry {attempt + 1}/{MAX_RETRIES}")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    raise Exception(f"Groq rate limit exceeded after {MAX_RETRIES} retries: {error_str}")
+            else:
+                raise Exception(f"Groq API call failed: {error_str}")

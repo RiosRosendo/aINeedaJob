@@ -26,6 +26,9 @@ from tools.trigger_agent import trigger_agent
 from tools.llm import call_llm
 from tools.apply_job import apply_for_job_sync
 import asyncio
+import time
+
+BATCH_DELAY = 0.5  # Seconds to wait between processing each job to avoid rate limits
 
 
 # Country name to Adzuna country code mappings
@@ -208,7 +211,11 @@ def _is_title_relevant(title: str, roles: list) -> bool:
 Job Title: {title}
 Target Roles: {roles_str}
 
-IMPORTANT: Generic engineering titles (Controls Engineer, Process Engineer, Data Engineer, Quality Engineer, Civil Engineer, Manufacturing Engineer, etc.) should be NO unless they specifically mention robotics, embedded, autonomous, AI, ML, vision, or related terms in the title itself.
+STRICT RULES:
+- REJECT generic engineering titles: Controls Engineer, Process Engineer, Manufacturing Engineer, Quality Engineer, Civil Engineer, Mechanical Engineer, Industrial Engineer, Systems Engineer (unless robotics-specific)
+- REJECT titles containing: Controls, Process, Manufacturing, Quality, Civil, Industrial, Facilities, Operations
+- ACCEPT titles containing: Robotics, Embedded, Autonomous, Vision, AI, ML, ROS, Computer Vision, Deep Learning, Neural, Firmware
+- Abbreviations: Sr., Sr, Senior must still meet strict rules (Sr. Controls Engineer = NO, Sr. Robotics Engineer = YES)
 
 Answer only YES or NO."""
 
@@ -483,9 +490,14 @@ def processing_node(state: JobState) -> JobState:
                 state["ignored_count"] += 1
                 print(f"[DECISION] Job {job_id} → {status} (score: {score}%)")
 
+            # Small delay between jobs to avoid rate limiting
+            time.sleep(BATCH_DELAY)
+
         except Exception as e:
             print(f"[PROCESS DEBUG] Job {job_id}: SKIP - unexpected error: {str(e)[:80]}")
             state["ignored_count"] += 1
+            # Still delay even on error
+            time.sleep(BATCH_DELAY)
 
     # Create summary
     state["summary"] = {
