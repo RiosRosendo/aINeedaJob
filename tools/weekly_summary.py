@@ -79,18 +79,22 @@ def generate_weekly_summary(user_id: str) -> dict:
 def _fetch_weekly_stats(user_id: str, start_date: datetime, end_date: datetime) -> dict:
     """Fetch statistics for the week."""
     try:
-        # Jobs discovered this week (excluding expired)
+        # Jobs discovered this week (only active verified jobs)
         jobs_found = execute_query(
             """SELECT COUNT(*) as count FROM jobs
-               WHERE user_id = %s AND created_at >= %s AND created_at <= %s AND expires_at IS NULL""",
+               WHERE user_id = %s AND created_at >= %s AND created_at <= %s
+               AND expires_at IS NULL
+               AND (last_verified_at > NOW() - INTERVAL '7 days' OR created_at > NOW() - INTERVAL '7 days')""",
             (user_id, start_date, end_date)
         )
 
-        # Jobs scored this week (excluding expired)
+        # Jobs scored this week (only active verified jobs)
         jobs_scored = execute_query(
             """SELECT COUNT(*) as count FROM fit_scores
                WHERE user_id = %s AND created_at >= %s AND created_at <= %s
-               AND job_id IN (SELECT id FROM jobs WHERE user_id = %s AND expires_at IS NULL)""",
+               AND job_id IN (SELECT id FROM jobs WHERE user_id = %s
+                 AND expires_at IS NULL
+                 AND (last_verified_at > NOW() - INTERVAL '7 days' OR created_at > NOW() - INTERVAL '7 days'))""",
             (user_id, start_date, end_date, user_id)
         )
 
@@ -143,14 +147,16 @@ def _fetch_weekly_stats(user_id: str, start_date: datetime, end_date: datetime) 
 
 
 def _fetch_top_jobs(user_id: str, start_date: datetime, end_date: datetime) -> list:
-    """Fetch top 3 jobs by score this week."""
+    """Fetch top 3 jobs by score this week (only active verified jobs)."""
     try:
         results = execute_query(
             """SELECT j.title, j.company, fs.score, a.status
                FROM jobs j
                LEFT JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
                LEFT JOIN applications a ON j.id = a.job_id AND a.user_id = %s
-               WHERE j.user_id = %s AND j.created_at >= %s AND j.created_at <= %s AND j.expires_at IS NULL
+               WHERE j.user_id = %s AND j.created_at >= %s AND j.created_at <= %s
+               AND j.expires_at IS NULL
+               AND (j.last_verified_at > NOW() - INTERVAL '7 days' OR j.created_at > NOW() - INTERVAL '7 days')
                ORDER BY fs.score DESC
                LIMIT 3""",
             (user_id, user_id, user_id, start_date, end_date)
@@ -194,21 +200,24 @@ def _generate_llm_summary(user_id: str, stats: dict, top_jobs: list, pending_app
 
         prompt = f"""You are a helpful career coach. Summarize this week's job search activity in a friendly, encouraging tone.
 
-WEEKLY STATISTICS:
-- Jobs discovered: {stats.get('jobs_found', 0)}
-- Jobs scored: {stats.get('jobs_scored', 0)}
+WEEKLY STATISTICS (showing only verified active jobs, excluding expired listings):
+- Active jobs discovered: {stats.get('jobs_found', 0)}
+- Active jobs scored: {stats.get('jobs_scored', 0)}
 - Jobs applied to: {stats.get('applied', 0)}
 - Interviews scheduled: {stats.get('interviews', 0)}
 - Rejections: {stats.get('rejections', 0)}
 - Pending your approval: {stats.get('pending_approval', 0)}
 
+NOTE: The system autonomously verifies job freshness weekly and removes expired listings (> 30 days old or 404 URLs). This keeps your pipeline clean and focused on real opportunities.
+
 TOP JOBS THIS WEEK:
 {_format_top_jobs(top_jobs)}
 
 Write a 2-3 sentence summary that:
-1. Acknowledges the week's activity
+1. Acknowledges the week's activity with verified active jobs
 2. Highlights any wins (applications, interviews, etc.)
-3. Is encouraging and positive
+3. Mentions job verification/cleanup if relevant
+4. Is encouraging and positive
 
 Keep it concise and actionable."""
 
