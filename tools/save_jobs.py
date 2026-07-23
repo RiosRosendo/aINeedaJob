@@ -15,8 +15,17 @@ from tools.db import execute_query, execute_update
 from tools.logger import log_agent_run
 
 
-def save_jobs(user_id, jobs):
-    """Deduplicate and save discovered jobs. Returns {jobs_found, jobs_saved, duplicates_skipped}."""
+def save_jobs(user_id, jobs, search_country=None):
+    """
+    Deduplicate and save discovered jobs with search context.
+
+    Args:
+        user_id: User ID
+        jobs: List of job dicts (can have 'search_country' field from discovery)
+        search_country: Default country code (e.g., 'us', 'ca', 'mx') for jobs without one
+
+    Returns: {jobs_found, jobs_saved, duplicates_skipped}
+    """
     if not jobs:
         return {
             'jobs_found': 0,
@@ -53,15 +62,18 @@ def save_jobs(user_id, jobs):
                 if salary_max == 0:
                     salary_max = None
 
+                # Use job's search_country if available, otherwise use parameter
+                job_search_country = job.get('search_country') or search_country
+
                 params = (str(user_id), job.get('source', ''), job.get('url', ''),
                           job.get('title', ''), job.get('title', ''), job.get('company', ''),
                           job.get('location', ''), job.get('modality', 'unknown'),
                           salary_min, salary_max, json.dumps([]),
-                          json.dumps([]), job.get('description_raw', ''), 'discovered')
+                          json.dumps([]), job.get('description_raw', ''), 'discovered', job_search_country)
                 query = """INSERT INTO jobs (user_id, source, url, title_raw, title, company,
                             location, modality, salary_min, salary_max, required_skills,
-                            nice_to_have_skills, description_raw, status, created_at, updated_at)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())"""
+                            nice_to_have_skills, description_raw, status, search_country, created_at, updated_at)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())"""
                 execute_update(query, params)
                 jobs_saved += 1
                 existing_urls.add(job.get('url'))

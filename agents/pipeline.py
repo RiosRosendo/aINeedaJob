@@ -155,6 +155,11 @@ def discovery_node(state: JobState) -> JobState:
                             print(f"[DISCOVERY] OCC Mundial found {len(jobs_occ)} jobs")
                             jobs = jobs + jobs_occ
                             print(f"[DISCOVERY] {country_name} ({country_code}): Adzuna+OCC total={len(jobs)}")
+
+                        # Tag each job with the country it was discovered from
+                        for job in jobs:
+                            job['search_country'] = country_code.lower()
+
                         adzuna_jobs.extend(jobs)
                         searched_countries.append(f"{country_name} ({country_code})")
                     except Exception as e:
@@ -185,8 +190,11 @@ def discovery_node(state: JobState) -> JobState:
             print(f"[DISCOVERY] Remotive search error: {str(e)}")
             # Continue with other sources if Remotive fails
 
+        # Combine all jobs and save with their search_country context
         all_jobs = adzuna_jobs + themuse_jobs + jobicy_jobs + remotive_jobs
 
+        # save_jobs will use search_country from job objects (set during Adzuna search)
+        # Global jobs (Muse, Jobicy, Remotive) won't have search_country set
         save_result = save_jobs(user_id, all_jobs)
         state["raw_jobs"] = all_jobs
         print(f"[DISCOVERY] Searched countries: {searched_countries}")

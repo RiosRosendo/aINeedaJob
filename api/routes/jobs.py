@@ -121,6 +121,7 @@ async def get_agent_logs(user_id: str = Depends(get_user_id), limit: int = 5):
 async def get_jobs_by_country(user_id: str = Depends(get_user_id)):
     """
     Get jobs grouped by country with coordinates for world map visualization.
+    Prefers search_country (from discovery) but falls back to location extraction for legacy jobs.
 
     Returns list of countries with job counts and coordinates:
     [
@@ -138,50 +139,61 @@ async def get_jobs_by_country(user_id: str = Depends(get_user_id)):
     try:
         print(f"[BY-COUNTRY] Starting for user_id={user_id}", flush=True)
 
-        # Get all jobs for this user with their fit scores (excluding expired, only active verified)
+        # Strategy:
+        # 1. Use search_country if available (accurate, from discovery)
+        # 2. Fall back to location extraction for legacy jobs without search_country
         print(f"[BY-COUNTRY] Querying jobs for user {user_id}", flush=True)
+
+        # Use search_country if available, otherwise extract from location text
+        # This handles both new jobs (with search_country) and legacy jobs (without)
         results = execute_query(
             """
-            SELECT j.id, j.location, fs.score as fit_score
-            FROM jobs j
-            LEFT JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
-            WHERE j.user_id = %s
-              AND j.expires_at IS NULL
-              AND (
-                j.last_verified_at > NOW() - INTERVAL '7 days'
-                OR j.created_at > NOW() - INTERVAL '7 days'
-              )
-            ORDER BY j.created_at DESC
+            WITH country_mapping AS (
+              SELECT id, COALESCE(search_country,
+                CASE
+                  WHEN location ILIKE '%%US%%' OR location ILIKE '%%United States%%' THEN 'us'
+                  WHEN location ILIKE '%%Canada%%' OR location = 'CA' THEN 'ca'
+                  WHEN location ILIKE '%%Mexico%%' OR location = 'MX' THEN 'mx'
+                  WHEN location ILIKE '%%Japan%%' OR location = 'JP' THEN 'jp'
+                  WHEN location ILIKE '%%Italy%%' OR location = 'IT' THEN 'it'
+                  WHEN location ILIKE '%%France%%' OR location = 'FR' THEN 'fr'
+                  WHEN location ILIKE '%%Germany%%' OR location = 'DE' THEN 'de'
+                  WHEN location ILIKE '%%UAE%%' OR location = 'AE' THEN 'ae'
+                  WHEN location ILIKE '%%China%%' OR location = 'CN' THEN 'cn'
+                  ELSE NULL
+                END
+              ) as country_code
+              FROM jobs
+              WHERE user_id = %s AND expires_at IS NULL
+            )
+            SELECT country_code, COUNT(*) as job_count
+            FROM country_mapping
+            WHERE country_code IS NOT NULL
+            GROUP BY country_code
+            ORDER BY job_count DESC
             """,
-            (user_id, user_id)
+            (user_id,)
         )
-        print(f"[BY-COUNTRY] Query returned {len(results) if results else 0} jobs", flush=True)
+        print(f"[BY-COUNTRY] Query returned {len(results) if results else 0} countries", flush=True)
 
-        # Group by country
+        # Map to COUNTRY_COORDS
         country_map = {}
-        for job in results:
-            location = job.get("location")
-            if not location:
-                continue
+        for row in results:
+            country_code = (row.get("country_code") or "").lower()
+            job_count = row.get("job_count", 0)
 
-            country_code = extract_country_from_location(location)
             if not country_code or country_code not in COUNTRY_COORDS:
                 continue
 
-            if country_code not in country_map:
-                country_map[country_code] = {
-                    "country": COUNTRY_COORDS[country_code]["name"],
-                    "country_code": country_code,
-                    "count": 0,
-                    "lat": COUNTRY_COORDS[country_code]["lat"],
-                    "lng": COUNTRY_COORDS[country_code]["lng"],
-                }
+            country_map[country_code] = {
+                "country": COUNTRY_COORDS[country_code]["name"],
+                "country_code": country_code,
+                "count": job_count,
+                "lat": COUNTRY_COORDS[country_code]["lat"],
+                "lng": COUNTRY_COORDS[country_code]["lng"],
+            }
 
-            country_map[country_code]["count"] += 1
-
-        # Sort by count descending
         result_list = sorted(country_map.values(), key=lambda x: x["count"], reverse=True)
-
         print(f"[BY-COUNTRY] Found {len(result_list)} countries with jobs for user {user_id}", flush=True)
         return result_list
 
