@@ -205,9 +205,12 @@ export const getPendingApprovalJobs = async () => {
 
 export const getScoredJobs = async (limit: number = 100) => {
   try {
-    const allJobs = await getJobs(limit);
-    // Return all jobs that have been scored (have any fit_score value, including 0)
-    return allJobs.filter(job => job.fit_score !== undefined);
+    // GET /api/jobs returns only jobs with fit_scores (INNER JOIN on fit_scores)
+    // No additional filtering needed - backend ensures all returned jobs are scored
+    const response = await api.get<{ jobs: Job[]; total_count: number }>('/api/jobs', {
+      params: { limit },
+    });
+    return response.data.jobs || [];
   } catch (error) {
     console.error('Failed to fetch scored jobs:', error);
     throw error;
