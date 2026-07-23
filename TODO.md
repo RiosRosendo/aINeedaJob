@@ -39,7 +39,7 @@
 ## Medium Priority
 
 ### Data Quality
-- [ ] Clean up expired/inactive job listings (> 90 days old)
+- [x] Clean up expired job listings (> 30 days old - automatic weekly cleanup)
 - [ ] Improve title filter precision (currently too permissive for generic "Engineer" titles)
 - [ ] Remove duplicate jobs from same company in same week
 - [ ] Standardize location parsing (extract city/state/country consistently)

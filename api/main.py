@@ -222,6 +222,62 @@ def run_weekly_summaries():
         sys.stdout.flush()
 
 
+def run_job_cleanup():
+    """
+    Mark jobs as expired if they were created more than 30 days ago.
+
+    Runs every Sunday at midnight to clean up stale job listings
+    and prevent wasting API calls on expired jobs.
+    """
+    try:
+        from tools.db import execute_query, execute_update
+        from datetime import datetime, timedelta
+
+        print("[SCHEDULER] Starting job cleanup...", flush=True)
+
+        # Find jobs older than 30 days that haven't been marked as expired
+        cutoff_date = datetime.utcnow() - timedelta(days=30)
+
+        expired_jobs = execute_query(
+            """
+            SELECT id, created_at FROM jobs
+            WHERE created_at < %s AND expires_at IS NULL
+            ORDER BY created_at DESC
+            """,
+            (cutoff_date,)
+        )
+
+        if not expired_jobs:
+            print("[SCHEDULER] No jobs to expire", flush=True)
+            return
+
+        total_jobs = len(expired_jobs)
+        print(f"[SCHEDULER] Found {total_jobs} jobs older than 30 days", flush=True)
+
+        # Mark each job as expired
+        for job in expired_jobs:
+            job_id = job.get('id')
+            created_at = job.get('created_at')
+
+            try:
+                expires_at = created_at + timedelta(days=30)
+                execute_update(
+                    "UPDATE jobs SET expires_at = %s WHERE id = %s",
+                    (expires_at, job_id)
+                )
+            except Exception as e:
+                print(f"[SCHEDULER] Failed to expire job {job_id}: {str(e)}", flush=True)
+
+        print(f"[SCHEDULER] Job cleanup complete: {total_jobs} jobs marked as expired", flush=True)
+        sys.stdout.flush()
+
+    except Exception as e:
+        print(f"[SCHEDULER] FATAL ERROR in job cleanup: {type(e).__name__}: {str(e)}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        sys.stdout.flush()
+
+
 def run_email_monitoring():
     """
     Monitor Gmail inbox for replies from companies where users have applied.
@@ -340,11 +396,22 @@ async def startup_event():
             misfire_grace_time=60
         )
 
+        # Schedule job cleanup every Sunday at midnight (day_of_week=6)
+        scheduler.add_job(
+            run_job_cleanup,
+            trigger=CronTrigger(day_of_week=6, hour=0, minute=0),
+            id='job_cleanup',
+            name='Job Expiry Cleanup',
+            replace_existing=True,
+            misfire_grace_time=60
+        )
+
         scheduler.start()
         print("[SCHEDULER] Background scheduler started successfully", flush=True)
         print("[SCHEDULER] Daily job search scheduled for 8:00 AM every day", flush=True)
         print("[SCHEDULER] Email monitoring scheduled every 6 hours (0, 6, 12, 18 UTC)", flush=True)
         print("[SCHEDULER] Weekly summaries scheduled for Monday 9:00 AM", flush=True)
+        print("[SCHEDULER] Job cleanup scheduled for Sunday 12:00 AM (midnight)", flush=True)
 
     except Exception as e:
         print(f"[SCHEDULER] Failed to start scheduler: {type(e).__name__}: {str(e)}", flush=True)

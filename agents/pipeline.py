@@ -14,6 +14,7 @@ from tools.search_themuse import search_themuse
 from tools.search_jobicy import search_jobicy_jobs
 from tools.search_remotive import search_remotive_jobs
 from tools.save_jobs import save_jobs
+from tools.check_job_active import check_job_still_active
 from tools.parse_job import parse_job
 from tools.update_job import update_job
 from tools.score_job import score_job
@@ -305,6 +306,26 @@ def processing_node(state: JobState) -> JobState:
             if existing_score:
                 print(f"[PROCESS DEBUG] Job {job_id}: SKIP - already scored")
                 continue
+
+            # CHECK: Skip if job is expired (older than 30 days)
+            job_created = job_data.get("created_at")
+            if job_created:
+                from datetime import datetime, timedelta
+                now = datetime.utcnow()
+                job_age_days = (now - job_created).days if hasattr(job_created, 'days') else (now - job_created.replace(tzinfo=None)).days
+                if job_age_days > 30:
+                    print(f"[PROCESS DEBUG] Job {job_id}: SKIP - expired (created {job_age_days} days ago)")
+                    # Mark as expired in database
+                    try:
+                        from datetime import datetime, timedelta
+                        execute_query(
+                            "UPDATE jobs SET expires_at = %s WHERE id = %s",
+                            (job_created + timedelta(days=30), job_id)
+                        )
+                    except:
+                        pass
+                    state["ignored_count"] += 1
+                    continue
 
             # FILTER: Check if title is relevant
             if not _is_title_relevant(title, roles):

@@ -79,18 +79,19 @@ def generate_weekly_summary(user_id: str) -> dict:
 def _fetch_weekly_stats(user_id: str, start_date: datetime, end_date: datetime) -> dict:
     """Fetch statistics for the week."""
     try:
-        # Jobs discovered this week
+        # Jobs discovered this week (excluding expired)
         jobs_found = execute_query(
             """SELECT COUNT(*) as count FROM jobs
-               WHERE user_id = %s AND created_at >= %s AND created_at <= %s""",
+               WHERE user_id = %s AND created_at >= %s AND created_at <= %s AND expires_at IS NULL""",
             (user_id, start_date, end_date)
         )
 
-        # Jobs scored this week
+        # Jobs scored this week (excluding expired)
         jobs_scored = execute_query(
             """SELECT COUNT(*) as count FROM fit_scores
-               WHERE user_id = %s AND created_at >= %s AND created_at <= %s""",
-            (user_id, start_date, end_date)
+               WHERE user_id = %s AND created_at >= %s AND created_at <= %s
+               AND job_id IN (SELECT id FROM jobs WHERE user_id = %s AND expires_at IS NULL)""",
+            (user_id, start_date, end_date, user_id)
         )
 
         # Applications this week
@@ -149,7 +150,7 @@ def _fetch_top_jobs(user_id: str, start_date: datetime, end_date: datetime) -> l
                FROM jobs j
                LEFT JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
                LEFT JOIN applications a ON j.id = a.job_id AND a.user_id = %s
-               WHERE j.user_id = %s AND j.created_at >= %s AND j.created_at <= %s
+               WHERE j.user_id = %s AND j.created_at >= %s AND j.created_at <= %s AND j.expires_at IS NULL
                ORDER BY fs.score DESC
                LIMIT 3""",
             (user_id, user_id, user_id, start_date, end_date)

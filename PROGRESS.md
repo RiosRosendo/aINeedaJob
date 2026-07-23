@@ -48,6 +48,7 @@
 - [x] Daily job discovery (configurable time)
 - [x] 6-hour email monitoring cycle
 - [x] Weekly summary generation (every Monday 9am)
+- [x] Job expiry cleanup (every Sunday midnight)
 - [x] Async task execution
 
 ### Dashboard & Analytics
@@ -59,6 +60,8 @@
 - [x] Weekly summary endpoint (GET /api/summary/weekly)
 - [x] Weekly summary display on dashboard
 - [x] On-demand summary generation ("Generate now" button)
+- [x] Job expiry system (exclude expired jobs from dashboard stats)
+- [x] Dashboard stats exclude jobs older than 30 days
 
 ### Developer Experience
 - [x] Comprehensive logging throughout pipeline

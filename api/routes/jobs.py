@@ -25,7 +25,7 @@ async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
     }
     """
     try:
-        # Get paginated jobs
+        # Get paginated jobs (excluding expired)
         results = execute_query(
             """
             SELECT
@@ -35,16 +35,16 @@ async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
                 fs.score as fit_score, fs.strengths, fs.gaps
             FROM jobs j
             LEFT JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
-            WHERE j.user_id = %s
+            WHERE j.user_id = %s AND j.expires_at IS NULL
             ORDER BY j.created_at DESC
             LIMIT %s
             """,
             (user_id, user_id, limit)
         )
 
-        # Get total count
+        # Get total count (excluding expired)
         count_result = execute_query(
-            "SELECT COUNT(*) as total FROM jobs WHERE user_id = %s",
+            "SELECT COUNT(*) as total FROM jobs WHERE user_id = %s AND expires_at IS NULL",
             (user_id,)
         )
         total_count = count_result[0]["total"] if count_result else 0
@@ -107,14 +107,14 @@ async def get_jobs_by_country(user_id: str = Depends(get_user_id)):
     try:
         print(f"[BY-COUNTRY] Starting for user_id={user_id}", flush=True)
 
-        # Get all jobs for this user with their fit scores
+        # Get all jobs for this user with their fit scores (excluding expired)
         print(f"[BY-COUNTRY] Querying jobs for user {user_id}", flush=True)
         results = execute_query(
             """
             SELECT j.id, j.location, fs.score as fit_score
             FROM jobs j
             LEFT JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
-            WHERE j.user_id = %s
+            WHERE j.user_id = %s AND j.expires_at IS NULL
             ORDER BY j.created_at DESC
             """,
             (user_id, user_id)
@@ -165,7 +165,7 @@ async def get_jobs_by_country_detail(country_code: str, user_id: str = Depends(g
     Returns jobs with title, company, fit_score for the country's job list panel.
     """
     try:
-        # Get all jobs for this country
+        # Get all jobs for this country (excluding expired)
         results = execute_query(
             """
             SELECT j.id, j.title, j.company, j.location, fs.score as fit_score, a.status as app_status
@@ -174,6 +174,7 @@ async def get_jobs_by_country_detail(country_code: str, user_id: str = Depends(g
             LEFT JOIN applications a ON j.id = a.job_id AND a.user_id = %s
             WHERE j.user_id = %s
               AND j.location LIKE %s
+              AND j.expires_at IS NULL
             ORDER BY fs.score DESC NULLS LAST, j.created_at DESC
             LIMIT 20
             """,
