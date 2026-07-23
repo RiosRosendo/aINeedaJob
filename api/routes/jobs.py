@@ -96,7 +96,8 @@ async def get_agent_logs(user_id: str = Depends(get_user_id), limit: int = 5):
     """
     Get recent agent activity logs for the user.
 
-    Returns the last N entries from agent_logs table with fit scores.
+    Returns the last N entries from agent_logs table with fit scores >= 60 only.
+    This filters out low-scoring jobs from the dashboard queue.
     """
     try:
         results = execute_query(
@@ -107,6 +108,7 @@ async def get_agent_logs(user_id: str = Depends(get_user_id), limit: int = 5):
             FROM agent_logs l
             LEFT JOIN fit_scores fs ON l.job_id = fs.job_id AND fs.user_id = %s
             WHERE l.user_id = %s
+              AND (l.agent != 'job_match' OR fs.score IS NULL OR fs.score >= 60)
             ORDER BY l.created_at DESC
             LIMIT %s
             """,
