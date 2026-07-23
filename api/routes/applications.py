@@ -279,3 +279,63 @@ async def get_tailored_cv_endpoint(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{application_id}/interview-prep")
+async def get_interview_prep(
+    application_id: str,
+    user_id: str = Depends(get_user_id)
+):
+    """
+    Get interview preparation materials for an application.
+
+    Returns:
+    - 10 likely interview questions
+    - Key talking points
+    - Company research summary
+    """
+    try:
+        import json
+
+        # Verify user owns this application
+        app_check = execute_query(
+            "SELECT job_id FROM applications WHERE id = %s AND user_id = %s",
+            (application_id, user_id)
+        )
+        if not app_check:
+            raise HTTPException(status_code=404, detail="Application not found")
+
+        # Get interview prep
+        prep_result = execute_query(
+            "SELECT questions, talking_points, company_research, created_at FROM interview_prep WHERE application_id = %s",
+            (application_id,)
+        )
+
+        if not prep_result:
+            raise HTTPException(
+                status_code=404,
+                detail="Interview prep not available yet. Prep materials are generated when interview is confirmed."
+            )
+
+        prep = prep_result[0]
+
+        # Parse JSON fields
+        questions = prep.get("questions", [])
+        talking_points = prep.get("talking_points", [])
+
+        if isinstance(questions, str):
+            questions = json.loads(questions) if questions else []
+        if isinstance(talking_points, str):
+            talking_points = json.loads(talking_points) if talking_points else []
+
+        return {
+            "questions": questions,
+            "talking_points": talking_points,
+            "company_research": prep.get("company_research", ""),
+            "generated_at": prep.get("created_at")
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

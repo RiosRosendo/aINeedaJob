@@ -392,6 +392,97 @@ def run_email_monitoring():
         sys.stdout.flush()
 
 
+def run_follow_up_agent():
+    """
+    Send follow-up emails to companies after 7+ days without response.
+
+    Runs every Monday at 10:00 AM.
+    """
+    try:
+        from tools.follow_up_agent import run_follow_up_agent as follow_up_main
+
+        print("[SCHEDULER] Starting follow-up agent...", flush=True)
+        result = follow_up_main()
+
+        print(
+            f"[SCHEDULER] Follow-up agent complete! "
+            f"Processed: {result.get('total_processed')}, "
+            f"Sent: {result.get('emails_sent')}, "
+            f"Errors: {result.get('errors')}",
+            flush=True
+        )
+        sys.stdout.flush()
+
+    except Exception as e:
+        print(f"[SCHEDULER] FATAL ERROR in follow-up agent: {type(e).__name__}: {str(e)}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        sys.stdout.flush()
+
+
+def run_interview_prep_agent():
+    """
+    Generate interview prep materials for confirmed interviews.
+
+    Scans for applications with status='interview' that don't have prep yet.
+    Runs every Tuesday at 3:00 AM.
+    """
+    try:
+        from tools.db import execute_query
+        from tools.interview_prep_agent import generate_interview_prep
+
+        print("[SCHEDULER] Starting interview prep agent...", flush=True)
+
+        # Find interviews without prep
+        interviews = execute_query(
+            """
+            SELECT DISTINCT a.id, a.job_id, a.user_id
+            FROM applications a
+            LEFT JOIN interview_prep ip ON a.id = ip.application_id
+            WHERE a.status = 'interview' AND ip.id IS NULL
+            ORDER BY a.created_at DESC
+            LIMIT 20
+            """
+        )
+
+        if not interviews:
+            print("[SCHEDULER] No interviews need prep generation", flush=True)
+            return
+
+        print(f"[SCHEDULER] Found {len(interviews)} interviews needing prep", flush=True)
+
+        generated = 0
+        errors = 0
+
+        for app in interviews:
+            try:
+                app_id = app.get("id")
+                job_id = app.get("job_id")
+                user_id = app.get("user_id")
+
+                print(f"[SCHEDULER] Generating prep for interview {app_id}", flush=True)
+                result = generate_interview_prep(user_id, job_id, app_id)
+                generated += 1
+
+            except Exception as e:
+                print(f"[SCHEDULER] Error generating prep: {str(e)}", flush=True)
+                errors += 1
+                continue
+
+        print(
+            f"[SCHEDULER] Interview prep agent complete! "
+            f"Generated: {generated}, Errors: {errors}",
+            flush=True
+        )
+        sys.stdout.flush()
+
+    except Exception as e:
+        print(f"[SCHEDULER] FATAL ERROR in interview prep agent: {type(e).__name__}: {str(e)}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        sys.stdout.flush()
+
+
 @app.on_event("startup")
 async def startup_event():
     """
@@ -451,6 +542,26 @@ async def startup_event():
             misfire_grace_time=60
         )
 
+        # Schedule follow-up agent every Monday at 10:00 AM (day_of_week=0)
+        scheduler.add_job(
+            run_follow_up_agent,
+            trigger=CronTrigger(day_of_week=0, hour=10, minute=0),
+            id='follow_up_agent',
+            name='Follow-up Agent',
+            replace_existing=True,
+            misfire_grace_time=60
+        )
+
+        # Schedule interview prep agent every Tuesday at 3:00 AM (day_of_week=1)
+        scheduler.add_job(
+            run_interview_prep_agent,
+            trigger=CronTrigger(day_of_week=1, hour=3, minute=0),
+            id='interview_prep_agent',
+            name='Interview Prep Agent',
+            replace_existing=True,
+            misfire_grace_time=60
+        )
+
         scheduler.start()
         print("[SCHEDULER] Background scheduler started successfully", flush=True)
         print("[SCHEDULER] Daily job search scheduled for 8:00 AM every day", flush=True)
@@ -458,6 +569,8 @@ async def startup_event():
         print("[SCHEDULER] Weekly summaries scheduled for Monday 9:00 AM", flush=True)
         print("[SCHEDULER] Job cleanup scheduled for Sunday 12:00 AM (midnight)", flush=True)
         print("[SCHEDULER] Autonomous job verification scheduled for Tuesday 2:00 AM", flush=True)
+        print("[SCHEDULER] Follow-up agent scheduled for Monday 10:00 AM", flush=True)
+        print("[SCHEDULER] Interview prep agent scheduled for Tuesday 3:00 AM", flush=True)
 
     except Exception as e:
         print(f"[SCHEDULER] Failed to start scheduler: {type(e).__name__}: {str(e)}", flush=True)
