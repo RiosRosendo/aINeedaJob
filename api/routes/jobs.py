@@ -114,11 +114,10 @@ async def get_jobs_by_country(user_id: str = Depends(get_user_id)):
         print(f"[BY-COUNTRY] Starting for user_id={user_id}", flush=True)
 
         # Get all jobs for this user with their fit scores (excluding expired, only active verified)
-        # Use stored country_code instead of extracting on each request
         print(f"[BY-COUNTRY] Querying jobs for user {user_id}", flush=True)
         results = execute_query(
             """
-            SELECT j.id, j.location, j.country_code, fs.score as fit_score
+            SELECT j.id, j.location, fs.score as fit_score
             FROM jobs j
             LEFT JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
             WHERE j.user_id = %s
@@ -133,10 +132,14 @@ async def get_jobs_by_country(user_id: str = Depends(get_user_id)):
         )
         print(f"[BY-COUNTRY] Query returned {len(results) if results else 0} jobs", flush=True)
 
-        # Group by country using stored country_code
+        # Group by country
         country_map = {}
         for job in results:
-            country_code = job.get("country_code")
+            location = job.get("location")
+            if not location:
+                continue
+
+            country_code = extract_country_from_location(location)
             if not country_code or country_code not in COUNTRY_COORDS:
                 continue
 
