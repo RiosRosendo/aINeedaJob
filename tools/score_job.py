@@ -86,6 +86,12 @@ Job Details:
 Evaluate fit considering:
 - Title/role alignment with target roles
 - Skill match (including semantic understanding: LangGraph = agent orchestration, OpenCV = computer vision, etc.)
+  * Match skills by meaning across languages:
+    - "Traitement d'image" or "Image Processing" = Computer Vision/Image Processing
+    - "Systèmes embarqués" or "Embedded Systems" = same concept in French/English
+    - "Logiciel embarqué" or "Embedded Software" = same concept
+    - "Développeur" or "Developer/Engineer" = same role type
+  * Evaluate skills autonomously based on semantic meaning, not exact text match
 - Experience level fit
 - Salary expectations
 

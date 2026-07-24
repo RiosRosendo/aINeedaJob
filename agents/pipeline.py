@@ -496,6 +496,14 @@ def processing_node(state: JobState) -> JobState:
             decision = fit_score.get("decision", "ignore")
             score = fit_score.get("score", 0)
 
+            # Override decision based on score thresholds (score always determines routing)
+            if score >= 85:
+                decision = "apply"
+            elif score >= 60:
+                decision = "review"
+            else:
+                decision = "ignore"
+
             # Create application record first
             app_result = execute_query(
                 "INSERT INTO applications (job_id, user_id, status) VALUES (%s, %s, %s) RETURNING id",
