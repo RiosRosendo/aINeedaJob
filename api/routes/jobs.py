@@ -95,10 +95,10 @@ async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
 @router.get("/logs")
 async def get_agent_logs(user_id: str = Depends(get_user_id), limit: int = 5):
     """
-    Get recent agent activity logs for the user.
+    Get recent agent activity logs for the user's job queue.
 
-    Returns the last N entries from agent_logs table with fit scores >= 60 only.
-    This filters out low-scoring jobs from the dashboard queue.
+    Returns the last N job_match entries with fit_score >= 60 only.
+    This shows jobs ready for application on the dashboard queue.
     """
     try:
         results = execute_query(
@@ -107,9 +107,10 @@ async def get_agent_logs(user_id: str = Depends(get_user_id), limit: int = 5):
                 l.id, l.agent, l.status, l.details, l.created_at, l.job_id,
                 fs.score as fit_score, fs.decision
             FROM agent_logs l
-            LEFT JOIN fit_scores fs ON l.job_id = fs.job_id AND fs.user_id = %s
+            INNER JOIN fit_scores fs ON l.job_id = fs.job_id AND fs.user_id = %s
             WHERE l.user_id = %s
-              AND (l.agent != 'job_match' OR fs.score IS NULL OR fs.score >= 60)
+              AND l.agent = 'job_match'
+              AND fs.score >= 60
             ORDER BY l.created_at DESC
             LIMIT %s
             """,
