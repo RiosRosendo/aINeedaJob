@@ -21,11 +21,10 @@ async def list_applications(user_id: str = Depends(get_user_id), limit: int = 50
     List all applications for user with job details.
 
     Multi-user scoped: returns only applications for this user.
-    Each application is returned distinctly, even if multiple jobs share the same title.
+    Always returns ALL pending_approval items first, regardless of limit.
+    Then fills remaining slots up to limit with other statuses.
     """
     try:
-        # Sort by status first (pending_approval first) to ensure all approvals are visible
-        # This prevents pending approvals from being pushed beyond the limit parameter
         results = execute_query(
             """
             SELECT
@@ -44,15 +43,18 @@ async def list_applications(user_id: str = Depends(get_user_id), limit: int = 50
             (user_id,)
         )
 
-        # Return all results without deduplication - each application is distinct
-        # even if the job title appears multiple times (e.g., 2 separate jobs with same title)
         deduped = []
         for app in results:
-            # Remove desc_preview before returning (internal field only)
             app_clean = {k: v for k, v in app.items() if k != 'desc_preview'}
             deduped.append(app_clean)
 
-        return deduped[:limit]
+        # Separate pending_approval from other statuses
+        pending = [app for app in deduped if app.get('status') == 'pending_approval']
+        others = [app for app in deduped if app.get('status') != 'pending_approval']
+
+        # Return all pending_approval items, then fill remaining slots with others
+        result = pending + others[:max(0, limit - len(pending))]
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
