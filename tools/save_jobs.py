@@ -11,8 +11,34 @@ Example usage:
 """
 
 import json
+from urllib.parse import urlparse
 from tools.db import execute_query, execute_update
 from tools.logger import log_agent_run
+
+
+def extract_company_from_url(url):
+    """Extract company name from URL domain when company field is null/unknown."""
+    if not url:
+        return None
+
+    try:
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+
+        # Remove www. prefix if present
+        if domain.startswith('www.'):
+            domain = domain[4:]
+
+        # Extract company name (first part before dot)
+        company = domain.split('.')[0]
+
+        # Only use if it's a reasonable length (not 'localhost', 'example', etc.)
+        if len(company) > 2 and company not in ['localhost', 'example', 'test']:
+            return company.title()
+
+        return None
+    except Exception:
+        return None
 
 
 def save_jobs(user_id, jobs, search_country=None):
@@ -62,11 +88,18 @@ def save_jobs(user_id, jobs, search_country=None):
                 if salary_max == 0:
                     salary_max = None
 
+                # Extract company from URL if company is null or "Unknown"
+                company = job.get('company', '').strip()
+                if not company or company.lower() == 'unknown':
+                    company = extract_company_from_url(job.get('url', ''))
+                    if not company:
+                        company = 'Unknown'
+
                 # Use job's search_country if available, otherwise use parameter
                 job_search_country = job.get('search_country') or search_country
 
                 params = (str(user_id), job.get('source', ''), job.get('url', ''),
-                          job.get('title', ''), job.get('title', ''), job.get('company', ''),
+                          job.get('title', ''), job.get('title', ''), company,
                           job.get('location', ''), job.get('modality', 'unknown'),
                           salary_min, salary_max, json.dumps([]),
                           json.dumps([]), job.get('description_raw', ''), 'discovered', job_search_country)
