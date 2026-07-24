@@ -810,10 +810,10 @@ def _execute_autonomous_action(user_id: str, action: str, state: dict) -> dict:
 
 
 def _execute_discovery(user_id: str) -> dict:
-    """Execute discovery phase for this user."""
+    """Execute discovery phase for this user across all preferred countries."""
     try:
         profile_result = execute_query(
-            "SELECT target_roles, preferred_countries FROM user_profiles WHERE user_id = %s",
+            "SELECT target_roles, preferred_countries, preferred_modality, salary_min FROM user_profiles WHERE user_id = %s",
             (user_id,)
         )
 
@@ -821,6 +821,7 @@ def _execute_discovery(user_id: str) -> dict:
             return {'error': 'User profile not found'}
 
         profile = profile_result[0]
+        target_roles = profile.get('target_roles', ['AI Engineer'])
 
         state = JobState(
             user_id=user_id,
@@ -831,12 +832,13 @@ def _execute_discovery(user_id: str) -> dict:
             review_count=0,
             ignored_count=0,
             error="",
-            roles=profile.get('target_roles', ['AI Engineer']),
+            roles=target_roles,
             profile=profile,
             summary={}
         )
 
-        result = graph.invoke(state)
+        # Run ONLY discovery_node (not the full graph which includes processing)
+        result = discovery_node(state)
 
         discovered = len(result.get('raw_jobs', []))
         print(f"[AUTONOMOUS] Discovery complete: {discovered} new jobs found", flush=True)
@@ -849,6 +851,8 @@ def _execute_discovery(user_id: str) -> dict:
 
     except Exception as e:
         print(f"[AUTONOMOUS] Discovery failed: {str(e)}", flush=True)
+        import traceback
+        traceback.print_exc()
         return {'action': 'run_discovery', 'error': str(e), 'success': False}
 
 
@@ -865,10 +869,31 @@ def _execute_processing(user_id: str, state: dict) -> dict:
 
         profile = profile_result[0]
 
+        # Fetch unprocessed jobs (status='discovered')
+        unprocessed_result = execute_query(
+            """SELECT id, title, description_raw FROM jobs
+               WHERE user_id = %s AND status = 'discovered'
+               LIMIT 100""",
+            (user_id,)
+        )
+        unprocessed_jobs = [dict(row) for row in unprocessed_result] if unprocessed_result else []
+
+        print(f"[AUTONOMOUS] Found {len(unprocessed_jobs)} unprocessed jobs for processing", flush=True)
+
+        if not unprocessed_jobs:
+            print(f"[AUTONOMOUS] No unprocessed jobs, nothing to process", flush=True)
+            return {
+                'action': 'run_processing',
+                'jobs_processed': 0,
+                'jobs_applied': 0,
+                'jobs_review': 0,
+                'success': True
+            }
+
         process_state = JobState(
             user_id=user_id,
             raw_jobs=[],
-            unprocessed_jobs=[],
+            unprocessed_jobs=unprocessed_jobs,
             processed_count=0,
             applied_count=0,
             review_count=0,
@@ -882,13 +907,16 @@ def _execute_processing(user_id: str, state: dict) -> dict:
         result = processing_node(process_state)
 
         processed = result.get('processed_count', 0)
-        print(f"[AUTONOMOUS] Processing complete: {processed} jobs processed", flush=True)
+        applied = result.get('applied_count', 0)
+        review = result.get('review_count', 0)
+
+        print(f"[AUTONOMOUS] Processing complete: {processed} jobs processed, {applied} applied, {review} review", flush=True)
 
         return {
             'action': 'run_processing',
             'jobs_processed': processed,
-            'jobs_applied': result.get('applied_count', 0),
-            'jobs_review': result.get('review_count', 0),
+            'jobs_applied': applied,
+            'jobs_review': review,
             'success': True
         }
 
