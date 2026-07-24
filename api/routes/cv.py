@@ -124,7 +124,7 @@ async def upload_cv(
 
 
 def extract_pdf_text(pdf_bytes: bytes) -> str:
-    """Extract text from PDF bytes using pdfplumber."""
+    """Extract text from PDF bytes using pdfplumber with layout preservation."""
     try:
         import pdfplumber
         import io
@@ -134,7 +134,9 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
 
         with pdfplumber.open(pdf_file) as pdf:
             for page in pdf.pages:
-                page_text = page.extract_text()
+                # Use layout=True to preserve spacing between words and sections
+                # This prevents custom fonts from merging words together
+                page_text = page.extract_text(layout=True)
                 if page_text:
                     text += page_text + "\n"
 
@@ -222,6 +224,48 @@ def clean_roles(roles: list) -> list:
     return sorted(list(cleaned))
 
 
+def _parse_json_with_fallbacks(response_text: str) -> dict:
+    """
+    Try multiple strategies to parse JSON from LLM response.
+    Returns parsed dict or None if all strategies fail.
+    """
+    import json
+
+    if not response_text:
+        return None
+
+    # Strategy 1: Direct parsing
+    try:
+        return json.loads(response_text)
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 2: Extract from markdown code blocks (```json...```)
+    try:
+        if "```" in response_text:
+            parts = response_text.split("```")
+            for part in parts:
+                if part.startswith("json"):
+                    json_str = part[4:].strip()
+                    return json.loads(json_str)
+                elif part.strip() and part.strip()[0] == '{':
+                    return json.loads(part.strip())
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 3: Find first { and last } and parse that substring
+    try:
+        start_idx = response_text.find('{')
+        end_idx = response_text.rfind('}')
+        if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
+            json_str = response_text[start_idx:end_idx + 1]
+            return json.loads(json_str)
+    except json.JSONDecodeError:
+        pass
+
+    return None
+
+
 def extract_cv_data(cv_text: str) -> dict:
     """Extract structured data from CV text using Groq LLM."""
     from groq import Groq
@@ -235,24 +279,38 @@ def extract_cv_data(cv_text: str) -> dict:
 
         client = Groq(api_key=groq_api_key)
 
-        prompt = f"""Analyze this CV and extract the following information as JSON:
+        prompt = f"""Extract all information from this CV as valid JSON. Work with any CV in any language.
 
 CV TEXT:
 {cv_text}
 
-Extract and return ONLY a JSON object (no markdown, no code blocks) with these fields:
-{{
-  "skills": ["list", "of", "technical", "skills", "extracted"],
-  "roles": ["list", "of", "job", "titles", "or", "roles"],
-  "experience_years": <integer: total years of professional experience>,
-  "education": ["degree", "field", "university"],
-  "projects": ["project1", "project2"],
-  "languages": ["English", "Spanish"],
-  "summary": "1-2 sentence summary of professional background"
-}}
+Extract these fields as JSON (use empty arrays/strings if not found):
+- tech_skills: List of technology/tool names ONLY (no algorithms, descriptions, or generic concepts)
+- languages: Array of {{"language": "name", "level": "Native|Fluent|Advanced|Intermediate|Beginner"}}
+- certifications: List of professional certifications
+- roles: List of job titles/positions
+- experience_years: Total years (integer)
+- education: List of degrees/fields
+- projects: List of project names
+- summary: 1-2 sentence professional background
 
-If a field is not found, use an empty list or 0 for numbers.
-Return ONLY valid JSON, no other text."""
+CRITICAL:
+- Return ONLY valid JSON with no markdown, no comments, no trailing commas
+- No code blocks, no explanations, no extra text
+- Autonomously extract based on CV content - nothing hardcoded
+
+Format:
+{{
+  "tech_skills": ["C++", "Python", ...],
+  "languages": [{{"language": "Spanish", "level": "Native"}}],
+  "certifications": [...],
+  "roles": [...],
+  "experience_years": 5,
+  "education": [...],
+  "projects": [...],
+  "summary": "..."
+}}
+"""
 
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
@@ -265,29 +323,135 @@ Return ONLY valid JSON, no other text."""
             ]
         )
 
-        # Parse the response
         response_text = response.choices[0].message.content.strip()
+        extracted = _parse_json_with_fallbacks(response_text)
 
-        # Remove markdown code blocks if present
-        if response_text.startswith("```"):
-            response_text = response_text.split("```")[1]
-            if response_text.startswith("json"):
-                response_text = response_text[4:]
-            response_text = response_text.strip()
+        if not extracted:
+            print(f"[CV PARSE FAILED] Could not extract JSON. Raw response (first 500 chars): {response_text[:500]}")
+            return {
+                "skills": [],
+                "roles": [],
+                "experience_years": 0,
+                "education": [],
+                "projects": [],
+                "languages": [],
+                "certifications": [],
+                "summary": ""
+            }
 
-        extracted = json.loads(response_text)
+        tech_skills = _clean_tech_skills(extracted.get("tech_skills", []))
 
         return {
-            "skills": extracted.get("skills", []),
+            "skills": tech_skills,
             "roles": clean_roles(extracted.get("roles", [])),
             "experience_years": extracted.get("experience_years", 0),
             "education": extracted.get("education", []),
             "projects": extracted.get("projects", []),
             "languages": extracted.get("languages", []),
+            "certifications": extracted.get("certifications", []),
             "summary": extracted.get("summary", "")
         }
 
-    except json.JSONDecodeError as e:
-        raise Exception(f"Failed to parse LLM response as JSON: {str(e)}")
     except Exception as e:
         raise Exception(f"LLM extraction failed: {str(e)}")
+
+
+def _clean_tech_skills(skills: list) -> list:
+    """Clean technical skills: remove duplicates, fix spacing, remove non-tech items."""
+    cleaned_list = []
+    language_keywords = {'native', 'fluent', 'intermediate', 'beginner', 'b1', 'b2', 'c1', 'c2', 'a1', 'a2'}
+    language_names = {'english', 'spanish', 'french', 'german', 'portuguese', 'chinese', 'japanese', 'korean', 'russian', 'italian', 'dutch', 'swedish', 'polish'}
+    cert_keywords = {'toefl', 'ielts', 'certificate', 'certified', 'aws', 'gcp', 'azure'}
+
+    for skill in skills:
+        if not skill or not isinstance(skill, str):
+            continue
+
+        skill = skill.strip()
+        lower_skill = skill.lower()
+
+        # Skip if it's a language proficiency level
+        if any(keyword in lower_skill for keyword in language_keywords):
+            continue
+
+        # Skip if it's a language name
+        if any(lang in lower_skill for lang in language_names):
+            continue
+
+        # Skip if it's a certification keyword
+        if any(cert in lower_skill for cert in cert_keywords):
+            continue
+
+        # Fix common compound skills (add spaces between camelCase)
+        skill = _fix_compound_skills(skill)
+
+        cleaned_list.append(skill)
+
+    # Deduplicate by normalized name
+    return _deduplicate_skills(cleaned_list)
+
+
+def _normalize_skill_name(skill: str) -> str:
+    """Normalize skill name for deduplication: lowercase, remove spaces, special chars."""
+    import re
+    # Remove spaces, lowercase, keep only alphanumeric
+    normalized = re.sub(r'[^a-z0-9]', '', skill.lower())
+    return normalized
+
+
+def _fix_compound_skills(skill: str) -> str:
+    """Fix compound skills by adding proper spacing."""
+    import re
+
+    fixes = {
+        'raspberrypi': 'Raspberry Pi',
+        'nvidiaisaacsim': 'NVIDIA Isaac Sim',
+        'djittopy': 'djitellopy',
+        'tensorflow': 'TensorFlow',
+        'pytorch': 'PyTorch',
+        'opencv': 'OpenCV',
+        'linux': 'Linux',
+        'windows': 'Windows',
+        'pointcloudprocessing': 'Point Cloud Processing',
+    }
+
+    lower_skill = skill.lower().replace(' ', '')
+    if lower_skill in fixes:
+        return fixes[lower_skill]
+
+    # Fix camelCase spacing (e.g., "MySQL" → "MySQL")
+    # Insert space before capital letters that follow lowercase
+    skill = re.sub(r'([a-z])([A-Z])', r'\1 \2', skill)
+
+    return skill
+
+
+def _deduplicate_skills(skills: list) -> list:
+    """Deduplicate skills by normalized name, keeping the cleanest version."""
+    if not skills:
+        return []
+
+    # Track normalized → original mapping
+    seen = {}  # normalized_name → cleaned_skill
+
+    for skill in skills:
+        if not skill or not isinstance(skill, str):
+            continue
+
+        skill = skill.strip()
+        # Normalize for comparison
+        normalized = _normalize_skill_name(skill)
+
+        if not normalized:
+            continue
+
+        # Keep the version with more spaces/capitals (cleaner formatting)
+        if normalized not in seen:
+            seen[normalized] = skill
+        else:
+            # Keep the one with more capital letters (better formatted)
+            existing = seen[normalized]
+            if sum(1 for c in skill if c.isupper()) > sum(1 for c in existing if c.isupper()):
+                seen[normalized] = skill
+
+    return sorted(list(seen.values()))
