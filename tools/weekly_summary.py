@@ -79,13 +79,12 @@ def generate_weekly_summary(user_id: str) -> dict:
 def _fetch_weekly_stats(user_id: str, start_date: datetime, end_date: datetime) -> dict:
     """Fetch statistics for the week."""
     try:
-        # Jobs discovered this week (only active verified jobs)
-        jobs_found = execute_query(
+        # Total active jobs (all time, not just this week)
+        # Uses same single source of truth as dashboard: SELECT COUNT(*) FROM jobs WHERE user_id=X AND expires_at IS NULL
+        total_jobs = execute_query(
             """SELECT COUNT(*) as count FROM jobs
-               WHERE user_id = %s AND created_at >= %s AND created_at <= %s
-               AND expires_at IS NULL
-               AND (last_verified_at > NOW() - INTERVAL '7 days' OR created_at > NOW() - INTERVAL '7 days')""",
-            (user_id, start_date, end_date)
+               WHERE user_id = %s AND expires_at IS NULL""",
+            (user_id,)
         )
 
         # Jobs scored this week (only active verified jobs)
@@ -132,7 +131,7 @@ def _fetch_weekly_stats(user_id: str, start_date: datetime, end_date: datetime) 
             email_stats[email.get('status')] = email.get('count', 0)
 
         stats = {
-            "jobs_found": jobs_found[0].get('count', 0) if jobs_found else 0,
+            "jobs_found": total_jobs[0].get('count', 0) if total_jobs else 0,
             "jobs_scored": jobs_scored[0].get('count', 0) if jobs_scored else 0,
             "applied": app_stats.get('applied', 0),
             "interviews": email_stats.get('interview', 0),

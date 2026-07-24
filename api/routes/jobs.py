@@ -69,11 +69,12 @@ async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
         )
         total_count = count_result[0]["total"] if count_result else 0
 
-        # Get total discovered jobs (all jobs, including expired)
+        # Get total discovered jobs (all active jobs, excluding expired)
+        # Uses same filter as dashboard: only non-expired jobs
         discovered_result = execute_query(
             """
             SELECT COUNT(*) as total FROM jobs
-            WHERE user_id = %s
+            WHERE user_id = %s AND expires_at IS NULL
             """,
             (user_id,)
         )
@@ -176,7 +177,13 @@ async def get_jobs_by_country(user_id: str = Depends(get_user_id)):
             """,
             (user_id,)
         )
-        print(f"[BY-COUNTRY] Query returned {len(results) if results else 0} countries", flush=True)
+        print(f"[BY-COUNTRY] Query returned {len(results) if results else 0} country groups", flush=True)
+
+        # DEBUG: Log every country group from query
+        if results:
+            print(f"[BY-COUNTRY DEBUG] Country groups from database:", flush=True)
+            for row in results:
+                print(f"  - {row.get('country_code')}: {row.get('job_count')} jobs", flush=True)
 
         # Map to COUNTRY_COORDS
         country_map = {}
@@ -184,9 +191,15 @@ async def get_jobs_by_country(user_id: str = Depends(get_user_id)):
             country_code = (row.get("country_code") or "").lower()
             job_count = row.get("job_count", 0)
 
-            if not country_code or country_code not in COUNTRY_COORDS:
+            if not country_code:
+                print(f"[BY-COUNTRY DEBUG] Skipping NULL country_code", flush=True)
                 continue
 
+            if country_code not in COUNTRY_COORDS:
+                print(f"[BY-COUNTRY DEBUG] Skipping unknown country_code: {country_code}", flush=True)
+                continue
+
+            print(f"[BY-COUNTRY DEBUG] Adding country: {country_code} ({COUNTRY_COORDS[country_code]['name']}) with {job_count} jobs", flush=True)
             country_map[country_code] = {
                 "country": COUNTRY_COORDS[country_code]["name"],
                 "country_code": country_code,
@@ -196,7 +209,9 @@ async def get_jobs_by_country(user_id: str = Depends(get_user_id)):
             }
 
         result_list = sorted(country_map.values(), key=lambda x: x["count"], reverse=True)
-        print(f"[BY-COUNTRY] Found {len(result_list)} countries with jobs for user {user_id}", flush=True)
+        print(f"[BY-COUNTRY] Final result: {len(result_list)} countries with jobs for user {user_id}", flush=True)
+        print(f"[BY-COUNTRY DEBUG] Countries to return: {[c['country_code'] for c in result_list]}", flush=True)
+        sys.stdout.flush()
         return result_list
 
     except Exception as e:
@@ -418,6 +433,133 @@ async def process_jobs(user_id: str = Depends(get_user_id), batch_size: int = 10
         raise
     except Exception as e:
         print(f"[API /process] EXCEPTION: {str(e)}", flush=True)
+        sys.stdout.flush()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/debug/jobs-by-country")
+async def debug_jobs_by_country(user_id: str = Depends(get_user_id)):
+    """
+    DEBUG ENDPOINT: Show raw breakdown of jobs by search_country and location extraction.
+
+    Returns:
+    {
+        "total_jobs": <all active jobs>,
+        "by_search_country": {
+            "us": <count>,
+            "mx": <count>,
+            ...
+        },
+        "by_location_extraction": {
+            "us": <count>,
+            "mx": <count>,
+            ...
+        },
+        "mexico_samples": [
+            {"id": "...", "title": "...", "search_country": "mx", "location": "..."},
+            ...
+        ]
+    }
+    """
+    try:
+        print(f"[DEBUG /by-country] Starting for user_id={user_id}", flush=True)
+
+        # Total active jobs
+        total = execute_query(
+            "SELECT COUNT(*) as cnt FROM jobs WHERE user_id = %s AND expires_at IS NULL",
+            (user_id,)
+        )
+        total_count = total[0]['cnt'] if total else 0
+        print(f"[DEBUG /by-country] Total active jobs: {total_count}", flush=True)
+
+        # Jobs by search_country (raw counts)
+        by_search = execute_query(
+            """
+            SELECT search_country, COUNT(*) as cnt
+            FROM jobs
+            WHERE user_id = %s AND expires_at IS NULL AND search_country IS NOT NULL
+            GROUP BY search_country
+            ORDER BY cnt DESC
+            """,
+            (user_id,)
+        )
+        search_country_map = {}
+        for row in (by_search or []):
+            code = (row.get('search_country') or '').lower()
+            search_country_map[code] = row.get('cnt', 0)
+        print(f"[DEBUG /by-country] By search_country: {search_country_map}", flush=True)
+
+        # Jobs by location extraction
+        location_extract = execute_query(
+            """
+            SELECT
+              CASE
+                WHEN location ILIKE %s OR location ILIKE %s THEN 'us'
+                WHEN location ILIKE %s OR location = %s THEN 'ca'
+                WHEN location ILIKE %s OR location = %s THEN 'mx'
+                WHEN location ILIKE %s OR location = %s THEN 'jp'
+                WHEN location ILIKE %s OR location = %s THEN 'it'
+                WHEN location ILIKE %s OR location = %s THEN 'fr'
+                WHEN location ILIKE %s OR location = %s THEN 'de'
+                WHEN location ILIKE %s OR location = %s THEN 'ae'
+                WHEN location ILIKE %s OR location = %s THEN 'cn'
+                ELSE NULL
+              END as country_code,
+              COUNT(*) as cnt
+            FROM jobs
+            WHERE user_id = %s AND expires_at IS NULL AND search_country IS NULL
+            GROUP BY country_code
+            ORDER BY cnt DESC
+            """,
+            (user_id,
+             '%US%', '%United States%',
+             '%Canada%', 'CA',
+             '%Mexico%', 'MX',
+             '%Japan%', 'JP',
+             '%Italy%', 'IT',
+             '%France%', 'FR',
+             '%Germany%', 'DE',
+             '%UAE%', 'AE',
+             '%China%', 'CN')
+        )
+        location_map = {}
+        for row in (location_extract or []):
+            code = (row.get('country_code') or '').lower()
+            if code:
+                location_map[code] = row.get('cnt', 0)
+        print(f"[DEBUG /by-country] By location extraction: {location_map}", flush=True)
+
+        # Sample Mexico jobs
+        mexico_samples = execute_query(
+            """
+            SELECT id, title, search_country, location
+            FROM jobs
+            WHERE user_id = %s AND expires_at IS NULL
+            AND (search_country = 'mx' OR location ILIKE '%Mexico%' OR location = 'MX')
+            LIMIT 3
+            """,
+            (user_id,)
+        )
+        mexico_list = []
+        for job in (mexico_samples or []):
+            mexico_list.append({
+                "id": job.get('id'),
+                "title": job.get('title'),
+                "search_country": job.get('search_country'),
+                "location": job.get('location')
+            })
+        print(f"[DEBUG /by-country] Mexico samples: {len(mexico_list)} jobs", flush=True)
+
+        sys.stdout.flush()
+        return {
+            "total_jobs": total_count,
+            "by_search_country": search_country_map,
+            "by_location_extraction": location_map,
+            "mexico_samples": mexico_list
+        }
+
+    except Exception as e:
+        print(f"[DEBUG /by-country] ERROR: {str(e)}", flush=True)
         sys.stdout.flush()
         raise HTTPException(status_code=500, detail=str(e))
 
