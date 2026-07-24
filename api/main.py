@@ -38,7 +38,7 @@ app.add_middleware(
 )
 
 # Import routers
-from api.routes import jobs, applications, users, auth, cv, gmail, summary
+from api.routes import jobs, applications, users, auth, cv, gmail, summary, debug
 
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
@@ -48,6 +48,7 @@ app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(cv.router, prefix="/api/cv", tags=["cv"])
 app.include_router(gmail.router, prefix="/api/gmail", tags=["gmail"])
 app.include_router(summary.router, prefix="/api/summary", tags=["summary"])
+app.include_router(debug.router, prefix="/api/debug", tags=["debug"])
 
 # Initialize scheduler (will be started on app startup)
 scheduler = BackgroundScheduler()
