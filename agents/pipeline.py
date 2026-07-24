@@ -397,10 +397,10 @@ def processing_node(state: JobState) -> JobState:
                 job_age_days = (now - job_created).days if hasattr(job_created, 'days') else (now - job_created.replace(tzinfo=None)).days
                 if job_age_days > 30:
                     print(f"[PROCESS DEBUG] Job {job_id}: SKIP - expired (created {job_age_days} days ago)")
-                    # Mark as expired in database
+                    # Mark as expired and scored in database
                     try:
-                        execute_query(
-                            "UPDATE jobs SET expires_at = %s WHERE id = %s",
+                        execute_update(
+                            "UPDATE jobs SET expires_at = %s, status = 'scored' WHERE id = %s",
                             (job_created + timedelta(days=30), job_id)
                         )
                     except:
