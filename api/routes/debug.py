@@ -11,17 +11,12 @@ router = APIRouter()
 @router.get("/jobs-by-country")
 async def debug_jobs_by_country(user_id: str = Depends(get_user_id)):
     """
-    DEBUG ENDPOINT: Show raw breakdown of jobs by search_country and location extraction.
+    DEBUG ENDPOINT: Show raw breakdown of jobs by search_country.
 
     Returns:
     {
         "total_jobs": <all active jobs>,
         "by_search_country": {
-            "us": <count>,
-            "mx": <count>,
-            ...
-        },
-        "by_location_extraction": {
             "us": <count>,
             "mx": <count>,
             ...
@@ -48,7 +43,7 @@ async def debug_jobs_by_country(user_id: str = Depends(get_user_id)):
             """
             SELECT search_country, COUNT(*) as cnt
             FROM jobs
-            WHERE user_id = %s AND expires_at IS NULL AND search_country IS NOT NULL
+            WHERE user_id = %s AND expires_at IS NULL
             GROUP BY search_country
             ORDER BY cnt DESC
             """,
@@ -56,49 +51,11 @@ async def debug_jobs_by_country(user_id: str = Depends(get_user_id)):
         )
         search_country_map = {}
         for row in (by_search or []):
-            code = (row.get('search_country') or '').lower()
+            code = (row.get('search_country') or 'NULL')
+            if code != 'NULL':
+                code = code.lower()
             search_country_map[code] = row.get('cnt', 0)
         print(f"[DEBUG /jobs-by-country] By search_country: {search_country_map}", flush=True)
-
-        # Jobs by location extraction
-        location_extract = execute_query(
-            """
-            SELECT
-              CASE
-                WHEN location ILIKE %s OR location ILIKE %s THEN 'us'
-                WHEN location ILIKE %s OR location = %s THEN 'ca'
-                WHEN location ILIKE %s OR location = %s THEN 'mx'
-                WHEN location ILIKE %s OR location = %s THEN 'jp'
-                WHEN location ILIKE %s OR location = %s THEN 'it'
-                WHEN location ILIKE %s OR location = %s THEN 'fr'
-                WHEN location ILIKE %s OR location = %s THEN 'de'
-                WHEN location ILIKE %s OR location = %s THEN 'ae'
-                WHEN location ILIKE %s OR location = %s THEN 'cn'
-                ELSE NULL
-              END as country_code,
-              COUNT(*) as cnt
-            FROM jobs
-            WHERE user_id = %s AND expires_at IS NULL AND search_country IS NULL
-            GROUP BY country_code
-            ORDER BY cnt DESC
-            """,
-            (user_id,
-             '%US%', '%United States%',
-             '%Canada%', 'CA',
-             '%Mexico%', 'MX',
-             '%Japan%', 'JP',
-             '%Italy%', 'IT',
-             '%France%', 'FR',
-             '%Germany%', 'DE',
-             '%UAE%', 'AE',
-             '%China%', 'CN')
-        )
-        location_map = {}
-        for row in (location_extract or []):
-            code = (row.get('country_code') or '').lower()
-            if code:
-                location_map[code] = row.get('cnt', 0)
-        print(f"[DEBUG /jobs-by-country] By location extraction: {location_map}", flush=True)
 
         # Sample Mexico jobs
         mexico_samples = execute_query(
@@ -106,7 +63,7 @@ async def debug_jobs_by_country(user_id: str = Depends(get_user_id)):
             SELECT id, title, search_country, location
             FROM jobs
             WHERE user_id = %s AND expires_at IS NULL
-            AND (search_country = 'mx' OR location ILIKE '%Mexico%' OR location = 'MX')
+            AND search_country = 'mx'
             LIMIT 3
             """,
             (user_id,)
@@ -125,7 +82,6 @@ async def debug_jobs_by_country(user_id: str = Depends(get_user_id)):
         return {
             "total_jobs": total_count,
             "by_search_country": search_country_map,
-            "by_location_extraction": location_map,
             "mexico_samples": mexico_list
         }
 
