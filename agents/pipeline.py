@@ -302,8 +302,14 @@ Answer only YES or NO."""
 
 
 def _mark_as_ignored(job_id: str, user_id: str) -> bool:
-    """Mark job as ignored without scoring."""
+    """Mark job as ignored without scoring. Updates status to 'scored' so it won't be reprocessed."""
     try:
+        # Update job status to 'scored' so it won't appear in unprocessed jobs query again
+        execute_update(
+            "UPDATE jobs SET status = 'scored' WHERE id = %s AND user_id = %s",
+            (job_id, user_id)
+        )
+
         # Create application with ignored status
         try:
             execute_query(
@@ -415,8 +421,16 @@ def processing_node(state: JobState) -> JobState:
                 parsed = parse_job(job_id, user_id, job_data.get("description_raw", ""), original_title=title)
                 update_job(job_id, user_id, parsed)
             except Exception as e:
-                # If parsing fails (e.g., groq not available), skip this job
+                # If parsing fails (e.g., groq not available), mark as processed and skip
                 print(f"[PROCESS DEBUG] Job {job_id}: SKIP - parse failed: {str(e)[:60]}")
+                # Mark as processed so it won't be retried endlessly
+                try:
+                    execute_update(
+                        "UPDATE jobs SET status = 'scored' WHERE id = %s AND user_id = %s",
+                        (job_id, user_id)
+                    )
+                except Exception:
+                    pass
                 state["ignored_count"] += 1
                 continue
 
