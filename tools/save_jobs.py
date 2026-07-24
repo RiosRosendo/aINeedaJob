@@ -78,6 +78,12 @@ def save_jobs(user_id, jobs, search_country=None):
                 duplicates_skipped += 1
                 continue
 
+            # Skip jobs with empty or missing descriptions (can't score without context)
+            description = (job.get('description_raw') or '').strip()
+            if not description:
+                duplicates_skipped += 1
+                continue
+
             try:
                 # Convert 0 salary values to None to pass database check constraint
                 salary_min = job.get('salary_min')
