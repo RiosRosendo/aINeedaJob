@@ -56,23 +56,21 @@ scheduler = BackgroundScheduler()
 
 def run_daily_job_search():
     """
-    Run daily job discovery for all users.
+    Run autonomous pipeline cycles for all users.
 
-    Iterates through each user and triggers the job discovery pipeline
-    to fetch new jobs matching their profile.
+    LLM decides what each user needs: discovery, processing, or waiting.
     """
     try:
         from tools.db import execute_query
-        from agents.pipeline import graph, JobState
+        from agents.pipeline import run_autonomous_cycle
 
-        print("[SCHEDULER] Starting daily job search for all users...", flush=True)
+        print("[SCHEDULER] Starting autonomous pipeline cycles for all users...", flush=True)
 
         # Get all active users
         users_result = execute_query(
             """
-            SELECT u.id, u.email, up.target_roles, up.preferred_countries
+            SELECT u.id, u.email
             FROM users u
-            LEFT JOIN user_profiles up ON u.id = up.user_id
             WHERE u.is_active = TRUE
             ORDER BY u.created_at DESC
             """,
@@ -84,112 +82,27 @@ def run_daily_job_search():
             return
 
         total_users = len(users_result)
-        processed_users = 0
-        jobs_discovered = 0
+        successful_cycles = 0
+        action_summary = {}
 
         for user in users_result:
             user_id = user.get('id')
             email = user.get('email')
-            target_roles = user.get('target_roles', [])
-            preferred_countries = user.get('preferred_countries', [])
 
             try:
-                print(f"[SCHEDULER] Running daily job search for user {email}", flush=True)
+                print(f"[SCHEDULER] Running autonomous cycle for user {email}", flush=True)
 
-                # Initialize pipeline state
-                state = JobState(
-                    user_id=user_id,
-                    raw_jobs=[],
-                    unprocessed_jobs=[],
-                    processed_count=0,
-                    applied_count=0,
-                    review_count=0,
-                    ignored_count=0,
-                    error="",
-                    roles=target_roles or ["AI Engineer"],  # Default role if not set
-                    profile={
-                        "target_roles": target_roles,
-                        "preferred_countries": preferred_countries,
-                    },
-                    summary={}
-                )
+                # Run autonomous cycle - LLM decides what to do
+                cycle_result = run_autonomous_cycle(user_id)
 
-                # Run the discovery pipeline
-                result = graph.invoke(state)
+                action = cycle_result.get('action')
+                reasoning = cycle_result.get('reasoning', '')
 
-                raw_jobs_count = len(result.get('raw_jobs', []))
-                processed_count = result.get('processed_count', 0)
-                applied_count = result.get('applied_count', 0)
-                review_count = result.get('review_count', 0)
-
-                # Process ALL unprocessed jobs until none remain
-                print(f"[SCHEDULER] Discovery done. Processing all unprocessed jobs for {email}...", flush=True)
-                from agents.pipeline import processing_node
-
-                max_iterations = 20
-                iteration = 0
-                total_batch_processed = 0
-
-                while iteration < max_iterations:
-                    # Check how many jobs still need processing
-                    unprocessed = execute_query(
-                        """SELECT COUNT(*) as count FROM jobs j
-                           LEFT JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
-                           WHERE j.user_id = %s AND j.status = 'discovered'""",
-                        (user_id, user_id)
-                    )
-                    remaining = unprocessed[0]['count'] if unprocessed else 0
-
-                    if remaining == 0:
-                        print(f"[SCHEDULER] All jobs processed for {email} (completed in {iteration} iterations)", flush=True)
-                        break
-
-                    # Process next batch
-                    iteration += 1
-                    print(f"[SCHEDULER] {email} iteration {iteration}: {remaining} unprocessed jobs remaining", flush=True)
-
-                    # Create processing state for this batch
-                    process_state = JobState(
-                        user_id=user_id,
-                        raw_jobs=[],
-                        unprocessed_jobs=[],
-                        processed_count=0,
-                        applied_count=0,
-                        review_count=0,
-                        ignored_count=0,
-                        error="",
-                        roles=target_roles or ["AI Engineer"],
-                        profile={"target_roles": target_roles, "preferred_countries": preferred_countries},
-                        summary={}
-                    )
-
-                    # Run processing node to handle next batch
-                    try:
-                        batch_result = processing_node(process_state)
-                        batch_processed = batch_result.get('processed_count', 0)
-                        batch_applied = batch_result.get('applied_count', 0)
-                        batch_review = batch_result.get('review_count', 0)
-                        total_batch_processed += batch_processed
-
-                        print(f"[SCHEDULER] Batch {iteration} for {email}: processed={batch_processed}, "
-                              f"applied={batch_applied}, review={batch_review}", flush=True)
-                    except Exception as e:
-                        print(f"[SCHEDULER] Processing batch {iteration} error for {email}: {str(e)}", flush=True)
-                        break
-
-                    if iteration >= max_iterations:
-                        print(f"[SCHEDULER] WARNING: Max iterations ({max_iterations}) reached for {email}, stopping", flush=True)
-                        break
-
-                # Update final counts
-                processed_count += total_batch_processed
-
-                jobs_discovered += raw_jobs_count
-                processed_users += 1
+                successful_cycles += 1
+                action_summary[action] = action_summary.get(action, 0) + 1
 
                 print(
-                    f"[SCHEDULER] User {email}: discovered={raw_jobs_count}, "
-                    f"processed={processed_count}, applied={applied_count}, review={review_count}",
+                    f"[SCHEDULER] User {email}: action={action}, reasoning={reasoning[:80]}",
                     flush=True
                 )
 
@@ -203,9 +116,9 @@ def run_daily_job_search():
                 continue
 
         print(
-            f"[SCHEDULER] Daily job search complete! "
-            f"Processed {processed_users}/{total_users} users, "
-            f"discovered {jobs_discovered} new jobs",
+            f"[SCHEDULER] Autonomous cycles complete! "
+            f"Completed {successful_cycles}/{total_users} users, "
+            f"actions: {action_summary}",
             flush=True
         )
         sys.stdout.flush()

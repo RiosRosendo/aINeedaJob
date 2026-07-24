@@ -258,6 +258,30 @@ async def get_jobs_by_country_detail(country_code: str, user_id: str = Depends(g
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/autonomous-cycle")
+async def trigger_autonomous_cycle(user_id: str = Depends(get_user_id)):
+    """
+    Trigger autonomous pipeline cycle for authenticated user.
+
+    LLM analyzes current state and decides: discovery, processing, or wait.
+    Returns action taken and reasoning.
+    """
+    try:
+        from agents.pipeline import run_autonomous_cycle
+
+        print(f"[API /jobs/autonomous-cycle] Running cycle for user {user_id}", flush=True)
+
+        result = run_autonomous_cycle(user_id)
+
+        print(f"[API /jobs/autonomous-cycle] Cycle complete: action={result.get('action')}", flush=True)
+
+        return result
+
+    except Exception as e:
+        print(f"[API /jobs/autonomous-cycle] ERROR: {str(e)}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{job_id}", response_model=dict)
 async def get_job(job_id: str, user_id: str = Depends(get_user_id)):
     """

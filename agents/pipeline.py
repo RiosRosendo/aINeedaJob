@@ -600,6 +600,315 @@ def processing_node(state: JobState) -> JobState:
     return state
 
 
+def run_autonomous_cycle(user_id: str) -> dict:
+    """
+    Self-aware autonomous pipeline cycle.
+
+    Analyzes current state and decides next action without hardcoded rules.
+    LLM autonomously determines what to do based on pipeline metrics.
+
+    Returns: {action, reasoning, priority, result}
+    """
+    try:
+        print(f"[AUTONOMOUS] Starting autonomous cycle for user {user_id}", flush=True)
+
+        # Gather current state
+        state = _gather_pipeline_state(user_id)
+
+        # LLM decides what to do
+        decision = _llm_decide_action(user_id, state)
+
+        # Execute the decision
+        action = decision.get('action', 'wait')
+        result = _execute_autonomous_action(user_id, action, state)
+
+        return {
+            'action': action,
+            'reasoning': decision.get('reasoning', ''),
+            'priority': decision.get('priority', 5),
+            'result': result
+        }
+
+    except Exception as e:
+        print(f"[AUTONOMOUS] ERROR: {str(e)}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return {'action': 'error', 'error': str(e), 'result': {}}
+
+
+def _gather_pipeline_state(user_id: str) -> dict:
+    """Gather all metrics about current pipeline state."""
+    # Last discovery time
+    last_discovery_log = execute_query(
+        """SELECT created_at FROM agent_logs
+           WHERE user_id = %s AND agent = 'job_discovery' AND status = 'success'
+           ORDER BY created_at DESC LIMIT 1""",
+        (user_id,)
+    )
+    last_discovery = last_discovery_log[0]['created_at'] if last_discovery_log else None
+    hours_since_discovery = _hours_since(last_discovery) if last_discovery else 999
+
+    # Unprocessed jobs
+    unprocessed_result = execute_query(
+        "SELECT COUNT(*) as count FROM jobs WHERE user_id = %s AND status = 'discovered'",
+        (user_id,)
+    )
+    unprocessed_count = unprocessed_result[0]['count'] if unprocessed_result else 0
+
+    # Total active jobs
+    total_result = execute_query(
+        "SELECT COUNT(*) as count FROM jobs WHERE user_id = %s AND expires_at IS NULL",
+        (user_id,)
+    )
+    total_active = total_result[0]['count'] if total_result else 0
+
+    # Recent scoring metrics (past 48 hours)
+    scoring_result = execute_query(
+        """SELECT
+             COUNT(*) as total_scored,
+             SUM(CASE WHEN score >= 85 THEN 1 ELSE 0 END) as applied_count,
+             SUM(CASE WHEN score >= 60 AND score < 85 THEN 1 ELSE 0 END) as review_count,
+             SUM(CASE WHEN score < 60 THEN 1 ELSE 0 END) as ignored_count,
+             AVG(score) as avg_score
+           FROM fit_scores
+           WHERE user_id = %s AND created_at > NOW() - INTERVAL '48 hours'""",
+        (user_id,)
+    )
+
+    if scoring_result and scoring_result[0]['total_scored']:
+        scoring = scoring_result[0]
+        total = scoring['total_scored']
+        applied_pct = (scoring['applied_count'] / total * 100) if total > 0 else 0
+        review_pct = (scoring['review_count'] / total * 100) if total > 0 else 0
+        ignored_pct = (scoring['ignored_count'] / total * 100) if total > 0 else 0
+    else:
+        scoring = {
+            'total_scored': 0,
+            'applied_count': 0,
+            'review_count': 0,
+            'ignored_count': 0,
+            'avg_score': 0
+        }
+        applied_pct = review_pct = ignored_pct = 0
+
+    # Source quality
+    from tools.db import get_source_quality_metrics
+    source_quality = get_source_quality_metrics(user_id)
+
+    # Job sources
+    sources_result = execute_query(
+        """SELECT source, COUNT(*) as count FROM jobs
+           WHERE user_id = %s AND expires_at IS NULL
+           GROUP BY source ORDER BY count DESC""",
+        (user_id,)
+    )
+    sources = {row['source']: row['count'] for row in sources_result} if sources_result else {}
+
+    # User profile
+    profile = execute_query(
+        "SELECT target_roles, preferred_countries FROM user_profiles WHERE user_id = %s",
+        (user_id,)
+    )
+    user_profile = profile[0] if profile else {}
+
+    return {
+        'last_discovery_time': last_discovery,
+        'hours_since_discovery': hours_since_discovery,
+        'unprocessed_count': unprocessed_count,
+        'total_active_jobs': total_active,
+        'scoring_metrics': {
+            'total_scored': scoring['total_scored'],
+            'applied_count': scoring['applied_count'],
+            'review_count': scoring['review_count'],
+            'ignored_count': scoring['ignored_count'],
+            'avg_score': scoring['avg_score'],
+            'applied_pct': applied_pct,
+            'review_pct': review_pct,
+            'ignored_pct': ignored_pct,
+        },
+        'source_quality': source_quality,
+        'sources': sources,
+        'target_roles': user_profile.get('target_roles', []),
+        'preferred_countries': user_profile.get('preferred_countries', []),
+    }
+
+
+def _llm_decide_action(user_id: str, state: dict) -> dict:
+    """LLM autonomously decides what action to take based on pipeline state."""
+    from tools.llm import call_llm
+    import json
+
+    scoring = state['scoring_metrics']
+    sources = state['sources']
+    source_quality = state['source_quality']
+
+    source_list = '\n'.join([f"  - {src}: {cnt} jobs (quality: {source_quality.get(src, 0):.1f}%)"
+                             for src, cnt in sources.items()]) if sources else "  (none)"
+
+    prompt = f"""You are an autonomous job search pipeline manager.
+
+Analyze this pipeline state and decide the NEXT ACTION.
+
+CURRENT STATE:
+- Target roles: {state['target_roles']}
+- Preferred countries: {state['preferred_countries']}
+- Hours since last discovery: {state['hours_since_discovery']:.1f}
+- Unprocessed jobs waiting: {state['unprocessed_count']}
+- Total active jobs in system: {state['total_active_jobs']}
+
+SCORING RESULTS (Last 48 hours):
+- Jobs scored: {scoring['total_scored']}
+- Applied tier (85+): {scoring['applied_count']} ({scoring['applied_pct']:.1f}%)
+- Review tier (60-84): {scoring['review_count']} ({scoring['review_pct']:.1f}%)
+- Ignored tier (<60): {scoring['ignored_count']} ({scoring['ignored_pct']:.1f}%)
+- Average score: {scoring['avg_score']:.1f}
+
+ACTIVE SOURCES:
+{source_list}
+
+DECISION LOGIC:
+- If unprocessed_count > 30 → PROCESS first (don't discover more until caught up)
+- If unprocessed_count == 0 AND hours_since_discovery > 24 → DISCOVER
+- If hours_since_discovery < 2 → PROCESS (give recent discovery time to complete)
+- If all sources have quality < 10% → WAIT (sources not working, try again later)
+- If applied_pct < 5% AND review_pct < 10% → TRY_NEW_SOURCES (low match rate)
+- If everything current and processed → WAIT
+
+Return ONLY valid JSON (no markdown):
+{{
+  "action": "run_discovery" | "run_processing" | "try_new_sources" | "wait",
+  "reasoning": "brief explanation of why this action",
+  "priority": integer 1-10
+}}"""
+
+    try:
+        response = call_llm(prompt)
+        response = response.replace("```json", "").replace("```", "").strip()
+        decision = json.loads(response)
+
+        print(f"[AUTONOMOUS] LLM decided: {decision['action']} (priority: {decision.get('priority', 5)})", flush=True)
+        return decision
+
+    except Exception as e:
+        print(f"[AUTONOMOUS] LLM decision failed: {str(e)}, defaulting to wait", flush=True)
+        return {'action': 'wait', 'reasoning': f'Error: {str(e)}', 'priority': 1}
+
+
+def _execute_autonomous_action(user_id: str, action: str, state: dict) -> dict:
+    """Execute the action decided by LLM."""
+    print(f"[AUTONOMOUS] Executing action: {action}", flush=True)
+
+    if action == 'run_discovery':
+        return _execute_discovery(user_id)
+    elif action == 'run_processing':
+        return _execute_processing(user_id, state)
+    elif action == 'try_new_sources':
+        print("[AUTONOMOUS] try_new_sources not yet implemented, waiting instead", flush=True)
+        return {'action': 'wait', 'reason': 'new_sources_not_implemented'}
+    else:
+        return {'action': 'wait', 'reason': 'cycle complete, monitoring'}
+
+
+def _execute_discovery(user_id: str) -> dict:
+    """Execute discovery phase for this user."""
+    try:
+        profile_result = execute_query(
+            "SELECT target_roles, preferred_countries FROM user_profiles WHERE user_id = %s",
+            (user_id,)
+        )
+
+        if not profile_result:
+            return {'error': 'User profile not found'}
+
+        profile = profile_result[0]
+
+        state = JobState(
+            user_id=user_id,
+            raw_jobs=[],
+            unprocessed_jobs=[],
+            processed_count=0,
+            applied_count=0,
+            review_count=0,
+            ignored_count=0,
+            error="",
+            roles=profile.get('target_roles', ['AI Engineer']),
+            profile=profile,
+            summary={}
+        )
+
+        result = graph.invoke(state)
+
+        discovered = len(result.get('raw_jobs', []))
+        print(f"[AUTONOMOUS] Discovery complete: {discovered} new jobs found", flush=True)
+
+        return {
+            'action': 'run_discovery',
+            'jobs_discovered': discovered,
+            'success': True
+        }
+
+    except Exception as e:
+        print(f"[AUTONOMOUS] Discovery failed: {str(e)}", flush=True)
+        return {'action': 'run_discovery', 'error': str(e), 'success': False}
+
+
+def _execute_processing(user_id: str, state: dict) -> dict:
+    """Execute processing phase for this user."""
+    try:
+        profile_result = execute_query(
+            "SELECT target_roles, preferred_countries FROM user_profiles WHERE user_id = %s",
+            (user_id,)
+        )
+
+        if not profile_result:
+            return {'error': 'User profile not found'}
+
+        profile = profile_result[0]
+
+        process_state = JobState(
+            user_id=user_id,
+            raw_jobs=[],
+            unprocessed_jobs=[],
+            processed_count=0,
+            applied_count=0,
+            review_count=0,
+            ignored_count=0,
+            error="",
+            roles=profile.get('target_roles', ['AI Engineer']),
+            profile=profile,
+            summary={}
+        )
+
+        result = processing_node(process_state)
+
+        processed = result.get('processed_count', 0)
+        print(f"[AUTONOMOUS] Processing complete: {processed} jobs processed", flush=True)
+
+        return {
+            'action': 'run_processing',
+            'jobs_processed': processed,
+            'jobs_applied': result.get('applied_count', 0),
+            'jobs_review': result.get('review_count', 0),
+            'success': True
+        }
+
+    except Exception as e:
+        print(f"[AUTONOMOUS] Processing failed: {str(e)}", flush=True)
+        return {'action': 'run_processing', 'error': str(e), 'success': False}
+
+
+def _hours_since(dt) -> float:
+    """Calculate hours since a datetime."""
+    if not dt:
+        return 999
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    delta = now - dt
+    return delta.total_seconds() / 3600
+
+
 # Build the StateGraph
 workflow = StateGraph(JobState)
 
