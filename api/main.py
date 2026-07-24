@@ -122,6 +122,68 @@ def run_daily_job_search():
                 applied_count = result.get('applied_count', 0)
                 review_count = result.get('review_count', 0)
 
+                # Process ALL unprocessed jobs until none remain
+                print(f"[SCHEDULER] Discovery done. Processing all unprocessed jobs for {email}...", flush=True)
+                from agents.pipeline import processing_node
+
+                max_iterations = 20
+                iteration = 0
+                total_batch_processed = 0
+
+                while iteration < max_iterations:
+                    # Check how many jobs still need processing
+                    unprocessed = execute_query(
+                        """SELECT COUNT(*) as count FROM jobs j
+                           LEFT JOIN fit_scores fs ON j.id = fs.job_id AND fs.user_id = %s
+                           WHERE j.user_id = %s AND j.status = 'discovered'""",
+                        (user_id, user_id)
+                    )
+                    remaining = unprocessed[0]['count'] if unprocessed else 0
+
+                    if remaining == 0:
+                        print(f"[SCHEDULER] All jobs processed for {email} (completed in {iteration} iterations)", flush=True)
+                        break
+
+                    # Process next batch
+                    iteration += 1
+                    print(f"[SCHEDULER] {email} iteration {iteration}: {remaining} unprocessed jobs remaining", flush=True)
+
+                    # Create processing state for this batch
+                    process_state = JobState(
+                        user_id=user_id,
+                        raw_jobs=[],
+                        unprocessed_jobs=[],
+                        processed_count=0,
+                        applied_count=0,
+                        review_count=0,
+                        ignored_count=0,
+                        error="",
+                        roles=target_roles or ["AI Engineer"],
+                        profile={"target_roles": target_roles, "preferred_countries": preferred_countries},
+                        summary={}
+                    )
+
+                    # Run processing node to handle next batch
+                    try:
+                        batch_result = processing_node(process_state)
+                        batch_processed = batch_result.get('processed_count', 0)
+                        batch_applied = batch_result.get('applied_count', 0)
+                        batch_review = batch_result.get('review_count', 0)
+                        total_batch_processed += batch_processed
+
+                        print(f"[SCHEDULER] Batch {iteration} for {email}: processed={batch_processed}, "
+                              f"applied={batch_applied}, review={batch_review}", flush=True)
+                    except Exception as e:
+                        print(f"[SCHEDULER] Processing batch {iteration} error for {email}: {str(e)}", flush=True)
+                        break
+
+                    if iteration >= max_iterations:
+                        print(f"[SCHEDULER] WARNING: Max iterations ({max_iterations}) reached for {email}, stopping", flush=True)
+                        break
+
+                # Update final counts
+                processed_count += total_batch_processed
+
                 jobs_discovered += raw_jobs_count
                 processed_users += 1
 
