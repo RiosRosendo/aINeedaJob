@@ -309,7 +309,22 @@ CRITICAL RULES:
 - NO certifications - extract only to certifications field
 - NO algorithms with symbols (A*, D*, RRT*)
 - NO generic concepts (optimization, filtering, planning - unless they're tool names)
-- NO job titles or role descriptions
+
+ROLE EXTRACTION (Multi-language support):
+This CV may be in any language (English, Spanish, French, German, Portuguese, Chinese, Japanese, etc).
+Extract ALL job titles, positions, and professional roles mentioned in:
+- Job titles in experience section
+- Position descriptions
+- Academic or professional roles
+- Project lead or team roles
+
+LANGUAGE-AGNOSTIC TRANSLATION:
+- If CV is in Spanish: 'Ingeniero Robótico' → Extract as 'Robotics Engineer'
+- If CV is in French: 'Ingénieur Logiciel' → Extract as 'Software Engineer'
+- If CV is in German: 'Eingebettete Systeme Ingenieur' → Extract as 'Embedded Systems Engineer'
+- Return all roles in English regardless of CV language
+- The LLM translates autonomously based on context - no hardcoded translations
+- Be comprehensive - extract all distinct roles found
 
 For languages: Format: [{{"language": "Spanish", "level": "Native"}}]
 Levels: Native, Fluent, Advanced, Intermediate, Beginner, or B1/B2/C1/C2
