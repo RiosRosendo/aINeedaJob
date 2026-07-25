@@ -89,6 +89,8 @@ async def update_user_profile(
         print(f"[API PROFILE] Update request for user {user_id}")
         print(f"[API PROFILE] Payload: target_roles={profile.target_roles}, modality={profile.preferred_modality}, countries={profile.preferred_countries}, salary_min={profile.salary_min}")
         print(f"[API PROFILE] Tech stack: {profile.tech_stack}")
+        print(f"[API PROFILE] cv_data received: {getattr(profile, 'cv_data', 'NOT SET')}")
+        print(f"[API PROFILE] cv_data type: {type(getattr(profile, 'cv_data', None))}")
         # Check if user exists, create if not
         user_result = execute_query(
             "SELECT id FROM users WHERE id = %s",
@@ -116,6 +118,7 @@ async def update_user_profile(
               priority_country = %s,
               salary_min = %s,
               tech_stack = %s,
+              cv_data = %s,
               cv_base_url = %s,
               github_url = %s,
               linkedin_url = %s,
@@ -130,6 +133,7 @@ async def update_user_profile(
             profile.priority_country,
             profile.salary_min,
             json.dumps(profile.tech_stack),
+            json.dumps(getattr(profile, 'cv_data', {})),
             profile.cv_base_url,
             profile.github_url,
             profile.linkedin_url,
@@ -142,8 +146,8 @@ async def update_user_profile(
             # Create new profile if it doesn't exist
             insert_query = """
                 INSERT INTO user_profiles
-                (user_id, target_roles, preferred_modality, preferred_countries, priority_country, salary_min, tech_stack, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                (user_id, target_roles, preferred_modality, preferred_countries, priority_country, salary_min, tech_stack, cv_data, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
             """
             insert_params = (
                 user_id,
@@ -152,7 +156,8 @@ async def update_user_profile(
                 json.dumps(profile.preferred_countries),
                 profile.priority_country,
                 profile.salary_min,
-                json.dumps(profile.tech_stack)
+                json.dumps(profile.tech_stack),
+                json.dumps(getattr(profile, 'cv_data', {}))
             )
             execute_update(insert_query, insert_params)
 

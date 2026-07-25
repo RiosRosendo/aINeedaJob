@@ -65,8 +65,29 @@ export default function ProfilePage() {
           priority_country: data.priority_country || null,
           preferred_modality: data.preferred_modality || null,
           salary_min: data.salary_min || 0,
+          cv_data: data.cv_data || {},
         };
         setFormData(formDataToSet);
+
+        // Load languages from cv_data if they exist
+        if (data.cv_data && data.cv_data.languages && Array.isArray(data.cv_data.languages)) {
+          const parsedLanguages = data.cv_data.languages
+            .map((lang: any) => {
+              if (typeof lang === 'object' && lang.language && lang.level) {
+                return {
+                  language: lang.language.trim() || '',
+                  level: lang.level.trim() || 'Intermediate',
+                };
+              }
+              return null;
+            })
+            .filter((l: any) => l && l.language);
+
+          if (parsedLanguages.length > 0) {
+            setLanguages(parsedLanguages);
+            console.log('[PROFILE LOAD] Loaded languages from cv_data:', parsedLanguages);
+          }
+        }
 
         // Check if profile is complete
         const hasRoles = formDataToSet.target_roles && formDataToSet.target_roles.length > 0;
@@ -518,8 +539,22 @@ export default function ProfilePage() {
         return;
       }
 
-      await updateUserProfile(formData);
-      setProfile(formData as UserProfile);
+      console.log('[SAVE] Languages being saved:', languages);
+      console.log('[SAVE] FormData being sent:', formData);
+
+      // Include languages in cv_data when saving
+      const profileToSave = {
+        ...formData,
+        cv_data: {
+          ...formData.cv_data,
+          languages: languages
+        }
+      };
+
+      console.log('[SAVE] Complete profile with languages:', profileToSave);
+
+      await updateUserProfile(profileToSave);
+      setProfile(profileToSave as UserProfile);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {

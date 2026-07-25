@@ -13,6 +13,7 @@ class UserProfileBase(BaseModel):
     priority_country: Optional[str] = Field(default=None, description="Priority country for job search (must be in preferred_countries)")
     salary_min: Optional[int] = Field(default=None, description="Minimum annual salary USD")
     tech_stack: List[str] = Field(default=[], description="Technical skills")
+    cv_data: Optional[dict] = Field(default=None, description="Extracted CV data including languages, skills, etc.")
     cv_base_url: Optional[str] = None
     github_url: Optional[str] = None
     linkedin_url: Optional[str] = None
