@@ -612,6 +612,29 @@ def run_autonomous_cycle(user_id: str) -> dict:
     try:
         print(f"[AUTONOMOUS] Starting autonomous cycle for user {user_id}", flush=True)
 
+        # Check if user profile is complete
+        profile_result = execute_query(
+            "SELECT target_roles, tech_stack FROM user_profiles WHERE user_id = %s",
+            (user_id,)
+        )
+
+        if not profile_result:
+            print(f"[AUTONOMOUS] User profile not found for {user_id}", flush=True)
+            return {'action': 'skip', 'reason': 'Profile not found', 'result': {}}
+
+        profile = profile_result[0]
+        target_roles = profile.get('target_roles', [])
+        tech_stack = profile.get('tech_stack', [])
+
+        # Skip if profile is incomplete
+        if not target_roles or not tech_stack:
+            print(f"[AUTONOMOUS] Skipping user {user_id} - profile incomplete (roles={len(target_roles) if target_roles else 0}, skills={len(tech_stack) if tech_stack else 0})", flush=True)
+            return {
+                'action': 'skip',
+                'reason': 'Profile incomplete - no target roles or tech stack',
+                'result': {}
+            }
+
         # Gather current state
         state = _gather_pipeline_state(user_id)
 

@@ -25,6 +25,54 @@ def serialize_row(row):
             result[key] = value.isoformat()
     return result
 
+
+def parse_json_array_with_fallbacks(response_text: str):
+    """
+    Try multiple strategies to parse JSON array from LLM response.
+    Returns parsed list or None if all strategies fail.
+    """
+    if not response_text:
+        return None
+
+    # Strategy 1: Direct parsing
+    try:
+        result = json.loads(response_text)
+        if isinstance(result, list):
+            return result
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 2: Extract from markdown code blocks
+    try:
+        if "```" in response_text:
+            parts = response_text.split("```")
+            for part in parts:
+                if part.startswith("json"):
+                    json_str = part[4:].strip()
+                    result = json.loads(json_str)
+                    if isinstance(result, list):
+                        return result
+                elif part.strip() and part.strip()[0] == '[':
+                    result = json.loads(part.strip())
+                    if isinstance(result, list):
+                        return result
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 3: Find first [ and last ] and parse that substring
+    try:
+        start_idx = response_text.find('[')
+        end_idx = response_text.rfind(']')
+        if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
+            json_str = response_text[start_idx:end_idx + 1]
+            result = json.loads(json_str)
+            if isinstance(result, list):
+                return result
+    except json.JSONDecodeError:
+        pass
+
+    return None
+
 @router.get("")
 async def list_jobs(user_id: str = Depends(get_user_id), limit: int = 50):
     """
@@ -256,6 +304,193 @@ async def get_jobs_by_country_detail(country_code: str, user_id: str = Depends(g
     except Exception as e:
         print(f"[API /jobs/by-country/{country_code}] ERROR: {str(e)}", flush=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/suggest-skills")
+async def suggest_skills(
+    user_id: str = Depends(get_user_id),
+    current_skills: list = [],
+    input_skill: str = ""
+):
+    """
+    Get skill suggestions based on user's current skills.
+
+    Uses Groq LLM to suggest 5 related skills the user might have based on their existing stack.
+    Example: user has ROS2 → suggest MoveIt, Nav2, tf2, RViz, gazebo
+    """
+    try:
+        if not current_skills or not input_skill.strip():
+            return {"suggestions": []}
+
+        from tools.llm import call_llm
+        import json
+
+        prompt = f"""Based on this user's current tech stack, suggest 5 related skills they might have.
+
+User's current skills: {', '.join(current_skills)}
+User started typing: "{input_skill}"
+
+Suggest 5 specific technologies, tools, or frameworks that relate to their existing skills.
+Focus on skills that start with or contain the user's input.
+Return ONLY a JSON array of skill names, no explanations:
+["Skill1", "Skill2", "Skill3", "Skill4", "Skill5"]
+"""
+
+        response = call_llm(prompt)
+        response = response.replace("```json", "").replace("```", "").strip()
+
+        try:
+            suggestions = json.loads(response)
+            if isinstance(suggestions, list):
+                # Filter out duplicates with existing skills (case-insensitive)
+                existing_lower = {s.lower() for s in current_skills}
+                filtered = [s for s in suggestions if s.lower() not in existing_lower]
+                return {"suggestions": filtered[:5]}
+        except:
+            pass
+
+        return {"suggestions": []}
+
+    except Exception as e:
+        print(f"[SKILL SUGGEST] ERROR: {str(e)}", flush=True)
+        return {"suggestions": []}
+
+
+@router.post("/suggest-roles")
+async def suggest_roles(
+    user_id: str = Depends(get_user_id),
+    current_skills: list = [],
+    current_roles: list = [],
+    input_role: str = ""
+):
+    """
+    Get role suggestions based on user's current skills.
+
+    Uses Groq LLM to autonomously suggest 5 relevant job roles based on existing tech stack.
+    Example: user has Python, TensorFlow, PyTorch → suggest ML Engineer, Data Scientist, AI Engineer
+    """
+    try:
+        if not current_skills or not input_role.strip():
+            return {"suggestions": []}
+
+        from tools.llm import call_llm
+
+        prompt = f"""Based on this user's tech stack, suggest 5 job roles they should target.
+
+Skills: {', '.join(current_skills)}
+User typing: "{input_role}"
+
+Return ONLY a JSON array of 5 job title strings. Example: ["AI Engineer", "ML Engineer", "Robotics Engineer"]
+No explanation, no markdown, just the array.
+"""
+
+        response = call_llm(prompt)
+        print(f"[ROLE SUGGEST] Raw LLM response: {response[:300]}", flush=True)
+
+        suggestions = parse_json_array_with_fallbacks(response)
+
+        if not suggestions:
+            print(f"[ROLE SUGGEST] Failed to parse JSON. Raw response: {response[:500]}", flush=True)
+            return {"suggestions": []}
+
+        print(f"[ROLE SUGGEST] Parsed suggestions: {suggestions}", flush=True)
+
+        # Filter out duplicates with existing roles (case-insensitive)
+        existing_lower = {r.lower() for r in current_roles}
+        filtered = [r for r in suggestions if r.lower() not in existing_lower and isinstance(r, str)]
+
+        print(f"[ROLE SUGGEST] Filtered suggestions: {filtered}", flush=True)
+        return {"suggestions": filtered[:5]}
+
+    except Exception as e:
+        print(f"[ROLE SUGGEST] ERROR: {str(e)}", flush=True)
+        return {"suggestions": []}
+
+
+@router.post("/suggest-languages")
+async def suggest_languages(
+    user_id: str = Depends(get_user_id),
+    target_countries: list = [],
+    current_languages: list = []
+):
+    """
+    Get language suggestions based on user's target countries.
+
+    Uses Groq LLM to autonomously suggest languages relevant to the user's target job locations.
+    Example: user targeting Spain, France → suggest Spanish, French
+    """
+    try:
+        if not target_countries:
+            return {"suggestions": []}
+
+        from tools.llm import call_llm
+
+        prompt = f"""Based on the user's target job locations, suggest 5 languages they should learn.
+
+Target countries: {', '.join(target_countries)}
+Current languages: {', '.join(current_languages) if current_languages else 'None yet'}
+
+Return ONLY a JSON array of 5 language names. Example: ["Spanish", "French", "German"]
+No explanation, no markdown, just the array.
+"""
+
+        response = call_llm(prompt)
+        print(f"[LANGUAGE SUGGEST] Raw LLM response: {response[:300]}", flush=True)
+
+        suggestions = parse_json_array_with_fallbacks(response)
+
+        if not suggestions:
+            print(f"[LANGUAGE SUGGEST] Failed to parse JSON. Raw response: {response[:500]}", flush=True)
+            return {"suggestions": []}
+
+        print(f"[LANGUAGE SUGGEST] Parsed suggestions: {suggestions}", flush=True)
+
+        # Filter out duplicates with existing languages (case-insensitive)
+        existing_lower = {l.lower() for l in current_languages}
+        filtered = [l for l in suggestions if l.lower() not in existing_lower and isinstance(l, str)]
+
+        print(f"[LANGUAGE SUGGEST] Filtered suggestions: {filtered}", flush=True)
+        return {"suggestions": filtered[:5]}
+
+    except Exception as e:
+        print(f"[LANGUAGE SUGGEST] ERROR: {str(e)}", flush=True)
+        return {"suggestions": []}
+
+
+@router.get("/countries/available")
+async def get_available_countries(user_id: str = Depends(get_user_id)):
+    """
+    Get user's preferred countries list for autocomplete.
+
+    Returns the countries from user's profile + common alternatives.
+    """
+    try:
+        # Get user's preferred countries from profile
+        result = execute_query(
+            "SELECT preferred_countries FROM user_profiles WHERE user_id = %s",
+            (user_id,)
+        )
+
+        preferred = []
+        if result and result[0].get('preferred_countries'):
+            preferred = result[0]['preferred_countries']
+
+        # Include common countries for discovery
+        all_countries = [
+            'US', 'UK', 'Canada', 'Australia', 'Germany', 'France', 'Spain', 'Netherlands',
+            'Sweden', 'Switzerland', 'Ireland', 'Singapore', 'Japan', 'South Korea', 'Mexico',
+            'Brazil', 'New Zealand', 'Belgium', 'Denmark', 'Norway', 'Portugal', 'India',
+            'Israel', 'United Arab Emirates', 'Hong Kong', 'Taiwan', 'China', 'Russia',
+            'Poland', 'Czech Republic', 'Romania', 'Ukraine', 'Chile', 'Argentina', 'Colombia',
+        ]
+
+        # Put preferred countries first, then add other common ones
+        ordered = list(set(preferred + all_countries))
+        return {"countries": ordered}
+
+    except Exception as e:
+        print(f"[COUNTRIES] ERROR: {str(e)}", flush=True)
+        return {"countries": []}
 
 
 @router.post("/autonomous-cycle")

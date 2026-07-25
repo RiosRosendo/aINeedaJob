@@ -279,36 +279,49 @@ def extract_cv_data(cv_text: str) -> dict:
 
         client = Groq(api_key=groq_api_key)
 
-        prompt = f"""Extract all information from this CV as valid JSON. Work with any CV in any language.
+        prompt = f"""Extract CV data. Return ONLY valid JSON, no markdown, no explanations.
 
-CV TEXT:
+CV:
 {cv_text}
 
-Extract these fields as JSON (use empty arrays/strings if not found):
-- tech_skills: List of technology/tool names ONLY (no algorithms, descriptions, or generic concepts)
-- languages: Array of {{"language": "name", "level": "Native|Fluent|Advanced|Intermediate|Beginner"}}
-- certifications: List of professional certifications
-- roles: List of job titles/positions
-- experience_years: Total years (integer)
-- education: List of degrees/fields
-- projects: List of project names
-- summary: 1-2 sentence professional background
+EXHAUSTIVE TECHNOLOGY EXTRACTION:
+Extract EVERY technology, tool, library, framework, platform, and programming language mentioned ANYWHERE in this CV:
+- In Skills/Technologies sections
+- In project descriptions and implementation details
+- In experience/job responsibility bullets
+- In coursework and education sections
+- Hardware platforms, microcontrollers, boards
+- Communication protocols and interfaces (CAN, UART, I2C, etc.)
+- Simulation environments and IDEs
+- Build systems and tools
 
-CRITICAL:
-- Return ONLY valid JSON with no markdown, no comments, no trailing commas
-- No code blocks, no explanations, no extra text
-- Autonomously extract based on CV content - nothing hardcoded
+CRITICAL RULES:
+- Preserve the EXACT spelling and capitalization of technology names as they appear in the CV
+- Do not add spaces within compound words or modify capitalization
+- If CV says 'ArUco', extract 'ArUco' - not 'Ar Uco'
+- If CV says 'FreeRTOS', extract 'FreeRTOS' - not 'Free RTOS'
+- If CV says 'LiDAR', extract 'LiDAR' - not 'Li DAR'
+- If CV says 'MediaPipe', extract 'MediaPipe' - not 'Media Pipe'
+- Copy technology names character-for-character from the CV text
+- Be exhaustive - extract ALL technologies found, not just common ones
+- Expect minimum 25+ skills from a technical CV
+- NO languages (Spanish, English, etc.) - extract only to languages field
+- NO certifications - extract only to certifications field
+- NO algorithms with symbols (A*, D*, RRT*)
+- NO generic concepts (optimization, filtering, planning - unless they're tool names)
+- NO job titles or role descriptions
 
-Format:
+For languages: Format: [{{"language": "Spanish", "level": "Native"}}]
+Levels: Native, Fluent, Advanced, Intermediate, Beginner, or B1/B2/C1/C2
+
+Return:
 {{
-  "tech_skills": ["C++", "Python", ...],
+  "tech_skills": ["Python", "C++", "ROS2", "Gazebo", "Docker"],
   "languages": [{{"language": "Spanish", "level": "Native"}}],
-  "certifications": [...],
-  "roles": [...],
+  "roles": ["Robotics Engineer"],
   "experience_years": 5,
-  "education": [...],
-  "projects": [...],
-  "summary": "..."
+  "education": ["Bachelor in Computer Science"],
+  "certifications": []
 }}
 """
 
@@ -340,6 +353,11 @@ Format:
             }
 
         tech_skills = _clean_tech_skills(extracted.get("tech_skills", []))
+        languages = extracted.get("languages", [])
+
+        print(f"[CV EXTRACT] Raw languages from LLM: {languages}", flush=True)
+        print(f"[CV EXTRACT] Raw tech_skills from LLM: {extracted.get('tech_skills', [])}", flush=True)
+        print(f"[CV EXTRACT] Cleaned tech_skills: {tech_skills}", flush=True)
 
         return {
             "skills": tech_skills,
@@ -347,7 +365,7 @@ Format:
             "experience_years": extracted.get("experience_years", 0),
             "education": extracted.get("education", []),
             "projects": extracted.get("projects", []),
-            "languages": extracted.get("languages", []),
+            "languages": languages,
             "certifications": extracted.get("certifications", []),
             "summary": extracted.get("summary", "")
         }
@@ -382,9 +400,8 @@ def _clean_tech_skills(skills: list) -> list:
         if any(cert in lower_skill for cert in cert_keywords):
             continue
 
-        # Fix common compound skills (add spaces between camelCase)
-        skill = _fix_compound_skills(skill)
-
+        # Preserve exact spelling - do not modify capitalization or spacing
+        # (LLM now extracts exact names from CV text)
         cleaned_list.append(skill)
 
     # Deduplicate by normalized name

@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [weeklySummary, setWeeklySummary] = useState<any>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
 
   const fetchWeeklySummary = async () => {
     try {
@@ -115,6 +116,15 @@ export default function Dashboard() {
         setJobs(pendingJobs);
         setActivityLogs(logs);
         setStats(jobsData.stats);
+
+        // Check if profile is complete
+        if (profileData) {
+          const hasRoles = profileData.target_roles && profileData.target_roles.length > 0;
+          const hasSkills = profileData.tech_stack && profileData.tech_stack.length > 0;
+          if (!hasRoles || !hasSkills) {
+            setProfileIncomplete(true);
+          }
+        }
 
         // Fetch weekly summary
         await fetchWeeklySummary();
@@ -212,6 +222,38 @@ export default function Dashboard() {
 
   return (
     <div>
+      {profileIncomplete && (
+        <div
+          className="mb-6 p-4 border rounded-lg flex items-start gap-3 justify-between"
+          style={{
+            borderColor: '#f59e0b',
+            backgroundColor: '#fffbeb',
+            color: '#d97706',
+          }}
+        >
+          <div className="flex items-start gap-3">
+            <div style={{ fontSize: '20px' }}>⚠️</div>
+            <div>
+              <strong>Profile Incomplete</strong>
+              <p style={{ fontSize: '14px', marginTop: '4px' }}>
+                Add your skills and target roles or upload your CV to start job discovery
+              </p>
+            </div>
+          </div>
+          <a
+            href="/profile"
+            className="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap"
+            style={{
+              backgroundColor: '#d97706',
+              color: 'white',
+              textDecoration: 'none',
+            }}
+          >
+            Complete Profile
+          </a>
+        </div>
+      )}
+
       {error && (
         <div
           className="mb-6 p-4 border rounded-lg"

@@ -19,6 +19,9 @@ def score_job(job_id, user_id, job_data, user_profile):
         # Validate output
         _validate_score_output(score_data)
 
+        # Check language requirements and adjust score
+        score_data = _check_language_requirements(score_data, job_data, user_profile)
+
         log_agent_run(
             user_id=user_id,
             job_id=job_id,
@@ -134,3 +137,90 @@ def _validate_score_output(score_data):
         score_data['strengths'] = []
     if not isinstance(score_data.get('gaps'), list):
         score_data['gaps'] = []
+
+
+def _check_language_requirements(score_data, job_data, user_profile):
+    """Check if job has language requirements and adjust score accordingly."""
+    try:
+        from tools.db import execute_query
+
+        # Get user's CV data with languages
+        cv_data = user_profile.get('cv_data')
+        if not cv_data:
+            return score_data
+
+        # Parse if string
+        if isinstance(cv_data, str):
+            cv_data = json.loads(cv_data)
+
+        user_languages = cv_data.get('languages', [])
+        if not user_languages:
+            return score_data
+
+        # Extract language names (e.g., "Spanish Native" → "Spanish")
+        user_lang_names = set()
+        for lang_entry in user_languages:
+            if isinstance(lang_entry, dict):
+                lang_name = lang_entry.get('language', '').lower()
+            else:
+                lang_name = str(lang_entry).split()[0].lower()
+            if lang_name:
+                user_lang_names.add(lang_name)
+
+        # Detect language requirements in job description using LLM
+        job_description = job_data.get('description_raw', '')
+        if not job_description:
+            return score_data
+
+        prompt = f"""Analyze this job description and detect any language requirements.
+
+Job Description:
+{job_description[:1000]}
+
+Return ONLY a JSON object:
+{{
+  "required_languages": ["language1", "language2"],
+  "required_level": "intermediate or higher",
+  "confidence": 0-100
+}}
+
+If no language requirement found, return empty languages list.
+"""
+
+        response = call_llm(prompt)
+        response = response.replace("```json", "").replace("```", "").strip()
+
+        try:
+            lang_data = json.loads(response)
+            required_langs = {l.lower() for l in lang_data.get('required_languages', [])}
+
+            if not required_langs:
+                return score_data
+
+            # Check if user speaks required languages
+            missing_langs = required_langs - user_lang_names
+            has_required_langs = len(required_langs) > 0 and len(missing_langs) == 0
+
+            if missing_langs and lang_data.get('confidence', 0) > 70:
+                # User doesn't speak required language - reduce score by 30
+                original_score = score_data.get('score', 0)
+                new_score = max(0, original_score - 30)
+                score_data['score'] = new_score
+                score_data['gaps'].append(f"Missing language: {', '.join(missing_langs)}")
+                print(f"[LANGUAGE] Reduced score from {original_score} to {new_score} due to language mismatch", flush=True)
+
+            elif has_required_langs:
+                # User speaks required language - small bonus
+                original_score = score_data.get('score', 0)
+                new_score = min(100, original_score + 5)
+                score_data['score'] = new_score
+                print(f"[LANGUAGE] Increased score from {original_score} to {new_score} due to language match", flush=True)
+
+        except:
+            pass
+
+        return score_data
+
+    except Exception as e:
+        print(f"[LANGUAGE CHECK] Warning: {str(e)}", flush=True)
+        return score_data
