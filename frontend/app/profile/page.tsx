@@ -41,6 +41,7 @@ export default function ProfilePage() {
   const [showCountrySuggestions, setShowCountrySuggestions] = useState(false);
   const [languageSuggestions, setLanguageSuggestions] = useState<string[]>([]);
   const [showLanguageSuggestions, setShowLanguageSuggestions] = useState<{[key: number]: boolean}>({});
+  const [nationality, setNationality] = useState<string>('');
   const [profileIncomplete, setProfileIncomplete] = useState(false);
 
   const isProfileComplete = () => {
@@ -87,6 +88,12 @@ export default function ProfilePage() {
             setLanguages(parsedLanguages);
             console.log('[PROFILE LOAD] Loaded languages from cv_data:', parsedLanguages);
           }
+        }
+
+        // Load nationality from cv_data if it exists
+        if (data.cv_data && data.cv_data.nationality) {
+          setNationality(data.cv_data.nationality);
+          console.log('[PROFILE LOAD] Loaded nationality from cv_data:', data.cv_data.nationality);
         }
 
         // Check if profile is complete
@@ -258,10 +265,15 @@ export default function ProfilePage() {
       // Replace tech_stack completely with extracted skills
       // New CV is source of truth - old skills are discarded
       setFormData((prev) => {
+        const updatedCvData = {
+          ...prev.cv_data,
+          nationality: extractedData.nationality || prev.cv_data?.nationality,
+        };
         return {
           ...prev,
           tech_stack: extractedData.skills || [],
           target_roles: extractedData.roles || prev.target_roles,
+          cv_data: updatedCvData,
         };
       });
 
@@ -542,12 +554,13 @@ export default function ProfilePage() {
       console.log('[SAVE] Languages being saved:', languages);
       console.log('[SAVE] FormData being sent:', formData);
 
-      // Include languages in cv_data when saving
+      // Include languages and nationality in cv_data when saving
       const profileToSave = {
         ...formData,
         cv_data: {
           ...formData.cv_data,
-          languages: languages
+          languages: languages,
+          nationality: nationality
         }
       };
 
@@ -1099,6 +1112,40 @@ export default function ProfilePage() {
           >
             + Add Language
           </button>
+        </section>
+
+        {/* Nationality / Citizenship */}
+        <section
+          className="border rounded-lg p-6"
+          style={{
+            borderColor: 'var(--border)',
+            backgroundColor: 'var(--card)',
+          }}
+        >
+          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text)' }}>
+            Nationality / Citizenship
+          </h2>
+
+          <div>
+            <label
+              className="block text-xs font-semibold mb-2"
+              style={{ color: 'var(--faint)' }}
+            >
+              Nationality
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Mexican, American, Brazilian"
+              value={nationality}
+              onChange={(e) => setNationality(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg text-sm outline-none"
+              style={{
+                borderColor: 'var(--border)',
+                backgroundColor: 'var(--bg)',
+                color: 'var(--text)',
+              }}
+            />
+          </div>
         </section>
 
         {/* Preferred Modality */}

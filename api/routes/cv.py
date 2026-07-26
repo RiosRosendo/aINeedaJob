@@ -329,11 +329,20 @@ LANGUAGE-AGNOSTIC TRANSLATION:
 For languages: Format: [{{"language": "Spanish", "level": "Native"}}]
 Levels: Native, Fluent, Advanced, Intermediate, Beginner, or B1/B2/C1/C2
 
+NATIONALITY EXTRACTION:
+Extract the person's nationality/citizenship from the CV if mentioned:
+- Look for: "Mexican national", "Mexican citizen", "Nationality: Mexican", "I am Mexican", "From Mexico", location in address section
+- Extract the actual country/nationality as written in the CV
+- If CV is in Spanish/French/German, translate nationality to English (e.g., "Mexicano" → "Mexican", "Français" → "French")
+- Return as string (not array)
+- If no nationality found, return null
+
 Return:
 {{
   "tech_skills": ["Python", "C++", "ROS2", "Gazebo", "Docker"],
   "languages": [{{"language": "Spanish", "level": "Native"}}],
   "roles": ["Robotics Engineer"],
+  "nationality": "Mexican",
   "experience_years": 5,
   "education": ["Bachelor in Computer Science"],
   "certifications": []
@@ -364,6 +373,7 @@ Return:
                 "projects": [],
                 "languages": [],
                 "certifications": [],
+                "nationality": None,
                 "summary": ""
             }
 
@@ -382,6 +392,7 @@ Return:
             "projects": extracted.get("projects", []),
             "languages": languages,
             "certifications": extracted.get("certifications", []),
+            "nationality": extracted.get("nationality", None),
             "summary": extracted.get("summary", "")
         }
 
