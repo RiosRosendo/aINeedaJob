@@ -238,6 +238,7 @@ def _translate_roles_for_country(roles: list, country_code: str) -> list:
         return []
 
     try:
+        import json
         roles_str = ", ".join(roles)
         prompt = f"""You are a job market expert. Translate these English job roles to the PRIMARY professional language used in job postings for {country_code.upper()}.
 
@@ -245,12 +246,26 @@ First, identify the primary job-search language for {country_code.upper()}, then
 
 English roles: {roles_str}
 
-Return ONLY the translated roles as a comma-separated list. No explanations, no language names, no parentheses.
-
-Translated roles:"""
+Return ONLY a valid JSON array of translated job titles. No explanation, no markdown.
+Example: ["Ingeniero en Robótica", "Ingeniero de Sistemas Embebidos"]"""
 
         response = call_llm(prompt).strip()
-        translated_roles = [r.strip() for r in response.split(',') if r.strip()]
+
+        # Remove markdown code blocks if present
+        if response.startswith("```"):
+            response = response.split("```")[1].strip()
+            if response.startswith("json"):
+                response = response[4:].strip()
+
+        # Parse JSON array
+        translated_roles = json.loads(response)
+
+        # Validate: filter out strings longer than 50 chars or containing newlines
+        # Those are likely explanation text, not actual role names
+        translated_roles = [
+            r.strip() for r in translated_roles
+            if isinstance(r, str) and len(r) <= 50 and '\n' not in r and r.strip()
+        ]
 
         print(f"[TRANSLATION] Country: {country_code}, English roles: {roles}")
         print(f"[TRANSLATION] {country_code.upper()} roles: {translated_roles}")
@@ -727,12 +742,21 @@ def _gather_pipeline_state(user_id: str) -> dict:
     )
     sources = {row['source']: row['count'] for row in sources_result} if sources_result else {}
 
-    # User profile
+    # User profile with priority_country
     profile = execute_query(
-        "SELECT target_roles, preferred_countries FROM user_profiles WHERE user_id = %s",
+        "SELECT target_roles, preferred_countries, priority_country FROM user_profiles WHERE user_id = %s",
         (user_id,)
     )
     user_profile = profile[0] if profile else {}
+
+    # Jobs by search_country to detect if priority country is underrepresented
+    country_jobs = execute_query(
+        """SELECT search_country, COUNT(*) as count FROM jobs
+           WHERE user_id = %s AND expires_at IS NULL AND search_country IS NOT NULL
+           GROUP BY search_country ORDER BY count DESC""",
+        (user_id,)
+    )
+    jobs_by_country = {row['search_country']: row['count'] for row in country_jobs} if country_jobs else {}
 
     return {
         'last_discovery_time': last_discovery,
@@ -753,6 +777,8 @@ def _gather_pipeline_state(user_id: str) -> dict:
         'sources': sources,
         'target_roles': user_profile.get('target_roles', []),
         'preferred_countries': user_profile.get('preferred_countries', []),
+        'priority_country': user_profile.get('priority_country'),
+        'jobs_by_country': jobs_by_country,
     }
 
 
@@ -761,12 +787,29 @@ def _llm_decide_action(user_id: str, state: dict) -> dict:
     from tools.llm import call_llm
     import json
 
+    # Hard override: if too many jobs waiting, force processing
+    unprocessed = state.get('unprocessed_count', 0)
+    if unprocessed > 500:
+        print(f"[AUTONOMOUS] HARD OVERRIDE: {unprocessed} unprocessed jobs > 500, forcing run_processing", flush=True)
+        return {
+            'action': 'run_processing',
+            'reasoning': f'Hard override: {unprocessed} unprocessed jobs waiting (> 500 threshold)',
+            'priority': 10
+        }
+
     scoring = state['scoring_metrics']
     sources = state['sources']
     source_quality = state['source_quality']
+    jobs_by_country = state.get('jobs_by_country', {})
+    priority_country = state.get('priority_country')
 
     source_list = '\n'.join([f"  - {src}: {cnt} jobs (quality: {source_quality.get(src, 0):.1f}%)"
                              for src, cnt in sources.items()]) if sources else "  (none)"
+
+    # Build country distribution summary
+    country_dist = '\n'.join([f"  - {country.upper()}: {cnt} jobs" for country, cnt in sorted(jobs_by_country.items(), key=lambda x: -x[1])]) if jobs_by_country else "  (no country-specific jobs tracked)"
+
+    priority_info = f"\n- PRIORITY COUNTRY: {priority_country.upper()}" if priority_country else ""
 
     prompt = f"""You are an autonomous job search pipeline manager.
 
@@ -774,10 +817,13 @@ Analyze this pipeline state and decide the NEXT ACTION.
 
 CURRENT STATE:
 - Target roles: {state['target_roles']}
-- Preferred countries: {state['preferred_countries']}
+- Preferred countries: {state['preferred_countries']}{priority_info}
 - Hours since last discovery: {state['hours_since_discovery']:.1f}
 - Unprocessed jobs waiting: {state['unprocessed_count']}
 - Total active jobs in system: {state['total_active_jobs']}
+
+JOBS BY COUNTRY (Active Jobs):
+{country_dist}
 
 SCORING RESULTS (Last 48 hours):
 - Jobs scored: {scoring['total_scored']}
@@ -795,6 +841,7 @@ DECISION LOGIC:
 - If hours_since_discovery < 2 → PROCESS (give recent discovery time to complete)
 - If all sources have quality < 10% → WAIT (sources not working, try again later)
 - If applied_pct < 5% AND review_pct < 10% → TRY_NEW_SOURCES (low match rate)
+- If priority_country is set AND has significantly fewer jobs than other countries → DISCOVER (search more in priority country)
 - If everything current and processed → WAIT
 
 Return ONLY valid JSON (no markdown):
