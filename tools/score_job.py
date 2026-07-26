@@ -22,6 +22,9 @@ def score_job(job_id, user_id, job_data, user_profile):
         # Check language requirements and adjust score
         score_data = _check_language_requirements(score_data, job_data, user_profile)
 
+        # Check priority country match and let LLM decide boost
+        score_data = _apply_priority_country_boost(score_data, job_data, user_profile)
+
         log_agent_run(
             user_id=user_id,
             job_id=job_id,
@@ -223,4 +226,63 @@ If no language requirement found, return empty languages list.
 
     except Exception as e:
         print(f"[LANGUAGE CHECK] Warning: {str(e)}", flush=True)
+        return score_data
+
+
+def _apply_priority_country_boost(score_data, job_data, user_profile):
+    """If job is in user's priority country, let LLM decide score boost."""
+    try:
+        priority_country = user_profile.get('priority_country')
+        search_country = job_data.get('search_country')
+
+        # No boost if user doesn't have priority country or job doesn't have search_country context
+        if not priority_country or not search_country:
+            return score_data
+
+        # Normalize for comparison (both should be 2-letter codes)
+        priority_code = priority_country.lower().strip()
+        search_code = search_country.lower().strip()
+
+        # If they don't match, no boost
+        if priority_code != search_code:
+            return score_data
+
+        # Country match detected - ask LLM how much to boost
+        original_score = score_data.get('score', 0)
+
+        prompt = f"""This job is in the user's priority country ({priority_country.upper()}).
+User's original match score: {original_score}/100
+
+Given this priority country match, should the score be adjusted upward? Consider:
+- The user prioritizes this country, so a match there is more valuable
+- But don't artificially inflate scores - only boost if it's justified by the match quality
+- The boost should reflect how much the country priority matters relative to the overall fit
+
+Return ONLY a JSON object:
+{{
+  "boost_amount": integer 0-15,
+  "reasoning": "brief explanation"
+}}
+
+Boost examples:
+- 0: Country match doesn't add value (job was already poor fit)
+- 5: Minor boost for being in priority country
+- 10: Moderate boost - job is good fit AND in priority country
+- 15: Significant boost - country priority is important for this user's goals
+"""
+
+        response = call_llm(prompt)
+        response = response.replace("```json", "").replace("```", "").strip()
+        decision = json.loads(response)
+
+        boost = decision.get('boost_amount', 0)
+        if boost > 0:
+            new_score = min(100, original_score + boost)
+            score_data['score'] = new_score
+            print(f"[PRIORITY_COUNTRY] {priority_country.upper()} match: boosted {original_score} → {new_score} (+{boost})", flush=True)
+
+        return score_data
+
+    except Exception as e:
+        print(f"[PRIORITY_COUNTRY] Warning: {str(e)}", flush=True)
         return score_data
