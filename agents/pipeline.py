@@ -759,6 +759,20 @@ def _gather_pipeline_state(user_id: str) -> dict:
     )
     jobs_by_country = {row['search_country']: row['count'] for row in country_jobs} if country_jobs else {}
 
+    # Calculate duplication rate: total jobs / unique (title, company) pairs
+    duplication_result = execute_query(
+        """SELECT
+             COUNT(*) as total_jobs,
+             COUNT(DISTINCT LOWER(title) || '|' || LOWER(COALESCE(company, ''))) as unique_jobs
+           FROM jobs
+           WHERE user_id = %s AND expires_at IS NULL""",
+        (user_id,)
+    )
+    duplication_data = duplication_result[0] if duplication_result else {'total_jobs': 0, 'unique_jobs': 0}
+    total_jobs = duplication_data.get('total_jobs', 0)
+    unique_jobs = duplication_data.get('unique_jobs', 0)
+    duplication_rate = (total_jobs / unique_jobs) if unique_jobs > 0 else 1.0
+
     return {
         'last_discovery_time': last_discovery,
         'hours_since_discovery': hours_since_discovery,
@@ -780,6 +794,9 @@ def _gather_pipeline_state(user_id: str) -> dict:
         'preferred_countries': user_profile.get('preferred_countries', []),
         'priority_country': user_profile.get('priority_country'),
         'jobs_by_country': jobs_by_country,
+        'duplication_rate': duplication_rate,
+        'total_jobs': total_jobs,
+        'unique_jobs': unique_jobs,
     }
 
 
@@ -803,6 +820,9 @@ def _llm_decide_action(user_id: str, state: dict) -> dict:
     source_quality = state['source_quality']
     jobs_by_country = state.get('jobs_by_country', {})
     priority_country = state.get('priority_country')
+    duplication_rate = state.get('duplication_rate', 1.0)
+    total_jobs = state.get('total_jobs', 0)
+    unique_jobs = state.get('unique_jobs', 0)
 
     source_list = '\n'.join([f"  - {src}: {cnt} jobs (quality: {source_quality.get(src, 0):.1f}%)"
                              for src, cnt in sources.items()]) if sources else "  (none)"
@@ -826,6 +846,11 @@ CURRENT STATE:
 JOBS BY COUNTRY (Active Jobs):
 {country_dist}
 
+DUPLICATE DETECTION:
+- Total jobs: {total_jobs}
+- Unique by (title, company): {unique_jobs}
+- Duplication rate: {duplication_rate:.2f}x (1.0 = no duplicates, 2.0 = every unique job appears twice)
+
 SCORING RESULTS (Last 48 hours):
 - Jobs scored: {scoring['total_scored']}
 - Applied tier (85+): {scoring['applied_count']} ({scoring['applied_pct']:.1f}%)
@@ -837,6 +862,7 @@ ACTIVE SOURCES:
 {source_list}
 
 DECISION LOGIC:
+- If duplication_rate > 1.5 → CLEANUP (too many duplicate jobs from different sources)
 - If unprocessed_count > 30 → PROCESS first (don't discover more until caught up)
 - If unprocessed_count == 0 AND hours_since_discovery > 24 → DISCOVER
 - If hours_since_discovery < 2 → PROCESS (give recent discovery time to complete)
@@ -847,7 +873,7 @@ DECISION LOGIC:
 
 Return ONLY valid JSON (no markdown):
 {{
-  "action": "run_discovery" | "run_processing" | "try_new_sources" | "wait",
+  "action": "run_discovery" | "run_processing" | "run_cleanup" | "try_new_sources" | "wait",
   "reasoning": "brief explanation of why this action",
   "priority": integer 1-10
 }}"""
@@ -873,6 +899,8 @@ def _execute_autonomous_action(user_id: str, action: str, state: dict) -> dict:
         return _execute_discovery(user_id)
     elif action == 'run_processing':
         return _execute_processing(user_id, state)
+    elif action == 'run_cleanup':
+        return _execute_cleanup(user_id)
     elif action == 'try_new_sources':
         print("[AUTONOMOUS] try_new_sources not yet implemented, waiting instead", flush=True)
         return {'action': 'wait', 'reason': 'new_sources_not_implemented'}
@@ -994,6 +1022,52 @@ def _execute_processing(user_id: str, state: dict) -> dict:
     except Exception as e:
         print(f"[AUTONOMOUS] Processing failed: {str(e)}", flush=True)
         return {'action': 'run_processing', 'error': str(e), 'success': False}
+
+
+def _execute_cleanup(user_id: str) -> dict:
+    """Execute cleanup phase: remove duplicate jobs, keeping only the most recent per title+company."""
+    try:
+        # Count duplicates before cleanup
+        count_before = execute_query(
+            "SELECT COUNT(*) as count FROM jobs WHERE user_id = %s AND expires_at IS NULL",
+            (user_id,)
+        )
+        total_before = count_before[0]['count'] if count_before else 0
+
+        # Delete duplicates, keeping most recent per (title, company)
+        cleanup_query = """
+        DELETE FROM jobs
+        WHERE user_id = %s
+        AND id NOT IN (
+          SELECT DISTINCT ON (LOWER(title), LOWER(COALESCE(company, ''))) id
+          FROM jobs
+          WHERE user_id = %s AND expires_at IS NULL
+          ORDER BY LOWER(title), LOWER(COALESCE(company, '')), created_at DESC
+        )
+        """
+        execute_update(cleanup_query, (user_id, user_id))
+
+        # Count after cleanup
+        count_after = execute_query(
+            "SELECT COUNT(*) as count FROM jobs WHERE user_id = %s AND expires_at IS NULL",
+            (user_id,)
+        )
+        total_after = count_after[0]['count'] if count_after else 0
+        deleted = total_before - total_after
+
+        print(f"[AUTONOMOUS] Cleanup complete: deleted {deleted} duplicates ({total_before} → {total_after} unique jobs)", flush=True)
+
+        return {
+            'action': 'run_cleanup',
+            'duplicates_deleted': deleted,
+            'jobs_before': total_before,
+            'jobs_after': total_after,
+            'success': True
+        }
+
+    except Exception as e:
+        print(f"[AUTONOMOUS] Cleanup failed: {str(e)}", flush=True)
+        return {'action': 'run_cleanup', 'error': str(e), 'success': False}
 
 
 def _hours_since(dt) -> float:
