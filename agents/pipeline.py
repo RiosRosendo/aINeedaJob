@@ -250,6 +250,7 @@ Return ONLY a valid JSON array of translated job titles. No explanation, no mark
 Example: ["Ingeniero en Robótica", "Ingeniero de Sistemas Embebidos"]"""
 
         response = call_llm(prompt).strip()
+        print(f"[TRANSLATION] Raw response for {country_code}: '{response[:100]}'", flush=True)
 
         # Remove markdown code blocks if present
         if response.startswith("```"):
