@@ -72,9 +72,23 @@ def save_jobs(user_id, jobs, search_country=None):
         )
         existing_urls = {row['url'] for row in existing_urls_result}
 
+        # Get all existing (title, company) pairs for this user to detect duplicates from different sources
+        existing_titles_result = execute_query(
+            'SELECT title, company FROM jobs WHERE user_id = %s',
+            (str(user_id),)
+        )
+        existing_title_company = {(row['title'].lower() if row['title'] else '', row['company'].lower() if row['company'] else '') for row in existing_titles_result}
+
         # Insert only new jobs
         for job in jobs:
             if job.get('url') in existing_urls:
+                duplicates_skipped += 1
+                continue
+
+            # Deduplicate by (title, company) - prevents same job from multiple sources
+            job_title = (job.get('title', '') or '').lower()
+            job_company = (job.get('company', '') or '').lower()
+            if (job_title, job_company) in existing_title_company:
                 duplicates_skipped += 1
                 continue
 
