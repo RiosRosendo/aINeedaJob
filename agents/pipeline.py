@@ -382,8 +382,8 @@ def processing_node(state: JobState) -> JobState:
         }
         return state
 
-    # Limit to first 10 jobs for efficiency (process in batches in production)
-    unprocessed = unprocessed[:10]
+    # Limit to first 30 jobs for efficiency (process in batches in production)
+    unprocessed = unprocessed[:30]
     print(f"[PROCESS DEBUG] Found {len(unprocessed)} unprocessed jobs for user {user_id}")
     print(f"[PROCESSING] Processing {len(unprocessed)} jobs for user {user_id}")
 
