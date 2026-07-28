@@ -74,6 +74,11 @@ Return only a JSON object with no extra text.
 
 User Profile:
 - Skills: {user_profile.get('tech_stack', [])}
+- Experience: {user_profile.get('cv_data', {}).get('experience', [])}
+- Projects: {user_profile.get('cv_data', {}).get('projects', [])}
+- Education: {user_profile.get('cv_data', {}).get('education', [])}
+- Languages: {user_profile.get('cv_data', {}).get('languages', [])}
+- Nationality: {user_profile.get('cv_data', {}).get('nationality', 'Unknown')}
 - Target Roles: {user_profile.get('target_roles', [])}
 - Preferred Modality: {user_profile.get('preferred_modality')}
 - Preferred Countries: {user_profile.get('preferred_countries', [])}
@@ -92,13 +97,14 @@ Job Details:
 Evaluate fit considering:
 - Title/role alignment with target roles
 - Skill match (including semantic understanding: LangGraph = agent orchestration, OpenCV = computer vision, etc.)
-  * Match skills by meaning across languages:
-    - "Traitement d'image" or "Image Processing" = Computer Vision/Image Processing
-    - "Systèmes embarqués" or "Embedded Systems" = same concept in French/English
-    - "Logiciel embarqué" or "Embedded Software" = same concept
-    - "Développeur" or "Developer/Engineer" = same role type
+  * Match skills and job requirements by semantic meaning across any language.
+    The LLM should autonomously understand that equivalent terms in different
+    languages refer to the same concept.
   * Evaluate skills autonomously based on semantic meaning, not exact text match
-- Experience level fit
+- Experience level: evaluate if user's actual experience matches job seniority requirements
+  * Consider internships and industry projects as real work experience
+- Education relevance (degree, certifications)
+- Languages required for the role
 - Salary expectations
 
 Return:
