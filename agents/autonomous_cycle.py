@@ -7,6 +7,11 @@ Implements autonomous agent that periodically:
 3. Executes the LLM's decision (discover, process, cleanup, wait)
 4. Reports results back
 
+Uses LangGraph as the orchestration engine for multi-step pipelines:
+- LangGraph provides: state management, error handling, retry logic, observability
+- Enables streaming, debugging, and monitoring of agent execution
+- Separates orchestration logic (LangGraph) from business logic (agents)
+
 This enables 24/7 autonomous operation without hardcoded rules or schedulers.
 """
 
@@ -15,6 +20,7 @@ from agents.discovery_agent import discovery_node
 from agents.processing_agent import processing_node
 from tools.db import execute_query, execute_update
 from tools.llm import call_llm
+from langgraph.graph import StateGraph, END
 from datetime import datetime, timezone
 import json
 
@@ -398,11 +404,23 @@ def _execute_autonomous_action(user_id: str, action: str, state: dict) -> dict:
 
 def _execute_discovery(user_id: str) -> dict:
     """
-    Execute discovery phase for this user across all preferred countries.
+    Execute discovery and processing phases using LangGraph orchestration.
 
-    Creates JobState and runs discovery_node() to find new jobs.
+    Creates JobState and invokes the full LangGraph pipeline:
+    discovery_node → processing_node → END
+
+    LangGraph provides:
+    - State management: JobState passed between nodes
+    - Error handling: Exceptions in nodes are caught and logged
+    - Observability: Pipeline execution can be streamed/debugged
+    - Retry logic: Can be added via LangGraph config (future)
+
+    Processes all discovered jobs through the pipeline in one cycle.
     """
     try:
+        # Import here to avoid circular imports
+        from agents.pipeline import graph
+
         profile_result = execute_query(
             "SELECT target_roles, preferred_countries, preferred_modality, salary_min FROM user_profiles WHERE user_id = %s",
             (user_id,)
@@ -414,7 +432,7 @@ def _execute_discovery(user_id: str) -> dict:
         profile = profile_result[0]
         target_roles = profile.get('target_roles', ['AI Engineer'])
 
-        state = JobState(
+        initial_state = JobState(
             user_id=user_id,
             raw_jobs=[],
             unprocessed_jobs=[],
@@ -428,20 +446,29 @@ def _execute_discovery(user_id: str) -> dict:
             summary={}
         )
 
-        # Run ONLY discovery_node (not the full graph which includes processing)
-        result = discovery_node(state)
+        # Invoke the full LangGraph pipeline: discovery → processing → END
+        # This runs discovery_node to find jobs, then processing_node to score them
+        print(f"[AUTONOMOUS] Invoking LangGraph pipeline for user {user_id}", flush=True)
+        result = graph.invoke(initial_state)
 
         discovered = len(result.get('raw_jobs', []))
-        print(f"[AUTONOMOUS] Discovery complete: {discovered} new jobs found", flush=True)
+        processed = result.get('processed_count', 0)
+        applied = result.get('applied_count', 0)
+        review = result.get('review_count', 0)
+
+        print(f"[AUTONOMOUS] LangGraph pipeline complete: {discovered} discovered, {processed} processed, {applied} applied, {review} review", flush=True)
 
         return {
             'action': 'run_discovery',
             'jobs_discovered': discovered,
+            'jobs_processed': processed,
+            'jobs_applied': applied,
+            'jobs_review': review,
             'success': True
         }
 
     except Exception as e:
-        print(f"[AUTONOMOUS] Discovery failed: {str(e)}", flush=True)
+        print(f"[AUTONOMOUS] LangGraph pipeline failed: {str(e)}", flush=True)
         import traceback
         traceback.print_exc()
         return {'action': 'run_discovery', 'error': str(e), 'success': False}
@@ -449,9 +476,18 @@ def _execute_discovery(user_id: str) -> dict:
 
 def _execute_processing(user_id: str, state: dict) -> dict:
     """
-    Execute processing phase for this user.
+    Execute processing phase for this user using LangGraph orchestration.
 
-    Creates JobState and runs processing_node() to parse/score unprocessed jobs.
+    Creates a processing-only LangGraph pipeline (single node, no discovery):
+    processing_node → END
+
+    LangGraph benefits for this phase:
+    - Isolates processing from discovery (can be called independently)
+    - Manages state through parsing → scoring → decision routing
+    - Provides structured error handling for each job in the batch
+    - Enables streaming results as jobs are processed
+
+    Uses 30-job batch limit to balance throughput vs rate limiting.
     """
     try:
         profile_result = execute_query(
@@ -485,7 +521,14 @@ def _execute_processing(user_id: str, state: dict) -> dict:
                 'success': True
             }
 
-        process_state = JobState(
+        # Create a processing-only LangGraph pipeline (single node)
+        process_workflow = StateGraph(JobState)
+        process_workflow.add_node("processing", processing_node)
+        process_workflow.add_edge("processing", END)
+        process_workflow.set_entry_point("processing")
+        process_graph = process_workflow.compile()
+
+        initial_state = JobState(
             user_id=user_id,
             raw_jobs=[],
             unprocessed_jobs=unprocessed_jobs,
@@ -499,13 +542,15 @@ def _execute_processing(user_id: str, state: dict) -> dict:
             summary={}
         )
 
-        result = processing_node(process_state)
+        # Invoke the processing-only LangGraph pipeline
+        print(f"[AUTONOMOUS] Invoking LangGraph processing pipeline for user {user_id}", flush=True)
+        result = process_graph.invoke(initial_state)
 
         processed = result.get('processed_count', 0)
         applied = result.get('applied_count', 0)
         review = result.get('review_count', 0)
 
-        print(f"[AUTONOMOUS] Processing complete: {processed} jobs processed, {applied} applied, {review} review", flush=True)
+        print(f"[AUTONOMOUS] LangGraph processing pipeline complete: {processed} processed, {applied} applied, {review} review", flush=True)
 
         return {
             'action': 'run_processing',
@@ -516,7 +561,9 @@ def _execute_processing(user_id: str, state: dict) -> dict:
         }
 
     except Exception as e:
-        print(f"[AUTONOMOUS] Processing failed: {str(e)}", flush=True)
+        print(f"[AUTONOMOUS] LangGraph processing pipeline failed: {str(e)}", flush=True)
+        import traceback
+        traceback.print_exc()
         return {'action': 'run_processing', 'error': str(e), 'success': False}
 
 
