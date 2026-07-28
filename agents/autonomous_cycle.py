@@ -261,8 +261,6 @@ def _llm_decide_action(user_id: str, state: dict) -> dict:
     Uses Groq LLM to reason about pipeline metrics and decide next action.
     NO hardcoded rules - LLM evaluates duplication rate, discovery time, job backlog, etc.
 
-    Hard override: If 500+ unprocessed jobs, forces run_processing regardless of LLM output.
-
     Tools Called:
     - call_llm(): Groq LLM for action decision
 
@@ -277,16 +275,6 @@ def _llm_decide_action(user_id: str, state: dict) -> dict:
             priority: int      # execution priority (1-10)
         }
     """
-    # Hard override: if too many jobs waiting, force processing
-    unprocessed = state.get('unprocessed_count', 0)
-    if unprocessed > 500:
-        print(f"[AUTONOMOUS] HARD OVERRIDE: {unprocessed} unprocessed jobs > 500, forcing run_processing", flush=True)
-        return {
-            'action': 'run_processing',
-            'reasoning': f'Hard override: {unprocessed} unprocessed jobs waiting (> 500 threshold)',
-            'priority': 10
-        }
-
     scoring = state['scoring_metrics']
     sources = state['sources']
     source_quality = state['source_quality']
