@@ -321,17 +321,15 @@ SCORING RESULTS (Last 48 hours):
 ACTIVE SOURCES:
 {source_list}
 
-DECISION LOGIC:
-- If duplication_rate > 1.5 → CLEANUP (too many duplicate jobs from different sources)
-- If unprocessed_count > 30 → PROCESS first (don't discover more until caught up)
-- If unprocessed_count == 0 AND hours_since_discovery > 24 → DISCOVER
-- If hours_since_discovery < 2 → PROCESS (give recent discovery time to complete)
-- If all sources have quality < 10% → WAIT (sources not working, try again later)
-- If applied_pct < 5% AND review_pct < 10% → TRY_NEW_SOURCES (low match rate)
-- If priority_country is set AND has significantly fewer jobs than other countries → DISCOVER (search more in priority country)
-- If everything current and processed → WAIT
+Analyze the pipeline state and decide the best action. Consider:
+- Number of unprocessed jobs vs recently discovered jobs
+- Time since last discovery
+- Job quality metrics (relevance rates, scoring rates)
+- Priority country job distribution
+- Duplication rate
+Make an autonomous decision based on the data provided.
 
-Return ONLY valid JSON (no markdown):
+Return ONLY valid JSON (no markdown). Action MUST be exactly one of these strings:
 {{
   "action": "run_discovery" | "run_processing" | "run_cleanup" | "try_new_sources" | "wait",
   "reasoning": "brief explanation of why this action",
@@ -342,6 +340,11 @@ Return ONLY valid JSON (no markdown):
         response = call_llm(prompt)
         response = response.replace("```json", "").replace("```", "").strip()
         decision = json.loads(response)
+
+        # Normalize action name in case LLM returns shorthand
+        action = decision.get('action', 'wait')
+        action_map = {'discovery': 'run_discovery', 'processing': 'run_processing', 'cleanup': 'run_cleanup'}
+        decision['action'] = action_map.get(action, action)
 
         print(f"[AUTONOMOUS] LLM decided: {decision['action']} (priority: {decision.get('priority', 5)})", flush=True)
         return decision
