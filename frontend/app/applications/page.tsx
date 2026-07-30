@@ -19,6 +19,9 @@ interface ApplicationData {
   application_method?: 'email' | 'form' | 'manual';
   application_notes?: string;
   fit_score?: number;
+  decision?: 'apply' | 'review' | 'ignore';
+  strengths?: string[];
+  gaps?: string[];
 }
 
 export default function ApplicationsPage() {
@@ -36,7 +39,12 @@ export default function ApplicationsPage() {
         setLoading(true);
         setError(null);
 
-        const apps = await getApplications(100);
+        console.log('[APP AUTH] user_id from localStorage:', localStorage.getItem('user_id'));
+        console.log('[APP AUTH] token from localStorage:', localStorage.getItem('access_token') ? 'exists' : 'missing');
+
+        const apps = await getApplications(1000);
+        console.log('[APP LOAD] Total from API:', apps.length);
+        console.log('[APP LOAD] First item:', apps[0]);
         setApplications(apps);
 
         // Try to load last checked time from localStorage
@@ -48,6 +56,7 @@ export default function ApplicationsPage() {
         console.error('Failed to load applications:', err);
         setError('Failed to load applications. Please try again.');
       } finally {
+        console.log('[APP LOAD] Finally block executing, setting loading to false');
         setLoading(false);
       }
     };
@@ -84,7 +93,9 @@ export default function ApplicationsPage() {
       localStorage.setItem('emailCheckTime', now);
 
       // Reload applications to reflect any status updates
-      const apps = await getApplications(100);
+      const apps = await getApplications(1000);
+      console.log('[EMAIL CHECK] Total from API:', apps.length);
+      console.log('[EMAIL CHECK] First item:', apps[0]);
       setApplications(apps);
 
     } catch (err) {
@@ -144,8 +155,8 @@ export default function ApplicationsPage() {
 
   // Filter applications
   const filteredApplications = applications.filter(item => {
-    const status = item?.application?.status || item?.status;
-    const fitScore = item?.fit_score || (item?.application?.fit_score as any) || 0;
+    const status = item?.status;
+    const fitScore = item?.fit_score || 0;
 
     // Hide ignored by default unless showIgnored is true
     if (!showIgnored && status === 'ignored') {
@@ -153,13 +164,29 @@ export default function ApplicationsPage() {
     }
 
     // Filter out low-relevance jobs (fit_score < 60)
-    if (fitScore < 60 && status !== 'ignored') {
+    // But always show applications that are pending or already applied
+    if (fitScore < 60 && !['ignored', 'pending_approval', 'pending_application', 'applied', 'interview', 'offer', 'rejected'].includes(status)) {
       return false;
     }
 
     if (statusFilter === 'all') return true;
+
+    // Map filter tabs to actual status values
+    if (statusFilter === 'pending_approval') {
+      return status === 'pending_approval';
+    }
+    if (statusFilter === 'pending_application') {
+      return status === 'pending_application' || status === 'requires_manual';
+    }
+
     return status === statusFilter;
   });
+
+  console.log('[APP FILTER] Total before filter:', applications.length);
+  console.log('[APP FILTER] Total after filter:', filteredApplications.length);
+  console.log('[APP FILTER] First item status:', applications[0]?.status);
+  console.log('[APP FILTER] First item fit_score:', applications[0]?.fit_score);
+  console.log('[APP FILTER] First item full object:', applications[0]);
 
   const statuses = ['all', 'pending_approval', 'pending_application', 'applied', 'interview', 'offer', 'rejected'];
   const ignoredCount = applications.filter(item => (item?.application?.status || item?.status) === 'ignored').length;
@@ -279,13 +306,21 @@ export default function ApplicationsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredApplications.map((app, index) => (
-            <ApplicationRow
-              key={app.id}
-              application={app}
-              delay={index * 0.02}
-            />
-          ))}
+          {console.log('[APP RENDER] Rendering', filteredApplications.length, 'applications')}
+          {filteredApplications.map((app, index) => {
+            try {
+              return (
+                <ApplicationRow
+                  key={app.id}
+                  application={app}
+                  delay={index * 0.02}
+                />
+              );
+            } catch (e) {
+              console.error('[APP ROW] Error rendering app:', app.id, e);
+              return <div key={app.id}>Error: {app.job_title}</div>;
+            }
+          })}
         </div>
       )}
     </div>
@@ -298,175 +333,22 @@ interface ApplicationRowProps {
 }
 
 function ApplicationRow({ application, delay }: ApplicationRowProps) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'applied':
-        return '#3b82f6'; // blue
-      case 'interview':
-        return '#f59e0b'; // amber
-      case 'offer':
-        return '#10b981'; // green
-      case 'rejected':
-        return '#ef4444'; // red
-      case 'ignored':
-        return '#6b7280'; // gray
-      case 'pending_approval':
-        return '#f59e0b'; // amber
-      case 'requires_manual':
-        return '#f59e0b'; // amber
-      default:
-        return '#9ca3af'; // neutral gray
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'pending_approval':
-        return 'Pending Review';
-      case 'pending_application':
-        return 'Pending Apply';
-      case 'requires_manual':
-        return 'Manual Apply';
-      case 'in_review':
-        return 'In Review';
-      default:
-        return status.charAt(0).toUpperCase() + status.slice(1);
-    }
-  };
-
-  const extractCompanyFromUrl = (url?: string, company?: string): string => {
-    if (company && company !== 'Unknown Company') return company;
-    if (!url) return 'Unknown Company';
-
-    try {
-      const urlObj = new URL(url);
-      const domain = urlObj.hostname.replace('www.', '').split('.')[0];
-      return domain.charAt(0).toUpperCase() + domain.slice(1);
-    } catch {
-      return company || 'Unknown Company';
-    }
-  };
-
-  const createdDate = application?.created_at ? new Date(application.created_at) : new Date();
-  const dateStr = createdDate.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: createdDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
-  });
-
-  const jobTitle = application?.job_title || 'Unknown Job';
-  const company = extractCompanyFromUrl(application?.job_url, application?.job_company);
-  const status = application?.status || 'unknown';
-  const jobUrl = application?.job_url;
-  const applicationMethod = application?.application_method;
-  const applicationNotes = application?.application_notes;
-
-  const getMethodColor = (method?: string) => {
-    switch (method) {
-      case 'form':
-        return '#3b82f6'; // blue
-      case 'email':
-        return '#8b5cf6'; // purple
-      case 'manual':
-        return '#f59e0b'; // amber
-      default:
-        return 'var(--border)';
-    }
-  };
+  console.log('[APP ROW] Rendering:', application.job_title);
 
   return (
     <div
-      className="border rounded-lg p-4 hover:shadow-md transition-all animate-fade-up"
+      key={application.id}
       style={{
-        borderColor: 'var(--border)',
-        backgroundColor: 'var(--card)',
-        animationDelay: `${delay}s`,
+        border: '1px solid #333',
+        borderRadius: '8px',
+        padding: '16px',
+        marginBottom: '8px',
+        backgroundColor: '#1a1a1a'
       }}
     >
-      <div className="flex items-start justify-between gap-4">
-        {/* Left: Job Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-2 mb-1">
-            <h3
-              className="font-semibold text-sm truncate"
-              style={{
-                color: 'var(--text)',
-                letterSpacing: '-0.01em',
-              }}
-            >
-              {jobTitle}
-            </h3>
-            {jobUrl && (
-              <a
-                href={jobUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-blue-500 hover:text-blue-600 flex-shrink-0 mt-0.5"
-                title="View job posting"
-              >
-                ↗
-              </a>
-            )}
-          </div>
-          <p
-            className="text-xs mb-3"
-            style={{ color: 'var(--muted)' }}
-          >
-            {company}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {/* Status Badge */}
-            <span
-              className="text-xs px-2.5 py-1.5 rounded-full font-medium"
-              style={{
-                color: 'white',
-                backgroundColor: getStatusColor(status),
-              }}
-            >
-              {getStatusLabel(status)}
-            </span>
-
-            {/* Application Method Badge */}
-            {applicationMethod && (
-              <span
-                className="text-xs px-2.5 py-1.5 rounded-full font-medium"
-                style={{
-                  color: 'white',
-                  backgroundColor: getMethodColor(applicationMethod),
-                }}
-              >
-                Applied via {applicationMethod}
-              </span>
-            )}
-
-            {/* Date */}
-            <span
-              className="text-xs px-2 py-1 rounded-full border"
-              style={{
-                borderColor: 'var(--border)',
-                color: 'var(--faint)',
-              }}
-            >
-              {dateStr}
-            </span>
-          </div>
-
-          {/* Manual Apply Instructions */}
-          {status === 'requires_manual' && applicationNotes && (
-            <div
-              className="mt-3 p-2.5 rounded-lg border text-xs"
-              style={{
-                backgroundColor: '#fffbeb',
-                borderColor: '#fcd34d',
-                color: '#92400e',
-                fontWeight: '500',
-              }}
-            >
-              {applicationNotes}
-            </div>
-          )}
-        </div>
-      </div>
+      <div style={{fontWeight: 'bold'}}>{application.job_title || 'Unknown Job'}</div>
+      <div style={{color: '#888'}}>{application.job_company}</div>
+      <div>{application.status} | Score: {application.fit_score}%</div>
     </div>
   );
 }

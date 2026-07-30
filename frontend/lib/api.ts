@@ -224,7 +224,7 @@ export const getScoredJobs = async (limit: number = 100) => {
 };
 
 // Applications
-export const getApplications = async (limit: number = 50) => {
+export const getApplications = async (limit: number = 1000) => {
   try {
     const response = await api.get<Application[]>('/api/applications', {
       params: { limit },
