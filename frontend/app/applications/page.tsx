@@ -335,13 +335,59 @@ interface ApplicationRowProps {
 function ApplicationRow({ application, delay }: ApplicationRowProps) {
   console.log('[APP ROW] Rendering:', application.job_title);
 
+  // Filter out poorly extracted titles
+  const isValidTitle = (title?: string) => {
+    if (!title) return false;
+    const lower = title.toLowerCase();
+    if (title.length > 120) return false; // Too long - likely bad extraction
+    if (lower.includes('extract') || lower.includes('not specified') || lower.includes('job title')) return false;
+    if (lower.includes('please') || lower.includes('update')) return false; // Common extraction errors
+    return true;
+  };
+
+  const displayTitle = isValidTitle(application.job_title) ? application.job_title : 'Unknown Position';
+
+  // Format date
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return null;
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch {
+      return null;
+    }
+  };
+
+  const dateStr = formatDate(application.created_at || application.applied_at);
+
+  // Handle action buttons
+  const handleApplyNow = () => {
+    if (application.job_url) window.open(application.job_url, '_blank');
+  };
+
+  const handleMarkApplied = async () => {
+    // TODO: Call API to mark as applied
+    console.log('[APP ROW] Mark as applied:', application.id);
+  };
+
+  const handleApprove = async () => {
+    // TODO: Call API to approve
+    console.log('[APP ROW] Approve:', application.id);
+  };
+
+  const handleDismiss = async () => {
+    // TODO: Call API to dismiss
+    console.log('[APP ROW] Dismiss:', application.id);
+  };
+
   return (
     <div className="rounded-lg p-4 mb-3 border border-gray-700 bg-gray-800 hover:bg-gray-750 transition-all">
-      <div className="flex justify-between items-start">
-        <div>
-          <h3 className="font-bold text-white text-lg">{application.job_title || 'Unknown Job'}</h3>
+      <div className="flex justify-between items-start gap-4">
+        <div className="flex-1">
+          <h3 className="font-bold text-white text-lg">{displayTitle}</h3>
           <p className="text-gray-400 text-sm">{application.job_company}</p>
           <p className="text-gray-500 text-xs mt-1">{application.job_location}</p>
+          {dateStr && <p className="text-gray-600 text-xs mt-1">Found {dateStr}</p>}
         </div>
         <div className="flex flex-col items-end gap-2">
           <span className="text-blue-400 font-bold text-xl">{application.fit_score}%</span>
@@ -350,9 +396,53 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
           </span>
         </div>
       </div>
-      {application.job_url && (
+
+      {/* Action Buttons */}
+      <div className="flex gap-2 mt-3">
+        {(application.status === 'pending_application' || application.status === 'requires_manual') && (
+          <>
+            <button
+              onClick={handleApplyNow}
+              className="px-3 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
+            >
+              Apply Now
+            </button>
+            <button
+              onClick={handleMarkApplied}
+              className="px-3 py-1 text-xs rounded border border-gray-600 text-gray-300 hover:bg-gray-700"
+            >
+              Mark Applied
+            </button>
+          </>
+        )}
+
+        {application.status === 'pending_approval' && (
+          <>
+            <button
+              onClick={handleApprove}
+              className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700"
+            >
+              Approve
+            </button>
+            <button
+              onClick={handleDismiss}
+              className="px-3 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700"
+            >
+              Dismiss
+            </button>
+          </>
+        )}
+
+        {application.status === 'applied' && (
+          <span className="px-3 py-1 text-xs rounded-full bg-green-900 text-green-300">
+            Applied ✓
+          </span>
+        )}
+      </div>
+
+      {application.job_url && (application.status !== 'pending_application') && (
         <a href={application.job_url} target="_blank" rel="noopener noreferrer"
-           className="text-blue-400 text-sm mt-2 inline-block hover:underline">
+           className="text-blue-400 text-xs mt-2 inline-block hover:underline">
           View Job →
         </a>
       )}
