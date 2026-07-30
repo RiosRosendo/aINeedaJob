@@ -336,19 +336,26 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
   console.log('[APP ROW] Rendering:', application.job_title);
 
   return (
-    <div
-      key={application.id}
-      style={{
-        border: '1px solid #333',
-        borderRadius: '8px',
-        padding: '16px',
-        marginBottom: '8px',
-        backgroundColor: '#1a1a1a'
-      }}
-    >
-      <div style={{fontWeight: 'bold'}}>{application.job_title || 'Unknown Job'}</div>
-      <div style={{color: '#888'}}>{application.job_company}</div>
-      <div>{application.status} | Score: {application.fit_score}%</div>
+    <div className="rounded-lg p-4 mb-3 border border-gray-700 bg-gray-800 hover:bg-gray-750 transition-all">
+      <div className="flex justify-between items-start">
+        <div>
+          <h3 className="font-bold text-white text-lg">{application.job_title || 'Unknown Job'}</h3>
+          <p className="text-gray-400 text-sm">{application.job_company}</p>
+          <p className="text-gray-500 text-xs mt-1">{application.job_location}</p>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <span className="text-blue-400 font-bold text-xl">{application.fit_score}%</span>
+          <span className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300">
+            {application.status?.replace(/_/g, ' ')}
+          </span>
+        </div>
+      </div>
+      {application.job_url && (
+        <a href={application.job_url} target="_blank" rel="noopener noreferrer"
+           className="text-blue-400 text-sm mt-2 inline-block hover:underline">
+          View Job →
+        </a>
+      )}
     </div>
   );
 }
