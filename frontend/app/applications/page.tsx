@@ -362,7 +362,10 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
 
   // Handle action buttons
   const handleApplyNow = () => {
-    if (application.job_url) window.open(application.job_url, '_blank');
+    console.log('[APPLY NOW] job_url:', application.job_url);
+    if (application.job_url) {
+      window.open(application.job_url, '_blank');
+    }
   };
 
   const handleMarkApplied = async () => {
@@ -440,12 +443,6 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
         )}
       </div>
 
-      {application.job_url && (application.status !== 'pending_application') && (
-        <a href={application.job_url} target="_blank" rel="noopener noreferrer"
-           className="text-blue-400 text-xs mt-2 inline-block hover:underline">
-          View Job →
-        </a>
-      )}
     </div>
   );
 }
