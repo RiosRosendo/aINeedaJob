@@ -369,8 +369,20 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
   };
 
   const handleMarkApplied = async () => {
-    // TODO: Call API to mark as applied
-    console.log('[APP ROW] Mark as applied:', application.id);
+    try {
+      await fetch(`http://localhost:8001/api/applications/${application.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': localStorage.getItem('user_id') || '',
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+        },
+        body: JSON.stringify({ status: 'applied' }),
+      });
+      window.location.reload();
+    } catch (e) {
+      console.error('Failed to mark as applied:', e);
+    }
   };
 
   const handleApprove = async () => {

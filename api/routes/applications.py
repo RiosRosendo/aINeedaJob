@@ -80,6 +80,23 @@ async def get_application(application_id: str, user_id: str = Depends(get_user_i
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.put("/{application_id}")
+async def update_application_status(application_id: str, data: dict, user_id: str = Depends(get_user_id)):
+    """
+    Update application status.
+
+    Allows user to mark application as applied or update status.
+    """
+    try:
+        execute_update(
+            "UPDATE applications SET status = %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
+            (data.get('status'), application_id, user_id)
+        )
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.patch("/{application_id}/approve")
 async def approve_application(
     application_id: str,
