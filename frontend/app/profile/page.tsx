@@ -31,6 +31,12 @@ export default function ProfilePage() {
   const [cvSuccess, setCvSuccess] = useState<string | null>(null);
   const [cvError, setCvError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const skillDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const roleDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const languageDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSkillInputRef = useRef<string>('');
+  const lastRoleInputRef = useRef<string>('');
+  const lastLanguageInputRef = useRef<string>('');
 
   const [languages, setLanguages] = useState<Array<{language: string; level: string}>>([]);
   const [skillSuggestions, setSkillSuggestions] = useState<string[]>([]);
@@ -229,6 +235,7 @@ export default function ProfilePage() {
   };
 
   const handleCvUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('[CV UPLOAD] Function called, file:', event.target.files?.[0]?.name);
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -262,12 +269,17 @@ export default function ProfilePage() {
       const skillsCount = extractedData.skills?.length || 0;
       const projectsCount = extractedData.projects?.length || 0;
 
+      console.log('[CV] Extracted roles:', extractedData.roles);
+
       // Replace tech_stack completely with extracted skills
       // New CV is source of truth - old skills are discarded
       setFormData((prev) => {
         const updatedCvData = {
           ...prev.cv_data,
           nationality: extractedData.nationality || prev.cv_data?.nationality,
+          experience: extractedData.experience || [],
+          projects: extractedData.projects || [],
+          education: extractedData.education || [],
         };
         return {
           ...prev,
@@ -374,72 +386,99 @@ export default function ProfilePage() {
   };
 
   const getSkillSuggestions = async (currentInput: string) => {
-    if (!currentInput.trim() || (formData.tech_stack || []).length === 0) {
-      setSkillSuggestions([]);
+    // Cancel previous pending call
+    if (skillDebounceRef.current) {
+      clearTimeout(skillDebounceRef.current);
+    }
+
+    // Only call if input has changed and length >= 2
+    if (currentInput.trim().length < 2 || currentInput === lastSkillInputRef.current) {
+      if (currentInput.trim().length === 0) {
+        setSkillSuggestions([]);
+      }
       return;
     }
 
-    try {
-      const response = await fetch('http://localhost:8001/api/jobs/suggest-skills', {
-        method: 'POST',
-        headers: {
-          'x-user-id': localStorage.getItem('user_id') || '',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          current_skills: formData.tech_stack || [],
-          input_skill: currentInput,
-        }),
-      });
+    lastSkillInputRef.current = currentInput;
 
-      if (response.ok) {
-        const data = await response.json();
-        setSkillSuggestions(data.suggestions || []);
-        setShowSuggestions(true);
+    // Debounce 500ms
+    skillDebounceRef.current = setTimeout(async () => {
+      if (!currentInput.trim() || (formData.tech_stack || []).length === 0) {
+        setSkillSuggestions([]);
+        return;
       }
-    } catch (err) {
-      console.error('Failed to get skill suggestions:', err);
-    }
+
+      try {
+        const response = await fetch('http://localhost:8001/api/jobs/suggest-skills', {
+          method: 'POST',
+          headers: {
+            'x-user-id': localStorage.getItem('user_id') || '',
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            current_skills: formData.tech_stack || [],
+            input_skill: currentInput,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setSkillSuggestions(data.suggestions || []);
+          setShowSuggestions(true);
+        }
+      } catch (err) {
+        console.error('Failed to get skill suggestions:', err);
+      }
+    }, 500);
   };
 
   const getRoleSuggestions = async (currentInput: string) => {
-    if (!currentInput.trim()) {
-      setRoleSuggestions([]);
+    // Cancel previous pending call
+    if (roleDebounceRef.current) {
+      clearTimeout(roleDebounceRef.current);
+    }
+
+    // Only call if input has changed and length >= 2
+    if (currentInput.trim().length < 2 || currentInput === lastRoleInputRef.current) {
+      if (currentInput.trim().length === 0) {
+        setRoleSuggestions([]);
+      }
       return;
     }
 
-    console.log('[ROLES] Fetching suggestions for:', currentInput);
-    console.log('[ROLES] Current tech_stack:', formData.tech_stack);
-    console.log('[ROLES] Current target_roles:', formData.target_roles);
+    lastRoleInputRef.current = currentInput;
 
-    try {
-      const response = await fetch('http://localhost:8001/api/jobs/suggest-roles', {
-        method: 'POST',
-        headers: {
-          'x-user-id': localStorage.getItem('user_id') || '',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          current_skills: formData.tech_stack || [],
-          current_roles: formData.target_roles || [],
-          input_role: currentInput,
-        }),
-      });
-
-      console.log('[ROLES] Response status:', response.status);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[ROLES] Suggestions received:', data.suggestions);
-        setRoleSuggestions(data.suggestions || []);
-      } else {
-        const errorText = await response.text();
-        console.error('[ROLES] API error response:', response.status, errorText);
+    // Debounce 500ms
+    roleDebounceRef.current = setTimeout(async () => {
+      if (!currentInput.trim()) {
+        setRoleSuggestions([]);
+        return;
       }
-    } catch (err) {
-      console.error('[ROLES] Fetch error:', err);
-    }
+
+      try {
+        const response = await fetch('http://localhost:8001/api/jobs/suggest-roles', {
+          method: 'POST',
+          headers: {
+            'x-user-id': localStorage.getItem('user_id') || '',
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            current_skills: formData.tech_stack || [],
+            current_roles: formData.target_roles || [],
+            input_role: currentInput,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setRoleSuggestions(data.suggestions || []);
+        }
+      } catch (err) {
+        console.error('[ROLES] Fetch error:', err);
+      }
+    }, 500);
   };
 
   const getCountrySuggestions = async (currentInput: string) => {
@@ -484,48 +523,56 @@ export default function ProfilePage() {
   };
 
   const getLanguageSuggestions = async (currentInput: string) => {
-    if (!currentInput.trim()) {
-      setLanguageSuggestions([]);
+    // Cancel previous pending call
+    if (languageDebounceRef.current) {
+      clearTimeout(languageDebounceRef.current);
+    }
+
+    // Only call if input has changed and length >= 2
+    if (currentInput.trim().length < 2 || currentInput === lastLanguageInputRef.current) {
+      if (currentInput.trim().length === 0) {
+        setLanguageSuggestions([]);
+      }
       return;
     }
 
-    console.log('[LANGS] Fetching suggestions for:', currentInput);
-    console.log('[LANGS] Target countries:', formData.preferred_countries);
-    console.log('[LANGS] Current languages:', languages.map(l => l.language));
+    lastLanguageInputRef.current = currentInput;
 
-    try {
-      const response = await fetch('http://localhost:8001/api/jobs/suggest-languages', {
-        method: 'POST',
-        headers: {
-          'x-user-id': localStorage.getItem('user_id') || '',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          target_countries: formData.preferred_countries || [],
-          current_languages: languages.map(l => l.language),
-        }),
-      });
-
-      console.log('[LANGS] Response status:', response.status);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[LANGS] All suggestions received:', data.suggestions);
-
-        // Further filter by user input
-        const filtered = data.suggestions.filter((lang: string) =>
-          lang.toLowerCase().includes(currentInput.toLowerCase())
-        );
-
-        console.log('[LANGS] Filtered suggestions:', filtered);
-        setLanguageSuggestions(filtered);
-      } else {
-        const errorText = await response.text();
-        console.error('[LANGS] API error response:', response.status, errorText);
+    // Debounce 500ms
+    languageDebounceRef.current = setTimeout(async () => {
+      if (!currentInput.trim()) {
+        setLanguageSuggestions([]);
+        return;
       }
-    } catch (err) {
-      console.error('[LANGS] Fetch error:', err);
-    }
+
+      try {
+        const response = await fetch('http://localhost:8001/api/jobs/suggest-languages', {
+          method: 'POST',
+          headers: {
+            'x-user-id': localStorage.getItem('user_id') || '',
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            target_countries: formData.preferred_countries || [],
+            current_languages: languages.map(l => l.language),
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+
+          // Further filter by user input
+          const filtered = data.suggestions.filter((lang: string) =>
+            lang.toLowerCase().includes(currentInput.toLowerCase())
+          );
+
+          setLanguageSuggestions(filtered);
+        }
+      } catch (err) {
+        console.error('[LANGS] Fetch error:', err);
+      }
+    }, 500);
   };
 
   const validateLanguages = (): boolean => {

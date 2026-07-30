@@ -83,6 +83,7 @@ async def upload_cv(
             raise HTTPException(status_code=400, detail="Could not extract text from PDF")
 
         print(f"[CV UPLOAD] Extracted {len(pdf_text)} characters from PDF for user {user_id}", flush=True)
+        print(f"[CV UPLOAD DEBUG] Raw PDF text (first 500 chars): {pdf_text[:500]}", flush=True)
 
         # Extract structured data using LLM
         extracted_data = extract_cv_data(pdf_text)
@@ -124,25 +125,17 @@ async def upload_cv(
 
 
 def extract_pdf_text(pdf_bytes: bytes) -> str:
-    """Extract text from PDF bytes using pdfplumber with layout preservation."""
+    """Extract text from PDF bytes using PyMuPDF (fitz) with proper spacing."""
     try:
-        import pdfplumber
-        import io
+        import fitz
 
-        pdf_file = io.BytesIO(pdf_bytes)
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         text = ""
-
-        with pdfplumber.open(pdf_file) as pdf:
-            for page in pdf.pages:
-                # Use layout=True to preserve spacing between words and sections
-                # This prevents custom fonts from merging words together
-                page_text = page.extract_text(layout=True)
-                if page_text:
-                    text += page_text + "\n"
-
+        for page in doc:
+            text += page.get_text()
         return text
     except ImportError:
-        raise HTTPException(status_code=500, detail="pdfplumber not installed")
+        raise HTTPException(status_code=500, detail="PyMuPDF not installed")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF extraction failed: {str(e)}")
 
@@ -232,25 +225,37 @@ def _parse_json_with_fallbacks(response_text: str) -> dict:
     import json
 
     if not response_text:
+        print(f"[CV PARSE DEBUG] response_text is empty or None", flush=True)
         return None
 
     # Strategy 1: Direct parsing
     try:
-        return json.loads(response_text)
-    except json.JSONDecodeError:
+        result = json.loads(response_text)
+        print(f"[CV PARSE DEBUG] Strategy 1 (direct parsing) SUCCESS", flush=True)
+        return result
+    except json.JSONDecodeError as e:
+        print(f"[CV PARSE DEBUG] Strategy 1 (direct parsing) FAILED: {str(e)}", flush=True)
         pass
 
     # Strategy 2: Extract from markdown code blocks (```json...```)
     try:
         if "```" in response_text:
+            print(f"[CV PARSE DEBUG] Strategy 2: Found markdown code blocks", flush=True)
             parts = response_text.split("```")
-            for part in parts:
+            for i, part in enumerate(parts):
                 if part.startswith("json"):
                     json_str = part[4:].strip()
-                    return json.loads(json_str)
+                    result = json.loads(json_str)
+                    print(f"[CV PARSE DEBUG] Strategy 2 (markdown json) SUCCESS at block {i}", flush=True)
+                    return result
                 elif part.strip() and part.strip()[0] == '{':
-                    return json.loads(part.strip())
-    except json.JSONDecodeError:
+                    result = json.loads(part.strip())
+                    print(f"[CV PARSE DEBUG] Strategy 2 (markdown object) SUCCESS at block {i}", flush=True)
+                    return result
+        else:
+            print(f"[CV PARSE DEBUG] Strategy 2: No markdown code blocks found", flush=True)
+    except json.JSONDecodeError as e:
+        print(f"[CV PARSE DEBUG] Strategy 2 (markdown parsing) FAILED: {str(e)}", flush=True)
         pass
 
     # Strategy 3: Find first { and last } and parse that substring
@@ -259,10 +264,29 @@ def _parse_json_with_fallbacks(response_text: str) -> dict:
         end_idx = response_text.rfind('}')
         if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
             json_str = response_text[start_idx:end_idx + 1]
-            return json.loads(json_str)
-    except json.JSONDecodeError:
+            print(f"[CV PARSE DEBUG] Strategy 3: Extracted JSON substring (len={len(json_str)})", flush=True)
+            result = json.loads(json_str)
+            print(f"[CV PARSE DEBUG] Strategy 3 (substring extraction) SUCCESS", flush=True)
+            return result
+        else:
+            print(f"[CV PARSE DEBUG] Strategy 3: Could not find {{ and }} in response", flush=True)
+    except json.JSONDecodeError as e:
+        print(f"[CV PARSE DEBUG] Strategy 3 (substring parsing) FAILED: {str(e)}", flush=True)
         pass
 
+    # Strategy 4: Use json-repair to fix malformed JSON
+    try:
+        import json_repair
+        print(f"[CV PARSE DEBUG] Strategy 4: Attempting json-repair", flush=True)
+        repaired = json_repair.repair_json(response_text)
+        result = json.loads(repaired)
+        print(f"[CV PARSE DEBUG] Strategy 4 (json-repair) SUCCESS", flush=True)
+        return result
+    except Exception as e:
+        print(f"[CV PARSE DEBUG] Strategy 4 (json-repair) FAILED: {str(e)}", flush=True)
+        pass
+
+    print(f"[CV PARSE DEBUG] All parsing strategies FAILED", flush=True)
     return None
 
 
@@ -279,10 +303,22 @@ def extract_cv_data(cv_text: str) -> dict:
 
         client = Groq(api_key=groq_api_key)
 
-        prompt = f"""Extract CV data. Return ONLY valid JSON, no markdown, no explanations.
+        # Limit CV to 4000 chars - LLM finds sections autonomously
+        cv_text = cv_text[:4000]
+
+        prompt = f"""Extract ONLY these fields from this CV. Be concise. Return ONLY valid JSON, no markdown, no explanations.
 
 CV:
 {cv_text}
+
+Extract ONLY these fields:
+- tech_skills: list of technology names only
+- languages: spoken languages with levels
+- roles: job titles
+- education: degrees only
+- experience: job titles and companies only (no descriptions)
+- projects: project names only (no descriptions)
+- nationality: if mentioned
 
 EXHAUSTIVE TECHNOLOGY EXTRACTION:
 Extract EVERY technology, tool, library, framework, platform, and programming language mentioned ANYWHERE in this CV:
@@ -309,6 +345,9 @@ CRITICAL RULES:
 - NO certifications - extract only to certifications field
 - NO algorithms with symbols (A*, D*, RRT*)
 - NO generic concepts (optimization, filtering, planning - unless they're tool names)
+- Each item in tech_skills must be a single, standalone technology name
+- Do not combine multiple technologies into one item
+- The LLM decides autonomously what constitutes a single technology
 
 ROLE EXTRACTION (Multi-language support):
 This CV may be in any language (English, Spanish, French, German, Portuguese, Chinese, Japanese, etc).
@@ -337,6 +376,26 @@ Extract the person's nationality/citizenship from the CV if mentioned:
 - Return as string (not array)
 - If no nationality found, return null
 
+EXPERIENCE EXTRACTION:
+Extract detailed work experience from the CV:
+- Each experience entry represents ONE job position
+- Multiple bullet points from the same job should be combined into one entry with a comprehensive description
+- Each job entry should have: title (job title), company, duration (e.g., "2021-2023" or "2+ years"), description (key responsibilities/achievements)
+- Return as list of objects
+- Return empty list if no experience found
+
+PROJECTS EXTRACTION:
+Extract personal or professional projects from the CV:
+- Each project should have: name, description (what was built/done), technologies (list of tech used)
+- Return as list of objects
+- Return empty list if no projects found
+
+EDUCATION EXTRACTION:
+Extract educational background from the CV:
+- Each entry should have: degree (e.g., "Bachelor of Science"), institution (university/school name), year (graduation year), gpa (if available, else null)
+- Return as list of objects
+- Return empty list if no education found
+
 Return:
 {{
   "tech_skills": ["Python", "C++", "ROS2", "Gazebo", "Docker"],
@@ -344,14 +403,18 @@ Return:
   "roles": ["Robotics Engineer"],
   "nationality": "Mexican",
   "experience_years": 5,
-  "education": ["Bachelor in Computer Science"],
+  "experience": [{{"title": "Robotics Engineer", "company": "Acme Corp", "duration": "2021-2023", "description": "Led autonomous robot development"}}],
+  "projects": [{{"name": "Autonomous Nav", "description": "Built ROS2 navigation stack", "technologies": ["ROS2", "Python", "Docker"]}}],
+  "education": [{{"degree": "Bachelor of Science", "institution": "University of Tech", "year": 2021, "gpa": 3.8}}],
   "certifications": []
 }}
 """
 
+        print(f"[CV EXTRACT DEBUG] LLM prompt (first 300 chars): {prompt[:300]}", flush=True)
+
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
-            max_tokens=1024,
+            max_tokens=2048,
             messages=[
                 {
                     "role": "user",
@@ -361,6 +424,7 @@ Return:
         )
 
         response_text = response.choices[0].message.content.strip()
+        print(f"[CV EXTRACT DEBUG] Raw LLM response: {response_text}", flush=True)
         extracted = _parse_json_with_fallbacks(response_text)
 
         if not extracted:
@@ -369,6 +433,7 @@ Return:
                 "skills": [],
                 "roles": [],
                 "experience_years": 0,
+                "experience": [],
                 "education": [],
                 "projects": [],
                 "languages": [],
@@ -379,6 +444,7 @@ Return:
 
         tech_skills = _clean_tech_skills(extracted.get("tech_skills", []))
         languages = extracted.get("languages", [])
+        experience = _deduplicate_experience(extracted.get("experience", []))
 
         print(f"[CV EXTRACT] Raw languages from LLM: {languages}", flush=True)
         print(f"[CV EXTRACT] Raw tech_skills from LLM: {extracted.get('tech_skills', [])}", flush=True)
@@ -388,6 +454,7 @@ Return:
             "skills": tech_skills,
             "roles": clean_roles(extracted.get("roles", [])),
             "experience_years": extracted.get("experience_years", 0),
+            "experience": experience,
             "education": extracted.get("education", []),
             "projects": extracted.get("projects", []),
             "languages": languages,
@@ -498,3 +565,34 @@ def _deduplicate_skills(skills: list) -> list:
                 seen[normalized] = skill
 
     return sorted(list(seen.values()))
+
+
+def _deduplicate_experience(experience: list) -> list:
+    """Deduplicate experience entries by (title, company). Keep unique combinations."""
+    if not experience:
+        return []
+
+    seen = {}  # (title, company) → experience entry
+
+    for entry in experience:
+        if not isinstance(entry, dict):
+            continue
+
+        title = (entry.get('title') or '').strip().lower()
+        company = (entry.get('company') or '').strip().lower()
+
+        if not title or not company:
+            continue
+
+        key = (title, company)
+
+        if key not in seen:
+            seen[key] = entry
+        else:
+            # Merge descriptions if same job appears multiple times
+            existing_desc = (seen[key].get('description') or '').strip()
+            new_desc = (entry.get('description') or '').strip()
+            if new_desc and new_desc != existing_desc:
+                seen[key]['description'] = f"{existing_desc}\n{new_desc}".strip()
+
+    return list(seen.values())
