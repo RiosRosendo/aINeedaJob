@@ -420,7 +420,7 @@ export default function Dashboard() {
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: '19px', color: 'var(--text)', marginBottom: '3px', whiteSpace: 'nowrap', marginTop: '6px' }}>
                 Scout
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--dfaint)', marginBottom: '26px', textAlign: 'center', paddingX: '20px', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: '12px', color: 'var(--dfaint)', marginBottom: '26px', textAlign: 'center', padding: '0 20px', whiteSpace: 'nowrap' }}>
                 on the clock — watching {stats.jobs_found} roles
               </div>
             </>
@@ -456,7 +456,7 @@ export default function Dashboard() {
                     <span style={{ fontSize: '14px', fontWeight: item.active ? 700 : 400, color: item.active ? 'var(--dtext)' : 'var(--dmuted)', whiteSpace: 'nowrap' }}>
                       {item.label}
                     </span>
-                    {item.badge > 0 && (
+                    {(item.badge || 0) > 0 && (
                       <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, padding: '2px 9px', borderRadius: '999px', background: `linear-gradient(180deg, var(--color-accent-2-200), var(--color-accent-2-100))`, color: 'var(--color-accent-2-800)' }}>
                         {item.badge}
                       </span>

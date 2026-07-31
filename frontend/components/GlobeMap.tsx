@@ -106,7 +106,7 @@ export function GlobeMap() {
           .attr('stroke-width', 0.6);
 
         // Add job source markers
-        countriesData.forEach((country, index: number) => {
+        countriesData.forEach((country: CountryData, index: number) => {
           const coords = projection([country.lng, country.lat]);
           if (coords && coords[0] !== null) {
             const g = svg.append('g').attr('transform', `translate(${coords[0]},${coords[1]})`);

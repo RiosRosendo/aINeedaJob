@@ -15,9 +15,7 @@
     "resolveJsonModule": true,
     "moduleResolution": "bundler",
     "types": [
-      "node",
-      "jest",
-      "@testing-library/jest-dom"
+      "node"
     ],
     "jsx": "preserve",
     "incremental": true,
