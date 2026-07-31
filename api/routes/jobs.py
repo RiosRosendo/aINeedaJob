@@ -153,16 +153,18 @@ async def get_agent_logs(user_id: str = Depends(get_user_id), limit: int = 5):
             """
             SELECT
                 l.id, l.agent, l.status, l.details, l.created_at, l.job_id,
+                j.title as job_title, j.company as job_company,
                 fs.score as fit_score, fs.decision
             FROM agent_logs l
-            INNER JOIN fit_scores fs ON l.job_id = fs.job_id AND fs.user_id = %s
+            LEFT JOIN jobs j ON l.job_id = j.id AND j.user_id = %s
+            LEFT JOIN fit_scores fs ON l.job_id = fs.job_id AND fs.user_id = %s
             WHERE l.user_id = %s
               AND l.agent = 'job_match'
               AND fs.score >= 60
             ORDER BY l.created_at DESC
             LIMIT %s
             """,
-            (user_id, user_id, limit)
+            (user_id, user_id, user_id, limit)
         )
         return [serialize_row(row) for row in (results or [])]
     except Exception as e:

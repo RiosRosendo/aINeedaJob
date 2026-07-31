@@ -1,17 +1,18 @@
-import type { Metadata } from 'next';
+'use client';
+
+import { usePathname } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import './globals.css';
-
-export const metadata: Metadata = {
-  title: 'aINeedJob Dashboard',
-  description: 'Autonomous job search and application agent',
-};
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const showSidebar = !pathname.startsWith('/dashboard');
+  const isDashboard = pathname.startsWith('/dashboard');
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -21,14 +22,16 @@ export default function RootLayout({
         }}
       >
         <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--bg)' }}>
-          <Sidebar />
+          {showSidebar && <Sidebar />}
           <main
             className="flex-1 overflow-y-auto"
             style={{ backgroundColor: 'var(--bg)' }}
           >
-            <div className="max-w-5xl mx-auto px-12 py-10 pb-16">
-              {children}
-            </div>
+            {isDashboard ? children : (
+              <div className="max-w-5xl mx-auto px-12 py-10 pb-16">
+                {children}
+              </div>
+            )}
           </main>
         </div>
       </body>

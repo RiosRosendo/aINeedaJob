@@ -1,10 +1,41 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Sun, Moon, RotateCw, X, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { Sun, Moon, LogOut, Home, Briefcase, CheckCircle, FileText, User } from 'lucide-react';
 import { getUserProfile, getJobsWithStats, getAgentLogs, getPendingApprovalJobs } from '@/lib/api';
+import { GlobeMap } from '@/components/GlobeMap';
 import { Job, UserProfile, DashboardStats } from '@/lib/types';
-import { WorldMap } from '@/components/WorldMap';
+
+// CSS Keyframes - add to head
+const injectStyles = () => {
+  if (typeof window === 'undefined') return;
+  if (document.getElementById('dashboard-styles')) return;
+
+  const style = document.createElement('style');
+  style.id = 'dashboard-styles';
+  style.textContent = `
+    @keyframes ainSway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+    @keyframes ainBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+    @keyframes ainLook { 0%, 12% { transform: translate(0, 0); } 20%, 32% { transform: translate(-3px, 1px); } 40%, 52% { transform: translate(3px, -1px); } 60%, 72% { transform: translate(-2px, 2px); } 80%, 100% { transform: translate(0, 0); } }
+    @keyframes ainBlink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.15); } }
+    @keyframes ainTalk { 0%, 100% { transform: scaleX(1) scaleY(1); } 30% { transform: scaleX(0.75) scaleY(1.3); } 55% { transform: scaleX(1.15) scaleY(0.7); } 80% { transform: scaleX(0.9) scaleY(1.1); } }
+    @keyframes ainFadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes ainSlideLeft { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: translateX(0); } }
+
+    * { --dbg: var(--bg); --dcard: var(--card); --dactive: var(--active); --dborder: var(--border); --dtext: var(--text); --dmuted: var(--muted); --dfaint: var(--faint); --dtrack: var(--track); --font-heading: 'Caprasimo', serif; --font-body: 'Figtree', sans-serif; }
+    body { font-family: var(--font-body); background: var(--dbg); color: var(--dtext); }
+    .inset-panel { box-shadow: inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4); }
+    .inset-chip { box-shadow: inset 0 1px 3px rgba(32,30,29,.15); }
+    .inset-button { box-shadow: inset 0 2px 5px rgba(32,30,29,.2); }
+    .nav-item { border-radius: 999px; transition: all .25s; }
+    .nav-item:hover { background: var(--dactive); box-shadow: inset 0 2px 4px rgba(32,30,29,.12); }
+    .nav-item.active { background: var(--dcard); box-shadow: inset 0 2px 5px rgba(32,30,29,.18), inset 0 -1px 0 rgba(255,255,255,.5); }
+  `;
+  document.head.appendChild(style);
+};
+
 
 interface ActivityLog {
   id: string;
@@ -18,10 +49,16 @@ interface ActivityLog {
 }
 
 export default function Dashboard() {
-  const [isDark, setIsDark] = useState(true);
+  const pathname = usePathname();
+  const [isDark, setIsDark] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [weeklySummary, setWeeklySummary] = useState<string>('');
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
     jobs_found: 0,
     applied: 0,
@@ -29,108 +66,90 @@ export default function Dashboard() {
     needs_approval: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const [weeklySummary, setWeeklySummary] = useState<any>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [profileIncomplete, setProfileIncomplete] = useState(false);
 
-  const fetchWeeklySummary = async () => {
-    try {
-      setSummaryLoading(true);
-      const response = await fetch('http://localhost:8001/api/summary/weekly', {
-        method: 'GET',
-        headers: {
-          'x-user-id': localStorage.getItem('user_id') || '',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.summary) {
-        setWeeklySummary(data.summary);
-      }
-    } catch (err) {
-      console.error('Failed to fetch weekly summary:', err);
-    } finally {
-      setSummaryLoading(false);
-    }
+  // Design tokens - Light theme
+  const lightTheme = {
+    '--bg': '#f0e4cf',
+    '--card': '#fffaf1',
+    '--active': '#ebddc5',
+    '--border': 'rgba(32,30,29,.1)',
+    '--text': '#201e1d',
+    '--muted': '#645c50',
+    '--faint': '#82796a',
+    '--track': '#dcd3c4',
+    '--color-accent': '#c67139',
+    '--color-accent-200': '#f4d9c6',
+    '--color-accent-700': '#7a3f1f',
+    '--color-accent-2': '#7a8a5e',
+    '--color-accent-2-200': '#dde5cc',
+    '--color-accent-2-800': '#4a5233',
   };
 
-  const regenerateWeeklySummary = async () => {
-    try {
-      setSummaryLoading(true);
-      const response = await fetch('http://localhost:8001/api/summary/weekly/regenerate', {
-        method: 'POST',
-        headers: {
-          'x-user-id': localStorage.getItem('user_id') || '',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.summary) {
-        setWeeklySummary(data.summary);
-      }
-    } catch (err) {
-      console.error('Failed to regenerate summary:', err);
-    } finally {
-      setSummaryLoading(false);
-    }
+  // Design tokens - Dark theme
+  const darkTheme = {
+    '--bg': '#2b2118',
+    '--card': '#3a2c1e',
+    '--active': '#463625',
+    '--border': 'rgba(245,234,216,.16)',
+    '--text': '#f7ecd9',
+    '--muted': '#d1bd9c',
+    '--faint': '#a68f72',
+    '--track': 'rgba(245,234,216,.16)',
+    '--color-accent': '#c67139',
+    '--color-accent-200': '#f4d9c6',
+    '--color-accent-700': '#7a3f1f',
+    '--color-accent-2': '#7a8a5e',
+    '--color-accent-2-200': '#dde5cc',
+    '--color-accent-2-800': '#4a5233',
   };
+
+  const theme = isDark ? darkTheme : lightTheme;
+
+  useEffect(() => {
+    injectStyles();
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
-        setError(null);
+        const profileData = await getUserProfile().catch(() => null);
+        const userId = localStorage.getItem('user_id');
 
-        const [profileData, jobsData, logs, pendingJobs] = await Promise.all([
-          getUserProfile().catch(err => {
-            console.error('Profile fetch error:', err);
-            return null;
-          }),
-          getJobsWithStats().catch(err => {
-            console.error('Jobs fetch error:', err);
-            throw err;
-          }),
-          getAgentLogs(5).catch(err => {
-            console.error('Agent logs fetch error:', err);
-            return [];
-          }),
-          getPendingApprovalJobs().catch(err => {
-            console.error('Pending jobs fetch error:', err);
-            return [];
-          }),
+        // Fetch summary with auth headers
+        const summaryRes = await fetch('http://localhost:8001/api/summary/weekly', {
+          headers: { 'x-user-id': userId || '' }
+        });
+        const summaryData = await summaryRes.json();
+        console.log('[SUMMARY RAW]', summaryData);
+        console.log('[SUMMARY TEXT]', summaryData?.summary_text);
+
+        // Fetch logs with auth headers
+        const logsRes = await fetch('http://localhost:8001/api/jobs/logs?limit=5', {
+          headers: { 'x-user-id': userId || '' }
+        });
+        const logsData = await logsRes.json();
+        console.log('[LOGS RAW]', logsData);
+        const logs = Array.isArray(logsData) ? logsData : [];
+
+        const [jobsData, pendingJobs] = await Promise.all([
+          getJobsWithStats().catch(() => ({ stats: { jobs_found: 0, applied: 0, interviews: 0, needs_approval: 0 } })),
+          getPendingApprovalJobs().catch(() => []),
         ]);
 
         setProfile(profileData);
         setJobs(pendingJobs);
         setActivityLogs(logs);
-        setStats(jobsData.stats);
+        setWeeklySummary(summaryData?.summary?.summary_text || '');
 
-        // Check if profile is complete
-        if (profileData) {
-          const hasRoles = profileData.target_roles && profileData.target_roles.length > 0;
-          const hasSkills = profileData.tech_stack && profileData.tech_stack.length > 0;
-          if (!hasRoles || !hasSkills) {
-            setProfileIncomplete(true);
-          }
+        if (logs.length > 0) {
+          setLastScanTime(new Date(logs[0].created_at));
         }
-
-        // Fetch weekly summary
-        await fetchWeeklySummary();
+        if (jobsData?.stats) {
+          setStats(jobsData.stats);
+        }
       } catch (error) {
-        console.error('Failed to load dashboard data:', error);
-        setError('Failed to load dashboard data. Please try again.');
+        console.error('Failed to load dashboard:', error);
       } finally {
         setLoading(false);
       }
@@ -139,80 +158,68 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  const toggleTheme = () => {
-    setIsDark(!isDark);
-    if (isDark) {
-      document.documentElement.classList.add('theme-light');
-    } else {
-      document.documentElement.classList.remove('theme-light');
+  const formatActivityEvents = (logs: ActivityLog[]) => {
+    return logs.map((log, index) => {
+      const details = log.details || {};
+      let title = '';
+
+      if (log.agent === 'job_discovery' && log.status === 'success') {
+        title = `Found ${details.count || details.jobs_count || 'new'} roles matching your profile`;
+      } else if (log.agent === 'job_parsing' && log.status === 'success') {
+        const jobName = details.title || details.job_title || 'Job';
+        title = `Parsed: ${jobName.substring(0, 40)}`;
+      } else if (log.agent === 'job_match' && log.status === 'success') {
+        const jobName = (log as any).job_title || 'Position';
+        const company = (log as any).job_company || 'Company';
+        const score = log.fit_score || '?';
+        title = `Scored job — ${jobName} at ${company} (${score}%)`;
+      } else if (log.agent === 'job_match' && log.status === 'failed') {
+        title = 'Failed to score job';
+      } else {
+        title = `${log.agent.charAt(0).toUpperCase() + log.agent.slice(1)} — ${log.status}`;
+      }
+
+      const timestamp = getRelativeTime(new Date(log.created_at));
+
+      return { title, timestamp, isLatest: index === 0 };
+    });
+  };
+
+  const getRelativeTime = (date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
+  };
+
+  const handleRegenerateSummary = async () => {
+    try {
+      setRegenerating(true);
+      const userId = localStorage.getItem('user_id');
+
+      const response = await fetch('http://localhost:8001/api/summary/weekly/regenerate', {
+        method: 'POST',
+        headers: { 'x-user-id': userId || '' }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[REGENERATE] Response:', data);
+        setWeeklySummary(data?.summary?.summary_text || '');
+      }
+    } catch (error) {
+      console.error('Failed to regenerate summary:', error);
+    } finally {
+      setRegenerating(false);
     }
   };
 
-  // Format activity logs for display
-  const formatActivityEvents = (logs: ActivityLog[]) => {
-    return logs
-      .filter(log => {
-        // Hide job_match events with score=0 or no score
-        if (log.agent === 'job_match' && log.status === 'success') {
-          const score = log.fit_score !== undefined ? log.fit_score : (log.details?.score !== undefined ? log.details.score : 0);
-          if (score === 0) return false;
-        }
-        return true;
-      })
-      .map((log, index) => {
-        const agentName = log.agent?.toUpperCase() || 'Agent';
-        const status = log.status || 'completed';
-        const details = log.details || {};
-        let title = `${agentName} - ${status}`;
-
-        if (log.agent === 'job_discovery' && log.status === 'success') {
-          title = `Found ${details.jobs_count || 'new'} roles matching your profile`;
-        } else if (log.agent === 'job_parsing' && log.status === 'success') {
-          const jobTitle = details.title ? details.title.substring(0, 40) : 'Job';
-          title = `Parsed job: ${jobTitle}`;
-        } else if (log.agent === 'job_match' && log.status === 'success') {
-          // Use fit_score from the joined fit_scores table, not from details
-          const score = log.fit_score !== undefined ? log.fit_score : (details.score !== undefined ? details.score : '?');
-          const decision = log.decision || details.decision || 'pending';
-          title = `Scored job - ${score}% fit (${decision})`;
-        } else if (log.agent === 'job_match' && log.status === 'failed') {
-          title = 'Failed to score job';
-        }
-
-        const createdAt = new Date(log.created_at);
-        const now = new Date();
-        const diffMs = now.getTime() - createdAt.getTime();
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        let timestamp = 'just now';
-
-        if (diffMins < 1) {
-          timestamp = 'just now';
-        } else if (diffMins < 60) {
-          timestamp = `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
-        } else if (diffHours < 24) {
-          timestamp = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-        } else {
-          timestamp = createdAt.toLocaleDateString();
-        }
-
-        return {
-          type: index === 0 ? ('latest' as const) : (undefined as any),
-          title,
-          timestamp,
-        };
-      });
-  };
-
-  const activityEvents = activityLogs.length > 0 ? formatActivityEvents(activityLogs) : [
-    {
-      type: 'latest' as const,
-      title: 'No activity yet',
-      timestamp: 'Start a job search to see activity',
-    },
-  ];
-
-  const greeting = profile?.name ? `Good morning, ${profile.name.split(' ')[0]}` : 'Good morning';
+  const greeting = `Morning, ${profile?.name?.split(' ')[0] || 'there'}. Let's see who's hiring.`;
   const today = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
     month: 'long',
@@ -220,777 +227,673 @@ export default function Dashboard() {
     year: 'numeric',
   }).format(new Date());
 
+  const activityEvents = activityLogs.length > 0 ? formatActivityEvents(activityLogs) : [
+    { title: 'No activity yet', timestamp: 'Start searching', isLatest: true },
+  ];
+
+  // Scout mascot sizing based on sidebar state
+  const mascotSize = sidebarOpen ? 120 : 46;
+  const eyeSize = sidebarOpen ? 8 : 3;
+  const eyeLeft1 = sidebarOpen ?  45 : 20;
+  const eyeLeft2 = sidebarOpen ? 68 : 27;
+  const eyeTop = sidebarOpen ? 40 : 13;
+  const mouthLeft = sidebarOpen ? 46 : 16;
+  const mouthTop = sidebarOpen ? 62 : 24;
+  const mouthW = sidebarOpen ? 28 : 10;
+  const mouthH = sidebarOpen ? 9 : 3;
+  const mouthBorder = sidebarOpen ? 2 : 1;
+
   return (
-    <div>
-      {profileIncomplete && (
-        <div
-          className="mb-6 p-4 border rounded-lg flex items-start gap-3 justify-between"
+    <div style={theme as any}>
+      <div style={{ display: 'flex', minHeight: '100vh' }}>
+        {/* Sidebar */}
+        <aside
           style={{
-            borderColor: '#f59e0b',
-            backgroundColor: '#fffbeb',
-            color: '#d97706',
+            width: sidebarOpen ? '250px' : '88px',
+            flexBasis: sidebarOpen ? '250px' : '88px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            padding: '26px 0 20px',
+            overflow: 'hidden',
+            transition: 'width .38s cubic-bezier(.4,0,.2,1), flex-basis .38s cubic-bezier(.4,0,.2,1)',
+            background: 'var(--dbg)',
+            borderRight: '1px solid var(--dborder)',
           }}
         >
-          <div className="flex items-start gap-3">
-            <div style={{ fontSize: '20px' }}>⚠️</div>
-            <div>
-              <strong>Profile Incomplete</strong>
-              <p style={{ fontSize: '14px', marginTop: '4px' }}>
-                Add your skills and target roles or upload your CV to start job discovery
-              </p>
+          {/* Logo & Theme Toggle */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '9px',
+              alignSelf: 'stretch',
+              padding: '0 22px',
+              marginBottom: '26px',
+              width: '100%',
+              boxSizing: 'border-box',
+            }}
+          >
+            <div
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '9px',
+                cursor: 'pointer',
+              }}
+            >
+              <div
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '38% 62% 55% 45% / 50% 45% 55% 50%',
+                  background: `linear-gradient(140deg, var(--color-accent), var(--color-accent-2))`,
+                  animation: 'ainSway 5s ease-in-out infinite',
+                }}
+              />
+              {sidebarOpen && (
+                <span style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', whiteSpace: 'nowrap' }}>
+                  aiNeedJob
+                </span>
+              )}
             </div>
+
+            {sidebarOpen && (
+              <button
+                onClick={() => setIsDark(!isDark)}
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: 'var(--dcard)',
+                  color: 'var(--dmuted)',
+                  cursor: 'pointer',
+                  boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18), inset 0 -1px 0 rgba(255,255,255,.5)',
+                }}
+              >
+                {isDark ? <Sun size={13} /> : <Moon size={13} />}
+              </button>
+            )}
           </div>
-          <a
-            href="/profile"
-            className="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap"
-            style={{
-              backgroundColor: '#d97706',
-              color: 'white',
-              textDecoration: 'none',
-            }}
-          >
-            Complete Profile
-          </a>
-        </div>
-      )}
 
-      {error && (
-        <div
-          className="mb-6 p-4 border rounded-lg"
-          style={{
-            borderColor: 'var(--border)',
-            backgroundColor: '#fee',
-            color: '#c00',
-          }}
-        >
-          {error}
-        </div>
-      )}
-      {/* Header */}
-      <header className="flex items-start justify-between mb-10">
-        <div>
-          <h1
-            className="text-4xl font-semibold mb-2"
-            style={{
-              letterSpacing: '-0.03em',
-              color: 'var(--text)',
-            }}
-          >
-            {greeting}
-          </h1>
-          <p
-            className="text-sm"
-            style={{ color: 'var(--muted)', fontWeight: 450 }}
-          >
-            {today}
-          </p>
-        </div>
-
-        {/* Theme toggle & scan info */}
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={toggleTheme}
-            className="w-9 h-9 flex items-center justify-center border rounded-lg transition-all"
-            style={{
-              borderColor: 'var(--border)',
-              backgroundColor: 'var(--card)',
-              color: 'var(--muted)',
-            }}
-            title="Toggle theme"
-          >
-            {isDark ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
-
+          {/* Scout Mascot */}
           <div
-            className="flex items-center gap-2 border rounded-lg px-3 py-2 text-xs h-9"
             style={{
-              borderColor: 'var(--border)',
-              backgroundColor: 'var(--card)',
-              color: 'var(--muted)',
+              position: 'relative',
+              width: `${mascotSize}px`,
+              height: `${mascotSize}px`,
+              marginBottom: '8px',
+              margin: '0 auto 8px',
+              display: 'block',
+              transition: 'width .38s cubic-bezier(.4,0,.2,1), height .38s cubic-bezier(.4,0,.2,1)',
             }}
           >
-            <RotateCw size={13} style={{ color: 'var(--faint)' }} />
-            Last scan: 2 minutes ago
+            {/* Shadow */}
+            <div
+              style={{
+                position: 'absolute',
+                left: '12%',
+                bottom: '-10%',
+                width: '76%',
+                height: '16%',
+                borderRadius: '50%',
+                background: 'radial-gradient(ellipse, rgba(32,30,29,.32), transparent 70%)',
+                filter: 'blur(2px)',
+              }}
+            />
+
+            {/* Face */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                borderRadius: '58% 42% 45% 55% / 45% 55% 45% 55%',
+                background: `radial-gradient(circle at 30% 26%, var(--color-accent-200), var(--color-accent) 55%, var(--color-accent-700) 100%)`,
+                animation: 'ainBreathe 3.2s ease-in-out infinite',
+                boxShadow: '0 10px 20px -6px rgba(32,30,29,.4), inset 0 3px 6px rgba(255,255,255,.35), inset 0 -6px 10px rgba(64,35,16,.35)',
+              }}
+            />
+
+            {/* Highlight */}
+            <div
+              style={{
+                position: 'absolute',
+                left: '18%',
+                top: '14%',
+                width: '26%',
+                height: '16%',
+                borderRadius: '50%',
+                background: 'rgba(255,255,255,.45)',
+                filter: 'blur(2px)',
+              }}
+            />
+
+            {/* Eyes */}
+            <div
+              style={{
+                position: 'absolute',
+                left: `${eyeLeft1}px`,
+                top: `${eyeTop}px`,
+                width: `${eyeSize}px`,
+                height: `${eyeSize}px`,
+                borderRadius: '50%',
+                background: 'var(--dbg)',
+                animation: 'ainLook 6s ease-in-out infinite, ainBlink 4.5s ease-in-out infinite',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                left: `${eyeLeft2}px`,
+                top: `${eyeTop}px`,
+                width: `${eyeSize}px`,
+                height: `${eyeSize}px`,
+                borderRadius: '50%',
+                background: 'var(--dbg)',
+                animation: 'ainLook 6s ease-in-out infinite, ainBlink 4.5s ease-in-out infinite',
+              }}
+            />
+
+            {/* Mouth */}
+            <div
+              style={{
+                position: 'absolute',
+                left: `${mouthLeft}px`,
+                top: `${mouthTop}px`,
+                width: `${mouthW}px`,
+                height: `${mouthH}px`,
+                borderRadius: '0 0 16px 16px',
+                borderBottom: `${mouthBorder}px solid var(--dbg)`,
+                animation: 'ainTalk 3.4s ease-in-out infinite',
+              }}
+            />
           </div>
-        </div>
-      </header>
 
-      {/* Stats Row */}
-      <section className="grid grid-cols-4 gap-4 mb-10">
-        <StatCard label="Jobs Found" value={stats.jobs_found} />
-        <StatCard label="Applied" value={stats.applied} showDivider />
-        <StatCard label="Interviews" value={stats.interviews} showDivider />
-        <StatCard label="Needs Approval" value={stats.needs_approval} showDivider showDot />
-      </section>
+          {sidebarOpen && (
+            <>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: '19px', color: 'var(--text)', marginBottom: '3px', whiteSpace: 'nowrap', marginTop: '6px' }}>
+                Scout
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--dfaint)', marginBottom: '26px', textAlign: 'center', paddingX: '20px', whiteSpace: 'nowrap' }}>
+                on the clock — watching {stats.jobs_found} roles
+              </div>
+            </>
+          )}
 
-      {/* World Map */}
-      <WorldMap />
-
-      {/* Weekly Summary */}
-      {weeklySummary && (
-        <WeeklySummaryCard
-          summary={weeklySummary}
-          isLoading={summaryLoading}
-          onRegenerate={regenerateWeeklySummary}
-        />
-      )}
-
-      {/* Agent Activity */}
-      <section className="mb-11">
-        <div className="flex items-center justify-between mb-5">
-          <h2
-            className="text-xs font-semibold uppercase tracking-wide"
-            style={{ color: 'var(--muted)' }}
-          >
-            Agent Activity
-          </h2>
-          <a
-            href="#"
-            className="text-xs font-medium"
-            style={{ color: 'var(--accent)' }}
-          >
-            View all activity →
-          </a>
-        </div>
-
-        <div className="relative">
-          {/* Timeline line - centered through dots */}
-          <div
-            className="absolute left-1.5 top-4 bottom-4 w-0.5"
-            style={{ backgroundColor: 'var(--border)', transform: 'translateX(-50%)' }}
-          />
-
-          {/* Activity items */}
-          <div className="space-y-3">
-            {activityEvents.map((event, i) => (
-              <div key={i} className="relative flex pl-10 py-1.5 animate-slide-left"
-                style={{ animationDelay: `${0.04 + i * 0.08}s` }}>
-                {/* Node */}
-                <div
-                  className="absolute left-0 top-3.5 w-3 h-3 rounded-full flex-shrink-0"
-                  style={
-                    event.type === 'latest'
-                      ? {
-                        backgroundColor: 'var(--text)',
-                        boxShadow: '0 0 0 4px var(--accent-bg)',
-                      }
-                      : {
-                        backgroundColor: 'var(--bg)',
-                        border: '1.5px solid var(--border-strong)',
-                      }
-                  }
-                />
-
-                {/* Content */}
-                <div>
-                  <div
-                    className="text-sm font-medium"
-                    style={{
-                      color: event.type === 'latest' ? 'var(--text)' : 'var(--muted)',
-                      letterSpacing: '-0.01em',
-                    }}
-                  >
-                    {event.title.split(' — ').map((part, j) => (
-                      <span key={j}>
-                        {j === 1 ? (
-                          <span style={{ color: 'var(--text)', fontWeight: 500 }}>
-                            {part}
-                          </span>
-                        ) : (
-                          part
-                        )}
-                        {j === 0 && ' — '}
+          {/* Nav */}
+          <nav style={{ width: '100%', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: 'auto', boxSizing: 'border-box' }}>
+            {[
+              { icon: Home, label: 'Dashboard', href: '/dashboard', active: pathname === '/dashboard' },
+              { icon: Briefcase, label: 'Jobs', href: '/jobs', active: pathname === '/jobs' },
+              { icon: CheckCircle, label: 'Approvals', href: '/approvals', badge: stats.needs_approval, active: pathname === '/approvals' },
+              { icon: FileText, label: 'Applications', href: '/applications', active: pathname === '/applications' },
+              { icon: User, label: 'Profile', href: '/profile', active: pathname === '/profile' },
+            ].map((item, i) => (
+              <Link
+                key={i}
+                href={item.href}
+                className={`nav-item ${item.active ? 'active' : ''}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '11px',
+                  padding: '11px 16px',
+                  background: item.active ? 'var(--dcard)' : 'transparent',
+                  textDecoration: 'none',
+                  borderRadius: '999px',
+                  transition: 'all .25s',
+                }}
+              >
+                <item.icon size={17} style={{ flex: 'none', color: item.active ? 'var(--dtext)' : 'var(--dmuted)' }} />
+                {sidebarOpen && (
+                  <>
+                    <span style={{ fontSize: '14px', fontWeight: item.active ? 700 : 400, color: item.active ? 'var(--dtext)' : 'var(--dmuted)', whiteSpace: 'nowrap' }}>
+                      {item.label}
+                    </span>
+                    {item.badge > 0 && (
+                      <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, padding: '2px 9px', borderRadius: '999px', background: `linear-gradient(180deg, var(--color-accent-2-200), var(--color-accent-2-100))`, color: 'var(--color-accent-2-800)' }}>
+                        {item.badge}
                       </span>
-                    ))}
-                  </div>
-                  <div
-                    className="text-xs mt-0.5"
-                    style={{ color: 'var(--faint)' }}
-                  >
-                    {event.timestamp}
-                  </div>
+                    )}
+                  </>
+                )}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Logout */}
+          <button
+            style={{
+              width: 'calc(100% - 32px)',
+              marginTop: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '10px 0',
+              borderRadius: '999px',
+              border: 'none',
+              background: 'var(--dcard)',
+              color: 'var(--dmuted)',
+              font: '500 12px var(--font-body)',
+              cursor: 'pointer',
+              boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18), inset 0 -1px 0 rgba(255,255,255,.5)',
+            }}
+          >
+            <LogOut size={13} style={{ flex: 'none' }} />
+            {sidebarOpen && <span>Logout</span>}
+          </button>
+        </aside>
+
+        {/* Main Content */}
+        <main style={{ flex: 1, padding: '44px 60px 70px', maxWidth: '900px', margin: '0 auto', width: '100%' }}>
+          {/* Header */}
+          <div style={{ marginBottom: '40px' }}>
+            <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '44px', fontWeight: 400, color: 'var(--text)', margin: '0 0 8px', lineHeight: 1.12 }}>
+              {greeting}
+            </h1>
+            <p style={{ margin: 0, fontSize: '13.5px', color: 'var(--dmuted)' }}>
+              {today}
+            </p>
+          </div>
+
+          {/* Stats Strip */}
+          <section
+            className="inset-panel"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: '16px',
+              marginBottom: '40px',
+              borderRadius: '24px',
+              background: 'var(--dcard)',
+              padding: '20px',
+            }}
+          >
+            {[
+              { num: stats.jobs_found, label: 'Jobs found', color: 'var(--color-accent-700)' },
+              { num: stats.applied, label: 'Applied', color: 'var(--dfaint)' },
+              { num: stats.interviews, label: 'Interviews', color: 'var(--dfaint)' },
+              { num: stats.needs_approval, label: 'Needs approval', color: 'var(--dfaint)', showDot: true },
+            ].map((stat, i, arr) => (
+              <div key={i} style={{ animation: `ainFadeUp .6s cubic-bezier(.2,.8,.2,1) ${i * 0.06}s backwards`, padding: '0 20px', borderRight: i < arr.length - 1 ? '1px solid var(--dborder)' : 'none' }}>
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: '34px', color: 'var(--text)' }}>
+                  {stat.num}
+                </div>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: stat.color, marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {stat.showDot && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-accent)', boxShadow: '0 0 4px var(--color-accent)' }} />}
+                  {stat.label}
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
+          </section>
 
-      {/* Jobs Queue */}
-      <section>
-        <div className="flex items-center justify-between mb-5">
-          <h2
-            className="text-xs font-semibold uppercase tracking-wide"
-            style={{ color: 'var(--muted)' }}
-          >
-            Jobs Queue
-          </h2>
-          <span
-            className="text-xs"
-            style={{ color: 'var(--faint)' }}
-          >
-            3 awaiting review
-          </span>
-        </div>
+          {/* Globe */}
+          <section style={{ marginBottom: '40px' }}>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '18px', fontWeight: 400, color: '#645C50', margin: '0 0 20px' }}>
+              Where Scout is Finding Roles
+            </h2>
+            <GlobeMap />
+          </section>
 
-        <div className="grid grid-cols-3 gap-4">
-          {jobs.length > 0 ? (
-            jobs.map((job, i) => (
-              <JobCard
-                key={job.id}
-                job={job}
-                delay={0.06 + i * 0.1}
-                onViewDetails={() => setSelectedJob(job)}
-              />
-            ))
-          ) : (
-            <>
-              <JobCardSkeleton />
-              <JobCardSkeleton />
-              <JobCardSkeleton />
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* Job Details Modal */}
-      {selectedJob && (
-        <JobDetailsModal job={selectedJob} onClose={() => setSelectedJob(null)} />
-      )}
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  showDivider = false,
-  showDot = false,
-}: {
-  label: string;
-  value: number;
-  showDivider?: boolean;
-  showDot?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        paddingLeft: showDivider ? '24px' : 0,
-        borderLeft: showDivider ? '1px solid var(--border-soft)' : 'none',
-      }}
-    >
-      <div className="flex items-center gap-2 mb-3.5">
-        {showDot && (
-          <div
-            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-            style={{ backgroundColor: 'var(--accent)' }}
-          />
-        )}
-        <label
-          className="text-xs font-semibold uppercase tracking-widest"
-          style={{ color: 'var(--faint)' }}
-        >
-          {label}
-        </label>
-      </div>
-      <div
-        className="text-4xl font-semibold"
-        style={{
-          letterSpacing: '-0.03em',
-          color: 'var(--text)',
-          lineHeight: 1,
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-interface JobCardProps {
-  job: Job;
-  delay: number;
-  onViewDetails?: () => void;
-}
-
-function JobCard({ job, delay, onViewDetails }: JobCardProps) {
-  // Calculate stroke dashoffset based on fit score (0-100)
-  // Full circle = 163.36, so offset = (100 - score) * 1.6336
-  const fitScore = Math.round(job.fit_score || 75);
-  const dashOffset = (100 - fitScore) * 1.6336;
-  const location = job.location ? job.location.split(',')[0] : 'Location N/A';
-
-  return (
-    <div
-      className="border rounded-2xl p-6 card-shadow hover:card-shadow-hover transition-all animate-fade-up hover:scale-101 hover:-translate-y-1.5"
-      style={{
-        borderColor: 'var(--border)',
-        backgroundColor: 'var(--card)',
-        animationDelay: `${delay}s`,
-      }}
-      onMouseEnter={(e) => {
-        const el = e.currentTarget;
-        el.style.transform = 'translateY(-6px) scale(1.012)';
-        el.style.boxShadow = 'var(--card-shadow-hover)';
-        el.style.borderColor = 'var(--border-strong)';
-      }}
-      onMouseLeave={(e) => {
-        const el = e.currentTarget;
-        el.style.transform = 'translateY(0) scale(1)';
-        el.style.boxShadow = 'var(--card-shadow)';
-        el.style.borderColor = 'var(--border)';
-      }}
-    >
-      {/* Top row: Company/Title + Score Ring */}
-      <div className="flex items-start justify-between mb-4.5">
-        <div>
-          <div
-            className="text-xs font-medium mb-0.5"
-            style={{ color: 'var(--faint)' }}
-          >
-            {job.company || 'Unknown Company'}
-          </div>
-          <div
-            className="text-base font-semibold"
-            style={{
-              color: 'var(--text)',
-              letterSpacing: '-0.02em',
-              lineHeight: 1.3,
-            }}
-          >
-            {job.title}
-          </div>
-        </div>
-
-        {/* Fit Score Ring */}
-        <div className="relative w-14 h-14 flex-shrink-0">
-          <svg
-            width="56"
-            height="56"
-            viewBox="0 0 64 64"
-            style={{ transform: 'rotate(-90deg)' }}
-          >
-            <circle
-              cx="32"
-              cy="32"
-              r="26"
-              fill="none"
-              stroke="var(--track)"
-              strokeWidth="5"
-            />
-            <circle
-              cx="32"
-              cy="32"
-              r="26"
-              fill="none"
-              stroke="var(--ring)"
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeDasharray="163.36"
-              strokeDashoffset={dashOffset}
+          {/* Activity + Fresh from Scout */}
+          <section style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '20px', marginBottom: '40px' }}>
+            {/* Fresh from Scout */}
+            <div
+              className="inset-panel"
               style={{
-                transition: 'stroke-dashoffset 1.1s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                borderRadius: '22px',
+                background: 'var(--dcard)',
+                padding: '18px 20px',
+                display: 'flex',
+                flexDirection: 'column',
               }}
-            />
-          </svg>
-          <div
-            className="absolute inset-0 flex items-center justify-center text-sm font-semibold"
-            style={{ color: 'var(--text)' }}
-          >
-            {fitScore}
-          </div>
-        </div>
-      </div>
-
-      {/* Modality pill */}
-      <div className="flex items-center gap-2 mb-5">
-        <span
-          className="text-xs font-medium border rounded-full px-3 py-1.5"
-          style={{
-            color: 'var(--muted)',
-            borderColor: 'var(--border)',
-          }}
-        >
-          {job.modality}
-        </span>
-        <span
-          className="text-xs"
-          style={{ color: 'var(--faint)' }}
-        >
-          Fit score
-        </span>
-      </div>
-
-      {/* Buttons */}
-      <div className="flex gap-2">
-        <button
-          onClick={onViewDetails}
-          className="flex-1 text-xs font-medium py-2.5 border rounded-xl transition-all"
-          style={{
-            color: 'var(--muted)',
-            backgroundColor: 'var(--card)',
-            borderColor: 'var(--border)',
-          }}
-          onMouseEnter={(e) => {
-            const el = e.currentTarget as HTMLButtonElement;
-            el.style.backgroundColor = 'var(--sidebar-active)';
-            el.style.borderColor = 'var(--border-strong)';
-          }}
-          onMouseLeave={(e) => {
-            const el = e.currentTarget as HTMLButtonElement;
-            el.style.backgroundColor = 'var(--card)';
-            el.style.borderColor = 'var(--border)';
-          }}
-        >
-          View Details
-        </button>
-        <button
-          className="flex-1 text-xs font-semibold py-2.5 border rounded-xl transition-all"
-          style={{
-            color: 'var(--primary-text)',
-            backgroundColor: 'var(--primary-bg)',
-            borderColor: 'var(--primary-bg)',
-          }}
-          onMouseEnter={(e) => {
-            const el = e.currentTarget as HTMLButtonElement;
-            el.style.backgroundColor = 'var(--primary-hover)';
-            el.style.borderColor = 'var(--primary-hover)';
-          }}
-          onMouseLeave={(e) => {
-            const el = e.currentTarget as HTMLButtonElement;
-            el.style.backgroundColor = 'var(--primary-bg)';
-            el.style.borderColor = 'var(--primary-bg)';
-          }}
-        >
-          Approve
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function JobCardSkeleton() {
-  return (
-    <div
-      className="border rounded-2xl p-6 card-shadow"
-      style={{
-        borderColor: 'var(--border)',
-        backgroundColor: 'var(--card)',
-      }}
-    >
-      <div className="space-y-4">
-        <div className="w-24 h-4 skeleton-block" />
-        <div className="w-full h-6 skeleton-block" />
-        <div className="w-32 h-4 skeleton-block" />
-        <div className="flex gap-2 mt-5">
-          <div className="flex-1 h-9 skeleton-block" />
-          <div className="flex-1 h-9 skeleton-block" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface JobDetailsModalProps {
-  job: Job;
-  onClose: () => void;
-}
-
-function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
-  const getScoreColor = (score?: number) => {
-    if (!score && score !== 0) return '#9ca3af';
-    if (score >= 85) return '#10b981';
-    if (score >= 60) return '#f59e0b';
-    return '#ef4444';
-  };
-
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, []);
-
-  return (
-    <>
-      <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40"
-        onClick={onClose}
-        style={{ animation: 'fadeIn 0.2s ease-in-out' }}
-      />
-
-      <div
-        className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:w-2/3 md:max-w-2xl border rounded-2xl p-8 overflow-y-auto z-50"
-        style={{
-          borderColor: 'var(--border)',
-          backgroundColor: 'var(--card)',
-          transform: 'md:translate(-50%, -50%)',
-          maxHeight: '90vh',
-          animation: 'slideUp 0.3s ease-out',
-        }}
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-6 right-6 p-2 hover:bg-opacity-20 transition-all"
-          style={{
-            color: 'var(--muted)',
-          }}
-        >
-          <X size={20} />
-        </button>
-
-        <div className="mb-6 pr-10">
-          <h2
-            className="text-2xl font-semibold mb-2"
-            style={{
-              color: 'var(--text)',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            {job.title}
-          </h2>
-          <p
-            className="text-sm mb-4"
-            style={{ color: 'var(--muted)' }}
-          >
-            {job.company}
-          </p>
-
-          <div className="flex flex-wrap gap-4">
-            <div>
-              <span className="text-xs" style={{ color: 'var(--faint)' }}>
-                Location
-              </span>
-              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-                {job.location || 'N/A'}
-              </p>
-            </div>
-            <div>
-              <span className="text-xs" style={{ color: 'var(--faint)' }}>
-                Modality
-              </span>
-              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-                {job.modality || 'Unknown'}
-              </p>
-            </div>
-            {job.fit_score !== undefined && (
-              <div>
-                <span className="text-xs" style={{ color: 'var(--faint)' }}>
-                  Fit Score
-                </span>
-                <div className="flex items-center gap-2">
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <div style={{ position: 'relative', width: '28px', height: '28px', flex: '0 0 28px' }}>
                   <div
-                    className="w-8 h-8 rounded-full border-2 flex items-center justify-center"
                     style={{
-                      borderColor: getScoreColor(job.fit_score),
-                      backgroundColor: 'var(--bg)',
+                      position: 'absolute',
+                      inset: 0,
+                      borderRadius: '56% 44% 48% 52% / 50% 55% 45% 50%',
+                      background: `radial-gradient(circle at 32% 28%, var(--color-accent-200), var(--color-accent) 60%, var(--color-accent-700))`,
+                      boxShadow: '0 2px 4px rgba(32,30,29,.2), inset 0 1px 2px rgba(255,255,255,.3)',
+                    }}
+                  />
+                  <div style={{ position: 'absolute', left: '7px', top: '11px', width: '3px', height: '3px', borderRadius: '50%', background: 'var(--dbg)' }} />
+                  <div style={{ position: 'absolute', left: '17px', top: '11px', width: '3px', height: '3px', borderRadius: '50%', background: 'var(--dbg)' }} />
+                  <div style={{ position: 'absolute', left: '10px', top: '16px', width: '8px', height: '4px', borderRadius: '0 0 6px 6px', borderBottom: '1px solid var(--dbg)' }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1, gap: '12px' }}>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', fontWeight: 400, color: 'var(--text)' }}>
+                    Fresh from Scout
+                  </div>
+                  <button
+                    onClick={handleRegenerateSummary}
+                    disabled={regenerating}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: 'var(--dbg)',
+                      color: 'var(--dmuted)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: regenerating ? 'not-allowed' : 'pointer',
+                      opacity: regenerating ? 0.6 : 1,
+                      transition: 'all 0.2s',
+                      flex: '0 0 auto',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!regenerating) {
+                        (e.target as HTMLButtonElement).style.background = 'var(--dactive)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.target as HTMLButtonElement).style.background = 'var(--dbg)';
                     }}
                   >
-                    <span
-                      className="text-xs font-bold"
-                      style={{ color: getScoreColor(job.fit_score) }}
-                    >
-                      {Math.round(job.fit_score)}
-                    </span>
-                  </div>
+                    {regenerating ? 'Regenerating...' : 'Regenerate ↻'}
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
+              <p style={{ fontSize: '12px', color: 'var(--dmuted)', margin: 0, lineHeight: 1.5 }}>
+                "{weeklySummary || 'Loading summary...'}"
+              </p>
+            </div>
 
-        {(job.strengths || job.gaps) && (
-          <div className="mb-6 pb-6 border-b" style={{ borderColor: 'var(--border)' }}>
-            {job.strengths && job.strengths.length > 0 && (
-              <div className="mb-4">
-                <h3 className="text-sm font-semibold mb-2" style={{ color: '#10b981' }}>
-                  ✓ Strengths
-                </h3>
-                <ul className="space-y-1">
-                  {job.strengths.map((strength, i) => (
-                    <li key={i} className="text-xs" style={{ color: 'var(--muted)' }}>
-                      • {strength}
-                    </li>
-                  ))}
-                </ul>
+            {/* Agent Activity */}
+            <div
+              className="inset-panel"
+              style={{
+                borderRadius: '22px',
+                background: 'var(--dcard)',
+                padding: '6px 20px',
+              }}
+            >
+              {typeof window !== 'undefined' && (
+                <>
+                  {console.log('[ACTIVITY] activityLogs state:', activityLogs)}
+                  {console.log('[ACTIVITY] formatted:', formatActivityEvents(activityLogs))}
+                </>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 6px' }}>
+                <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', fontWeight: 400, color: '#645C50', margin: 0 }}>
+                  Agent Activity
+                </h2>
+                <a href="/debug" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-accent)', textDecoration: 'none' }}>
+                  View all →
+                </a>
               </div>
-            )}
-            {job.gaps && job.gaps.length > 0 && (
+              {lastScanTime && (
+                <p style={{ fontSize: '12px', color: 'var(--dmuted)', margin: '2px 0 16px' }}>
+                  Last scan: {getRelativeTime(lastScanTime)}
+                </p>
+              )}
               <div>
-                <h3 className="text-sm font-semibold mb-2" style={{ color: '#ef4444' }}>
-                  ✗ Gaps
-                </h3>
-                <ul className="space-y-1">
-                  {job.gaps.map((gap, i) => (
-                    <li key={i} className="text-xs" style={{ color: 'var(--muted)' }}>
-                      • {gap}
-                    </li>
-                  ))}
-                </ul>
+                {activityEvents.slice(0, 3).map((event, i) => (
+                  <div key={i} style={{ display: 'flex', gap: '14px', padding: '10px 0', borderBottom: '1px solid rgba(32,30,29,.08)', animation: `ainSlideLeft .5s cubic-bezier(.2,.8,.2,1) ${i * 0.08}s backwards` }}>
+                    <div
+                      style={{
+                        width: '6px',
+                        flex: '0 0 6px',
+                        borderRadius: '4px',
+                        background: i === 0 ? 'var(--color-accent)' : 'var(--dfaint)',
+                        alignSelf: 'stretch',
+                        boxShadow: i === 0 ? '0 0 5px var(--color-accent)' : 'none',
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: i === 0 ? 600 : 400, color: i === 0 ? 'var(--dtext)' : 'var(--dmuted)' }}>
+                        {event.title}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--dfaint)', marginTop: '2px' }}>{event.timestamp}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          </section>
 
-        {job.required_skills && job.required_skills.length > 0 && (
-          <div className="mb-6 pb-6 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text)' }}>
-              Required Skills
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {job.required_skills.map((skill, i) => (
-                <span
-                  key={i}
-                  className="text-xs px-3 py-1.5 rounded-full border"
+          {/* Jobs Waiting */}
+          <section>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '18px', fontWeight: 400, color: '#645C50', margin: 0 }}>
+                Jobs Waiting on You
+              </h2>
+              <span style={{ fontSize: '12px', color: 'var(--dfaint)' }}>{jobs.length} to review</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+              {jobs.slice(0, 3).map((job, i) => (
+                <div
+                  key={job.id}
+                  className="inset-panel"
+                  onClick={() => setSelectedJob(job)}
                   style={{
-                    borderColor: 'var(--border)',
-                    color: 'var(--muted)',
+                    borderRadius: '24px',
+                    background: 'var(--dcard)',
+                    padding: '22px',
+                    transition: 'box-shadow .25s',
+                    animation: `ainFadeUp .6s cubic-bezier(.2,.8,.2,1) ${(i + 1) * 0.06}s backwards`,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    minHeight: '180px',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.boxShadow = 'inset 0 2px 6px rgba(32,30,29,.1), inset 0 -1px 0 rgba(255,255,255,.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.boxShadow = 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)';
                   }}
                 >
-                  {skill}
-                </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: 'var(--dfaint)', fontWeight: 600 }}>{job.company}</div>
+                      <div style={{ fontFamily: 'var(--font-heading)', fontSize: '17px', color: 'var(--text)', marginTop: '3px' }}>
+                        {job.title}
+                      </div>
+                    </div>
+                    {/* Fit Score Circle */}
+                    <div style={{ position: 'relative', width: '52px', height: '52px', flex: '0 0 52px' }}>
+                      <svg width="52" height="52" viewBox="0 0 64 64" style={{ transform: 'rotate(-90deg)' }}>
+                        <circle cx="32" cy="32" r="26" fill="none" stroke="var(--dtrack)" strokeWidth="5" />
+                        <circle cx="32" cy="32" r="26" fill="none" stroke="var(--color-accent)" strokeWidth="5" strokeLinecap="round" strokeDasharray={`${163.36 * ((job.fit_score || 75) / 100)} ${163.36}`} />
+                      </svg>
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
+                        {job.fit_score || 75}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 'auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <span className="inset-chip" style={{ fontSize: '11px', color: 'var(--color-accent-2-800)', borderRadius: '999px', padding: '4px 12px' }}>
+                        {job.modality || 'Remote'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        style={{
+                          flex: 1,
+                          padding: '10px 0',
+                          borderRadius: '999px',
+                          border: 'none',
+                          background: 'var(--dbg)',
+                          color: 'var(--dmuted)',
+                          font: '500 12.5px var(--font-body)',
+                          cursor: 'pointer',
+                          boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                        }}
+                      >
+                        Details
+                      </button>
+                      <button
+                        style={{
+                          flex: 1,
+                          padding: '10px 0',
+                          borderRadius: '999px',
+                          border: 'none',
+                          background: 'var(--dbg)',
+                          color: 'var(--color-accent-700)',
+                          font: '700 12.5px var(--font-body)',
+                          cursor: 'pointer',
+                          boxShadow: 'inset 0 2px 5px rgba(32,30,29,.2)',
+                        }}
+                      >
+                        Approve
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-        )}
+          </section>
 
-        <div>
-          <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text)' }}>
-            Description
-          </h3>
-          <p
-            className="text-sm leading-relaxed whitespace-pre-wrap"
-            style={{ color: 'var(--muted)' }}
-          >
-            {job.description_raw || 'No description available'}
-          </p>
-        </div>
+          {/* Job Details Modal */}
+          {selectedJob && (
+            <>
+              <div
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  backgroundColor: 'rgba(0,0,0,.5)',
+                  zIndex: 40,
+                  backdropFilter: 'blur(2px)',
+                }}
+                onClick={() => setSelectedJob(null)}
+              />
+              <div
+                style={{
+                  position: 'fixed',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '90%',
+                  maxWidth: '600px',
+                  maxHeight: '80vh',
+                  backgroundColor: 'var(--dcard)',
+                  borderRadius: '24px',
+                  padding: '32px',
+                  overflowY: 'auto',
+                  zIndex: 50,
+                  boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)',
+                }}
+              >
+                <button
+                  onClick={() => setSelectedJob(null)}
+                  style={{
+                    position: 'absolute',
+                    top: '20px',
+                    right: '20px',
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '24px',
+                    cursor: 'pointer',
+                    color: 'var(--dmuted)',
+                  }}
+                >
+                  ✕
+                </button>
+
+                <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '24px', color: 'var(--text)', margin: '0 0 8px', paddingRight: '30px' }}>
+                  {selectedJob.title}
+                </h2>
+                <p style={{ fontSize: '14px', color: 'var(--dmuted)', margin: '0 0 24px' }}>
+                  {selectedJob.company}
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--dborder)' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: '4px' }}>Location</div>
+                    <p style={{ fontSize: '14px', color: 'var(--text)', margin: 0 }}>{selectedJob.location || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: '4px' }}>Modality</div>
+                    <p style={{ fontSize: '14px', color: 'var(--text)', margin: 0 }}>{selectedJob.modality || 'Unknown'}</p>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: '4px' }}>Fit Score</div>
+                    <p style={{ fontSize: '14px', color: 'var(--text)', margin: 0, fontWeight: 700 }}>{selectedJob.fit_score || 75}%</p>
+                  </div>
+                </div>
+
+                {(selectedJob.strengths || selectedJob.gaps) && (
+                  <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--dborder)' }}>
+                    {selectedJob.strengths && selectedJob.strengths.length > 0 && (
+                      <div style={{ marginBottom: '16px' }}>
+                        <h3 style={{ fontSize: '12px', fontWeight: 700, color: '#10b981', margin: '0 0 8px', textTransform: 'uppercase' }}>✓ Strengths</h3>
+                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: 'var(--dmuted)' }}>
+                          {selectedJob.strengths.map((s, i) => <li key={i} style={{ marginBottom: '4px' }}>{s}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {selectedJob.gaps && selectedJob.gaps.length > 0 && (
+                      <div>
+                        <h3 style={{ fontSize: '12px', fontWeight: 700, color: '#ef4444', margin: '0 0 8px', textTransform: 'uppercase' }}>✗ Gaps</h3>
+                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: 'var(--dmuted)' }}>
+                          {selectedJob.gaps.map((g, i) => <li key={i} style={{ marginBottom: '4px' }}>{g}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {selectedJob.description_raw && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '.06em' }}>Description</h3>
+                    <p style={{ fontSize: '13px', color: 'var(--dmuted)', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
+                      {selectedJob.description_raw.substring(0, 500)}
+                      {selectedJob.description_raw.length > 500 && '...'}
+                    </p>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                  <button
+                    onClick={() => setSelectedJob(null)}
+                    style={{
+                      flex: 1,
+                      padding: '12px 16px',
+                      borderRadius: '999px',
+                      border: 'none',
+                      background: 'var(--dbg)',
+                      color: 'var(--dmuted)',
+                      font: '600 13px var(--font-body)',
+                      cursor: 'pointer',
+                      boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    style={{
+                      flex: 1,
+                      padding: '12px 16px',
+                      borderRadius: '999px',
+                      border: 'none',
+                      background: 'var(--dbg)',
+                      color: 'var(--color-accent-700)',
+                      font: '700 13px var(--font-body)',
+                      cursor: 'pointer',
+                      boxShadow: 'inset 0 2px 5px rgba(32,30,29,.2)',
+                    }}
+                  >
+                    Approve
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </main>
       </div>
-    </>
-  );
-}
-
-interface WeeklySummaryCardProps {
-  summary: any;
-  isLoading: boolean;
-  onRegenerate: () => void;
-}
-
-function WeeklySummaryCard({ summary, isLoading, onRegenerate }: WeeklySummaryCardProps) {
-  const stats = summary.stats || {};
-  const actionItems = summary.action_items || [];
-  const summaryText = summary.summary_text || '';
-  const createdAt = summary.created_at ? new Date(summary.created_at) : null;
-
-  const getDaysAgo = (date: Date | null) => {
-    if (!date) return 'now';
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return 'today';
-    if (diffDays === 1) return '1 day ago';
-    return `${diffDays} days ago`;
-  };
-
-  return (
-    <section className="mb-11">
-      <div className="flex items-center justify-between mb-5">
-        <h2
-          className="text-xs font-semibold uppercase tracking-wide"
-          style={{ color: 'var(--muted)' }}
-        >
-          Weekly Summary
-        </h2>
-        <button
-          onClick={onRegenerate}
-          disabled={isLoading}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-          style={{
-            backgroundColor: isLoading ? 'var(--border)' : 'var(--accent-bg)',
-            color: isLoading ? 'var(--muted)' : 'var(--accent)',
-            cursor: isLoading ? 'not-allowed' : 'pointer',
-            opacity: isLoading ? 0.6 : 1,
-          }}
-        >
-          <RefreshCw size={12} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
-          Regenerate
-        </button>
-      </div>
-
-      <div
-        className="border rounded-2xl p-6"
-        style={{
-          borderColor: 'var(--border)',
-          backgroundColor: 'var(--card)',
-        }}
-      >
-        {/* Summary Text */}
-        <p
-          className="text-sm leading-relaxed mb-6"
-          style={{ color: 'var(--text)' }}
-        >
-          {summaryText}
-        </p>
-
-        {/* Stats Row */}
-        <div className="grid grid-cols-4 gap-4 mb-6 pb-6 border-b" style={{ borderColor: 'var(--border)' }}>
-          <div>
-            <div className="text-xs" style={{ color: 'var(--faint)' }}>Jobs Found</div>
-            <div className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
-              {stats.jobs_found || 0}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs" style={{ color: 'var(--faint)' }}>Applied</div>
-            <div className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
-              {stats.applied || 0}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs" style={{ color: 'var(--faint)' }}>Interviews</div>
-            <div className="text-lg font-semibold" style={{ color: '#f59e0b' }}>
-              {stats.interviews || 0}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs" style={{ color: 'var(--faint)' }}>Pending</div>
-            <div className="text-lg font-semibold" style={{ color: '#3b82f6' }}>
-              {stats.pending_approval || 0}
-            </div>
-          </div>
-        </div>
-
-        {/* Action Items */}
-        {actionItems.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text)' }}>
-              Action Items
-            </h3>
-            <ul className="space-y-2">
-              {actionItems.map((item, i) => (
-                <li key={i} className="text-xs flex items-start gap-2" style={{ color: 'var(--muted)' }}>
-                  <span style={{ color: 'var(--accent)' }}>•</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Last Updated */}
-        <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-          <p className="text-xs" style={{ color: 'var(--faint)' }}>
-            Last updated: {getDaysAgo(createdAt)}
-          </p>
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-    </section>
+    </div>
   );
 }
