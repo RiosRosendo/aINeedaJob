@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from tools.db import execute_query, execute_update
 from tools.update_application import update_application
 from tools.create_notification import create_notification
-from tools.trigger_agent import trigger_agent
 from tools.tailor_cv import tailor_cv_for_job, get_tailored_cv
 from tools.apply_job import apply_for_job_sync
 from api.models.schemas import ApplicationResponse, ApplicationApprovalRequest
