@@ -18,7 +18,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tools.db import execute_query, execute_update
 from tools.llm import call_llm
-from tools.logger import log_agent_run
 from tools.gmail_client import get_gmail_client, check_email_from_company, send_email
 
 
@@ -131,31 +130,12 @@ def run_follow_up_agent():
                     ("follow_up_sent", attempt_count, app_id)
                 )
 
-                log_agent_run(
-                    user_id=user_id,
-                    job_id=job_id,
-                    agent='follow_up',
-                    status='success',
-                    details={
-                        'company': company,
-                        'job_title': job_title,
-                        'recipient': to_email
-                    }
-                )
-
-                print(f"[FOLLOW_UP] Sent follow-up email to {to_email}")
+                print(f"[FOLLOW_UP] Sent follow-up email to {to_email} for {job_title} @ {company}")
                 emails_sent += 1
                 total_processed += 1
 
             except Exception as e:
                 print(f"[FOLLOW_UP] Error processing application {app_id}: {str(e)}")
-                log_agent_run(
-                    user_id=user_id,
-                    job_id=job_id,
-                    agent='follow_up',
-                    status='failed',
-                    details={'error': str(e)}
-                )
                 errors += 1
 
         result = {

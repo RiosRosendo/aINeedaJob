@@ -4,7 +4,6 @@ import re
 import json
 from html.parser import HTMLParser
 from tools.llm import call_llm
-from tools.logger import log_agent_run
 
 
 class HTMLStripper(HTMLParser):
@@ -36,25 +35,11 @@ def parse_job(job_id, user_id, description_raw, original_title=None):
     try:
         parsed = _extract_with_llm(cleaned_text, retry=True)
         _validate_fields(parsed, original_title)
-
-        log_agent_run(
-            user_id=user_id,
-            job_id=job_id,
-            agent='job_parsing',
-            status='success',
-            details={'title': parsed.get('title')}
-        )
-
+        print(f"[PARSE_JOB] Parsed: {parsed.get('title')}")
         return parsed
 
     except Exception as e:
-        log_agent_run(
-            user_id=user_id,
-            job_id=job_id,
-            agent='job_parsing',
-            status='failed',
-            details={'error': str(e)}
-        )
+        print(f"[PARSE_JOB] Error: {str(e)}")
         raise Exception(f"Job parsing failed: {str(e)}")
 
 

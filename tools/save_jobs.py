@@ -13,7 +13,6 @@ Example usage:
 import json
 from urllib.parse import urlparse
 from tools.db import execute_query, execute_update
-from tools.logger import log_agent_run
 
 
 def extract_company_from_url(url):
@@ -134,16 +133,7 @@ def save_jobs(user_id, jobs, search_country=None):
                 raise Exception(f"Failed to insert {job.get('url', 'unknown')}: {str(e)}")
 
         # Log the result
-        log_agent_run(
-            user_id=user_id,
-            agent='job_discovery',
-            status='success',
-            details={
-                'jobs_found': jobs_found,
-                'jobs_saved': jobs_saved,
-                'duplicates_skipped': duplicates_skipped,
-            },
-        )
+        print(f"[SAVE_JOBS] Success: found={jobs_found}, saved={jobs_saved}, skipped={duplicates_skipped}")
 
         return {
             'jobs_found': jobs_found,
@@ -153,10 +143,5 @@ def save_jobs(user_id, jobs, search_country=None):
 
     except Exception as e:
         # Log the error
-        log_agent_run(
-            user_id=user_id,
-            agent='job_discovery',
-            status='failed',
-            details={'error': str(e), 'jobs_found': jobs_found},
-        )
+        print(f"[SAVE_JOBS] Error: {str(e)}")
         raise Exception(f"save_jobs failed: {str(e)}")

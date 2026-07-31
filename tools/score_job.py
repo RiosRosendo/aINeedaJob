@@ -2,7 +2,7 @@
 
 import json
 from tools.llm import call_llm
-from tools.logger import log_agent_run
+from agents.state import SCORE_THRESHOLDS
 
 
 def score_job(job_id, user_id, job_data, user_profile):
@@ -25,24 +25,9 @@ def score_job(job_id, user_id, job_data, user_profile):
         # Check priority country match and let LLM decide boost
         score_data = _apply_priority_country_boost(score_data, job_data, user_profile)
 
-        log_agent_run(
-            user_id=user_id,
-            job_id=job_id,
-            agent='job_match',
-            status='success',
-            details={'score': score_data.get('score'), 'decision': score_data.get('decision')}
-        )
-
         return score_data
 
     except Exception as e:
-        log_agent_run(
-            user_id=user_id,
-            job_id=job_id,
-            agent='job_match',
-            status='failed',
-            details={'error': str(e)}
-        )
         raise Exception(f"Job scoring failed: {str(e)}")
 
 
@@ -116,10 +101,10 @@ Return:
   "summary": "one sentence explanation"
 }}
 
-Decision rules:
-- score >= 85 → "apply"
-- score 60-84 → "review"
-- score < 60 → "ignore"
+Decision rules (from SCORE_THRESHOLDS in agents/state.py):
+- score >= {SCORE_THRESHOLDS['auto_apply']} → "apply"
+- score {SCORE_THRESHOLDS['review']}-{SCORE_THRESHOLDS['auto_apply']-1} → "review"
+- score < {SCORE_THRESHOLDS['review']} → "ignore"
 """
 
     try:

@@ -12,7 +12,7 @@ Processes up to 30 jobs per batch to balance throughput vs rate limits.
 """
 
 from datetime import datetime, timedelta
-from agents.state import JobState
+from agents.state import JobState, SCORE_THRESHOLDS
 from tools.db import execute_query, execute_update
 from tools.llm import call_llm
 from tools.parse_job import parse_job
@@ -216,9 +216,9 @@ def processing_node(state: JobState) -> JobState:
             score = fit_score.get("score", 0)
 
             # Override decision based on score thresholds (score always determines routing)
-            if score >= 85:
+            if score >= SCORE_THRESHOLDS["auto_apply"]:
                 decision = "apply"
-            elif score >= 60:
+            elif score >= SCORE_THRESHOLDS["review"]:
                 decision = "review"
             else:
                 decision = "ignore"

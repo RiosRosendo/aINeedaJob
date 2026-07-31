@@ -396,6 +396,44 @@ def run_follow_up_agent():
         sys.stdout.flush()
 
 
+def run_processed_emails_cleanup():
+    """
+    Clean up old records from processed_emails table.
+
+    Deletes records older than 90 days to prevent table bloat.
+    Email monitoring uses this table to track which Gmail message IDs
+    have already been processed (prevents reprocessing same emails).
+
+    Runs every Sunday at 1:00 AM.
+    """
+    try:
+        from tools.db import execute_update
+        from datetime import datetime, timedelta
+
+        print("[SCHEDULER] Starting processed_emails cleanup...", flush=True)
+
+        # Delete records older than 90 days
+        cutoff_date = datetime.utcnow() - timedelta(days=90)
+
+        rows_deleted = execute_update(
+            "DELETE FROM processed_emails WHERE processed_at < %s",
+            (cutoff_date,)
+        )
+
+        print(
+            f"[SCHEDULER] Processed emails cleanup complete: "
+            f"deleted {rows_deleted} old records (older than 90 days)",
+            flush=True
+        )
+        sys.stdout.flush()
+
+    except Exception as e:
+        print(f"[SCHEDULER] FATAL ERROR in processed_emails cleanup: {type(e).__name__}: {str(e)}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        sys.stdout.flush()
+
+
 def run_interview_prep_agent():
     """
     Generate interview prep materials for confirmed interviews.
@@ -538,6 +576,16 @@ async def startup_event():
             misfire_grace_time=60
         )
 
+        # Schedule processed_emails cleanup every Sunday at 1:00 AM (day_of_week=6)
+        scheduler.add_job(
+            run_processed_emails_cleanup,
+            trigger=CronTrigger(day_of_week=6, hour=1, minute=0),
+            id='processed_emails_cleanup',
+            name='Processed Emails Cleanup',
+            replace_existing=True,
+            misfire_grace_time=60
+        )
+
         scheduler.start()
         print("[SCHEDULER] Background scheduler started successfully", flush=True)
         print("[SCHEDULER] Daily job search scheduled for 8:00 AM every day", flush=True)
@@ -547,6 +595,7 @@ async def startup_event():
         print("[SCHEDULER] Autonomous job verification scheduled for Tuesday 2:00 AM", flush=True)
         print("[SCHEDULER] Follow-up agent scheduled for Monday 10:00 AM", flush=True)
         print("[SCHEDULER] Interview prep agent scheduled for Tuesday 3:00 AM", flush=True)
+        print("[SCHEDULER] Processed emails cleanup scheduled for Sunday 1:00 AM", flush=True)
 
     except Exception as e:
         print(f"[SCHEDULER] Failed to start scheduler: {type(e).__name__}: {str(e)}", flush=True)

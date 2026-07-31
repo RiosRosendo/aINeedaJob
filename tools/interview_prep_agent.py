@@ -22,7 +22,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tools.db import execute_query, execute_update
 from tools.llm import call_llm
-from tools.logger import log_agent_run
 
 
 def generate_interview_prep(user_id: str, job_id: str, application_id: str) -> dict:
@@ -133,31 +132,11 @@ def generate_interview_prep(user_id: str, job_id: str, application_id: str) -> d
             print(f"[INTERVIEW_PREP] Warning - could not save to DB: {str(db_err)}")
             # Continue even if DB save fails, return the prep data
 
-        log_agent_run(
-            user_id=user_id,
-            job_id=job_id,
-            agent='interview_prep',
-            status='success',
-            details={
-                'company': company,
-                'job_title': job_title,
-                'questions_count': len(questions),
-                'talking_points_count': len(talking_points)
-            }
-        )
-
-        print(f"[INTERVIEW_PREP] Generated prep for {job_title} at {company}")
+        print(f"[INTERVIEW_PREP] Generated prep for {job_title} at {company} ({len(questions)} questions, {len(talking_points)} talking points)")
         return prep_data
 
     except Exception as e:
         print(f"[INTERVIEW_PREP] Error: {str(e)}")
-        log_agent_run(
-            user_id=user_id,
-            job_id=job_id,
-            agent='interview_prep',
-            status='failed',
-            details={'error': str(e)}
-        )
         raise
 
 

@@ -15,7 +15,6 @@ from datetime import datetime
 from groq import Groq
 from playwright.async_api import async_playwright
 from tools.db import execute_query, execute_update
-from tools.generate_cover_letter import should_generate_cover_letter, generate_cover_letter, save_cover_letter, get_cover_letter
 
 
 async def apply_for_job(user_id: str, job_id: str, application_id: str, job_url: str, cv_url: str) -> Dict:
@@ -80,16 +79,8 @@ async def apply_for_job(user_id: str, job_id: str, application_id: str, job_url:
         languages_str = ", ".join(user_languages) if user_languages else "English"
         print(f"[APPLY_JOB] User languages: {languages_str}", flush=True)
 
-        # Check if cover letter is needed and generate if so
-        if job_description and should_generate_cover_letter(job_description):
-            print(f"[APPLY_JOB] Cover letter mentioned in job description, generating", flush=True)
-            cover_letter = generate_cover_letter(user_id, job_id, job_title, company, job_description)
-            if cover_letter:
-                save_cover_letter(user_id, job_id, cover_letter)
-                print(f"[APPLY_JOB] Cover letter generated and saved", flush=True)
-        else:
-            cover_letter = None
-            print(f"[APPLY_JOB] No cover letter needed for this job", flush=True)
+        # Cover letter generation is handled by tailor_cv.py during approval workflow
+        print(f"[APPLY_JOB] Note: Cover letters are generated during the approval workflow", flush=True)
 
         # Launch browser
         async with async_playwright() as p:

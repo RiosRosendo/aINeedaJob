@@ -15,7 +15,7 @@ Uses LangGraph as the orchestration engine for multi-step pipelines:
 This enables 24/7 autonomous operation without hardcoded rules or schedulers.
 """
 
-from agents.state import JobState
+from agents.state import JobState, SCORE_THRESHOLDS
 from agents.discovery_agent import discovery_node
 from agents.processing_agent import processing_node
 from tools.db import execute_query, execute_update
@@ -421,7 +421,12 @@ def _execute_discovery(user_id: str) -> dict:
             return {'error': 'User profile not found'}
 
         profile = profile_result[0]
-        target_roles = profile.get('target_roles', ['AI Engineer'])
+        target_roles = profile.get('target_roles', [])
+
+        # Skip users without target roles configured
+        if not target_roles:
+            print(f"[AUTONOMOUS] Skipping user {user_id}: no target_roles configured", flush=True)
+            return {'error': 'User has no target_roles configured', 'action': 'wait'}
 
         initial_state = JobState(
             user_id=user_id,
@@ -490,6 +495,12 @@ def _execute_processing(user_id: str, state: dict) -> dict:
             return {'error': 'User profile not found'}
 
         profile = profile_result[0]
+        target_roles = profile.get('target_roles', [])
+
+        # Skip users without target roles configured
+        if not target_roles:
+            print(f"[AUTONOMOUS] Skipping processing for user {user_id}: no target_roles configured", flush=True)
+            return {'error': 'User has no target_roles configured', 'action': 'wait'}
 
         # Fetch unprocessed jobs (status='discovered')
         unprocessed_result = execute_query(
@@ -528,7 +539,7 @@ def _execute_processing(user_id: str, state: dict) -> dict:
             review_count=0,
             ignored_count=0,
             error="",
-            roles=profile.get('target_roles', ['AI Engineer']),
+            roles=target_roles,
             profile=profile,
             summary={}
         )

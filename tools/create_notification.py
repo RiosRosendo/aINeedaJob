@@ -1,8 +1,7 @@
-"""Create user notification for job search events. Uses db.py and logger.py."""
+"""Create user notification for job search events."""
 
 from datetime import datetime
 from tools.db import execute_update
-from tools.logger import log_agent_run
 
 
 def create_notification(user_id, type, message, job_id=None, expires_at=None):
@@ -23,21 +22,8 @@ def create_notification(user_id, type, message, job_id=None, expires_at=None):
         )
 
         execute_update(query, params)
-
-        log_agent_run(
-            user_id=user_id,
-            job_id=job_id,
-            agent='decision',
-            status='success',
-            details={'notification_type': type}
-        )
+        print(f"[NOTIFICATION] Created: type={type}, user={user_id}, job={job_id}")
 
     except Exception as e:
-        log_agent_run(
-            user_id=user_id,
-            job_id=job_id,
-            agent='decision',
-            status='failed',
-            details={'error': str(e)}
-        )
+        print(f"[NOTIFICATION] Error: {str(e)}")
         raise Exception(f"Failed to create notification: {str(e)}")

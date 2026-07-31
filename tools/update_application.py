@@ -1,8 +1,7 @@
-"""Update application status and optional fields. Logs via db.py and logger.py."""
+"""Update application status and optional fields."""
 
 from datetime import datetime
 from tools.db import execute_update
-from tools.logger import log_agent_run
 
 VALID_STATUSES = {
     'pending_approval',
@@ -41,20 +40,8 @@ def update_application(application_id, user_id, status, extra_fields=None):
         if rows == 0:
             raise Exception(f"Application {application_id} not found or user mismatch")
 
-        log_agent_run(
-            user_id=user_id,
-            application_id=application_id,
-            agent='decision',
-            status='success',
-            details={'new_status': status}
-        )
+        print(f"[UPDATE_APP] Status updated to {status} for application {application_id}")
 
     except Exception as e:
-        log_agent_run(
-            user_id=user_id,
-            application_id=application_id,
-            agent='decision',
-            status='failed',
-            details={'error': str(e)}
-        )
+        print(f"[UPDATE_APP] Error: {str(e)}")
         raise Exception(f"Failed to update application: {str(e)}")

@@ -24,7 +24,6 @@ Example usage:
 
 import json
 from tools.db import execute_update
-from tools.logger import log_agent_run
 
 
 def save_fit_score(job_id, user_id, fit_score_data):
@@ -52,20 +51,8 @@ def save_fit_score(job_id, user_id, fit_score_data):
         update_query = "UPDATE jobs SET status = 'scored' WHERE id = %s AND user_id = %s"
         execute_update(update_query, (str(job_id), str(user_id)))
 
-        log_agent_run(
-            user_id=user_id,
-            job_id=job_id,
-            agent='job_match',
-            status='success',
-            details={'score': fit_score_data.get('score'), 'decision': fit_score_data.get('decision')}
-        )
+        print(f"[SAVE_FIT_SCORE] Saved score {fit_score_data.get('score')} for job {job_id} ({fit_score_data.get('decision')})")
 
     except Exception as e:
-        log_agent_run(
-            user_id=user_id,
-            job_id=job_id,
-            agent='job_match',
-            status='failed',
-            details={'error': str(e)}
-        )
+        print(f"[SAVE_FIT_SCORE] Error: {str(e)}")
         raise Exception(f"Failed to save fit score: {str(e)}")

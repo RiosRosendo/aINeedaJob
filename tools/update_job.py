@@ -2,7 +2,6 @@
 
 import json
 from tools.db import execute_update
-from tools.logger import log_agent_run
 
 
 def update_job(job_id, user_id, parsed_fields):
@@ -71,13 +70,7 @@ def update_job(job_id, user_id, parsed_fields):
         if rows == 0:
             raise Exception(f"Job {job_id} not found or user mismatch")
 
-        log_agent_run(
-            user_id=user_id,
-            job_id=job_id,
-            agent='job_parsing',
-            status='success',
-            details={'title': parsed_fields.get('title')}
-        )
+        print(f"[UPDATE_JOB] Updated job {job_id} to parsed status: {parsed_fields.get('title')}", flush=True)
 
     except Exception as e:
         print(f"[UPDATE_JOB ERROR] Full error: {str(e)}", flush=True)
@@ -90,12 +83,4 @@ def update_job(job_id, user_id, parsed_fields):
         print(f"[UPDATE_JOB ERROR]   experience_years_min: {parsed_fields.get('experience_years_min')} (type: {type(parsed_fields.get('experience_years_min')).__name__})", flush=True)
         print(f"[UPDATE_JOB ERROR]   required_skills: {parsed_fields.get('required_skills')}", flush=True)
         print(f"[UPDATE_JOB ERROR]   responsibilities: {parsed_fields.get('responsibilities')}", flush=True)
-
-        log_agent_run(
-            user_id=user_id,
-            job_id=job_id,
-            agent='job_parsing',
-            status='failed',
-            details={'error': str(e)}
-        )
         raise Exception(f"Failed to update job: {str(e)}")

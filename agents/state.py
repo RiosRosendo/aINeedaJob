@@ -7,6 +7,19 @@ Every agent (Discovery, Processing, Autonomous Cycle) reads and writes to JobSta
 
 from typing import TypedDict
 
+# ============================================================================
+# SCORE THRESHOLDS - Centralized configuration for job matching decisions
+# ============================================================================
+# These thresholds define the 3-tier decision system:
+# - auto_apply (≥85): High confidence match, auto-submit application
+# - review (60-84): Medium confidence, user reviews before applying
+# - ignore (<60): Low relevance, skip this job
+SCORE_THRESHOLDS = {
+    "auto_apply": 85,      # Score >= 85: automatically apply
+    "review": 60,          # Score 60-84: notify user for approval
+    "ignore": 0            # Score < 60: ignore (not used in comparisons)
+}
+
 
 class JobState(TypedDict):
     """
