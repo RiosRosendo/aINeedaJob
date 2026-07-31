@@ -2,7 +2,7 @@
 
 import os
 from typing import Optional, List, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import base64
 from googleapiclient.discovery import build
@@ -10,7 +10,7 @@ from google.oauth2.credentials import Credentials
 
 from tools.db import execute_query, execute_update
 from api.routes.gmail import get_gmail_tokens, refresh_gmail_token, GOOGLE_TOKEN_URL
-from tools.llm_client import get_groq_client
+from tools.llm import call_llm
 
 
 def check_gmail_for_replies(user_id: str) -> Dict:
@@ -40,7 +40,7 @@ def check_gmail_for_replies(user_id: str) -> Dict:
         if not tokens:
             return {
                 "error": "Gmail not connected. User needs to authorize Gmail access.",
-                "checked_at": datetime.utcnow(),
+                "checked_at": datetime.now(timezone.utc),
                 "emails_found": 0,
                 "statuses_updated": 0,
                 "emails": []
@@ -53,7 +53,7 @@ def check_gmail_for_replies(user_id: str) -> Dict:
             if not new_token:
                 return {
                     "error": "Failed to refresh Gmail token. Reconnect required.",
-                    "checked_at": datetime.utcnow(),
+                    "checked_at": datetime.now(timezone.utc),
                     "emails_found": 0,
                     "statuses_updated": 0,
                     "emails": []
@@ -86,7 +86,7 @@ def check_gmail_for_replies(user_id: str) -> Dict:
             print(f"[EMAIL MONITOR] No applied jobs found for user {user_id}", flush=True)
             return {
                 "error": None,
-                "checked_at": datetime.utcnow(),
+                "checked_at": datetime.now(timezone.utc),
                 "emails_found": 0,
                 "statuses_updated": 0,
                 "emails": []
@@ -101,6 +101,10 @@ def check_gmail_for_replies(user_id: str) -> Dict:
             job_title = app.get('title', '')
             app_id = app.get('id')
             app_created = app.get('created_at')
+
+            # Make datetime timezone-aware if needed
+            if app_created and app_created.tzinfo is None:
+                app_created = app_created.replace(tzinfo=timezone.utc)
 
             # Search emails from this company after application was created
             search_query = f'from:{company.split()[0].lower()} after:{app_created.strftime("%Y/%m/%d")}'
@@ -183,7 +187,7 @@ def check_gmail_for_replies(user_id: str) -> Dict:
 
         return {
             "error": None,
-            "checked_at": datetime.utcnow(),
+            "checked_at": datetime.now(timezone.utc),
             "emails_found": len(emails_found),
             "statuses_updated": statuses_updated,
             "emails": emails_found
@@ -193,7 +197,7 @@ def check_gmail_for_replies(user_id: str) -> Dict:
         print(f"[EMAIL MONITOR] FATAL ERROR: {type(e).__name__}: {str(e)}", flush=True)
         return {
             "error": f"Email check failed: {str(e)}",
-            "checked_at": datetime.utcnow(),
+            "checked_at": datetime.now(timezone.utc),
             "emails_found": 0,
             "statuses_updated": 0,
             "emails": []
@@ -223,8 +227,6 @@ def _classify_email(subject: str, sender: str, body: str, company: str, job_titl
     Fully autonomous - works in any language without hardcoded keywords.
     """
     try:
-        client = get_groq_client()
-
         prompt = f"""You are analyzing an email received in response to a job application.
 
 Company Applied To: {company}
@@ -247,13 +249,8 @@ Classify this email into ONE of these categories:
 Respond with ONLY the classification word (interview_invite, offer, rejection, confirmation, or other).
 Analyze the content in ANY language - do not rely on English keywords."""
 
-        response = client.messages.create(
-            model="mixtral-8x7b-32768",
-            max_tokens=50,
-            messages=[{"role": "user", "content": prompt}]
-        )
-
-        classification = response.content[0].text.strip().lower()
+        response = call_llm(prompt, max_tokens=50)
+        classification = response.strip().lower()
 
         # Validate classification
         valid = ['interview_invite', 'offer', 'rejection', 'confirmation', 'other']
@@ -308,4 +305,9 @@ def _is_token_expired(token_expiry) -> bool:
     """Check if Gmail token is expired."""
     if not token_expiry:
         return True
-    return datetime.utcnow() > (token_expiry - timedelta(minutes=5))
+    # Make token_expiry timezone-aware if needed
+    if token_expiry.tzinfo is None:
+        token_expiry = token_expiry.replace(tzinfo=timezone.utc)
+    # Use timezone-aware datetime for comparison
+    now_utc = datetime.now(timezone.utc)
+    return now_utc > (token_expiry - timedelta(minutes=5))
