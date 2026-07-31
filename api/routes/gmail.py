@@ -364,7 +364,7 @@ async def check_emails(user_id: str = Depends(get_user_id)):
     try:
         print(f"[GMAIL CHECK] Manual email check requested by user {user_id}", flush=True)
 
-        from tools.monitor_email import check_gmail_for_replies
+        from tools.email_monitor import check_gmail_for_replies
 
         # Run email monitoring
         result = check_gmail_for_replies(user_id)

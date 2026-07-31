@@ -297,7 +297,7 @@ def run_email_monitoring():
     """
     try:
         from tools.db import execute_query
-        from tools.monitor_email import check_gmail_for_replies
+        from tools.email_monitor import check_gmail_for_replies
 
         print("[SCHEDULER] Starting email monitoring for all users...", flush=True)
 

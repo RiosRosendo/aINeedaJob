@@ -404,6 +404,27 @@ COMMENT ON COLUMN career_insights.learning_plan IS 'JSON object with 4-week acti
 COMMENT ON COLUMN career_insights.applications_analyzed IS 'Number of applications included in this analysis (minimum 10 for meaningful insights)';
 
 -- ============================================================================
+-- Processed Emails: Track emails already processed by Email Monitor Agent
+-- ============================================================================
+CREATE TABLE processed_emails (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  email_id VARCHAR(255) NOT NULL,
+  processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_processed_emails_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT unique_user_email UNIQUE(user_id, email_id)
+);
+
+CREATE INDEX idx_processed_emails_user_id ON processed_emails(user_id);
+CREATE INDEX idx_processed_emails_email_id ON processed_emails(email_id);
+
+COMMENT ON TABLE processed_emails IS 'Tracks Gmail email IDs already processed by Email Monitor Agent to avoid reprocessing same emails.';
+COMMENT ON COLUMN processed_emails.user_id IS 'User who received the email';
+COMMENT ON COLUMN processed_emails.email_id IS 'Gmail message ID (unique per user)';
+COMMENT ON COLUMN processed_emails.processed_at IS 'When this email was processed and email classification stored';
+
+-- ============================================================================
 -- TRIGGERS: Auto-update updated_at timestamp
 -- ============================================================================
 
