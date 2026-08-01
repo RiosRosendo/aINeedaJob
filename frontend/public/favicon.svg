@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Orange blob background -->
+  <ellipse cx="50" cy="50" rx="48" ry="50" fill="#c67139"/>
+
+  <!-- Left eye -->
+  <circle cx="35" cy="40" r="5" fill="#201e1d"/>
+
+  <!-- Right eye -->
+  <circle cx="65" cy="40" r="5" fill="#201e1d"/>
+
+  <!-- Smile mouth -->
+  <path d="M 40 58 Q 50 68 60 58" stroke="#201e1d" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>

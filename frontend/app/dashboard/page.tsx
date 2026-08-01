@@ -236,14 +236,14 @@ export default function Dashboard() {
 
   // Scout mascot sizing based on sidebar state
   const mascotSize = sidebarOpen ? 120 : 46;
-  const eyeSize = sidebarOpen ? 8 : 3;
-  const eyeLeft1 = sidebarOpen ?  45 : 20;
-  const eyeLeft2 = sidebarOpen ? 68 : 27;
-  const eyeTop = sidebarOpen ? 40 : 13;
-  const mouthLeft = sidebarOpen ? 46 : 16;
-  const mouthTop = sidebarOpen ? 62 : 24;
-  const mouthW = sidebarOpen ? 28 : 10;
-  const mouthH = sidebarOpen ? 9 : 3;
+  const eyeSize = Math.round(mascotSize * 0.08);
+  const eyeLeft1 = '35%';
+  const eyeLeft2 = '57%';
+  const eyeTop = '38%';
+  const mouthLeft = '32%';
+  const mouthTop = '58%';
+  const mouthW = '36%';
+  const mouthH = Math.round(mascotSize * 0.08);
   const mouthBorder = sidebarOpen ? 2 : 1;
 
   return (
@@ -331,10 +331,9 @@ export default function Dashboard() {
               position: 'relative',
               width: `${mascotSize}px`,
               height: `${mascotSize}px`,
-              marginBottom: '8px',
-              margin: '0 auto 8px',
+              margin: `0 auto ${sidebarOpen ? '8px' : '16px'}`,
               display: 'block',
-              transition: 'width .38s cubic-bezier(.4,0,.2,1), height .38s cubic-bezier(.4,0,.2,1)',
+              transition: 'width .38s cubic-bezier(.4,0,.2,1), height .38s cubic-bezier(.4,0,.2,1), margin .38s cubic-bezier(.4,0,.2,1)',
             }}
           >
             {/* Shadow */}
@@ -381,8 +380,8 @@ export default function Dashboard() {
             <div
               style={{
                 position: 'absolute',
-                left: `${eyeLeft1}px`,
-                top: `${eyeTop}px`,
+                left: eyeLeft1,
+                top: eyeTop,
                 width: `${eyeSize}px`,
                 height: `${eyeSize}px`,
                 borderRadius: '50%',
@@ -393,8 +392,8 @@ export default function Dashboard() {
             <div
               style={{
                 position: 'absolute',
-                left: `${eyeLeft2}px`,
-                top: `${eyeTop}px`,
+                left: eyeLeft2,
+                top: eyeTop,
                 width: `${eyeSize}px`,
                 height: `${eyeSize}px`,
                 borderRadius: '50%',
@@ -407,9 +406,9 @@ export default function Dashboard() {
             <div
               style={{
                 position: 'absolute',
-                left: `${mouthLeft}px`,
-                top: `${mouthTop}px`,
-                width: `${mouthW}px`,
+                left: mouthLeft,
+                top: mouthTop,
+                width: mouthW,
                 height: `${mouthH}px`,
                 borderRadius: '0 0 16px 16px',
                 borderBottom: `${mouthBorder}px solid var(--dbg)`,
