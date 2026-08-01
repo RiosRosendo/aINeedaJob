@@ -312,6 +312,7 @@ CV:
 {cv_text}
 
 Extract ONLY these fields:
+- name: person's full name from CV header/top
 - tech_skills: list of technology names only
 - languages: spoken languages with levels
 - roles: job titles
@@ -368,6 +369,14 @@ LANGUAGE-AGNOSTIC TRANSLATION:
 For languages: Format: [{{"language": "Spanish", "level": "Native"}}]
 Levels: Native, Fluent, Advanced, Intermediate, Beginner, or B1/B2/C1/C2
 
+NAME EXTRACTION:
+Extract the person's full name from the CV:
+- Look for name at the very top/header of CV (usually first line)
+- If no header, look in contact info section or introduction
+- Extract complete full name as written in CV (e.g., "ROSENDO ADRIAN DE LOS RIOS MORENO")
+- Return as string
+- If no name found, return null
+
 NATIONALITY EXTRACTION:
 Extract the person's nationality/citizenship from the CV if mentioned:
 - Look for: "Mexican national", "Mexican citizen", "Nationality: Mexican", "I am Mexican", "From Mexico", location in address section
@@ -398,6 +407,7 @@ Extract educational background from the CV:
 
 Return:
 {{
+  "name": "Rosendo Adrian De Los Rios Moreno",
   "tech_skills": ["Python", "C++", "ROS2", "Gazebo", "Docker"],
   "languages": [{{"language": "Spanish", "level": "Native"}}],
   "roles": ["Robotics Engineer"],
@@ -430,6 +440,7 @@ Return:
         if not extracted:
             print(f"[CV PARSE FAILED] Could not extract JSON. Raw response (first 500 chars): {response_text[:500]}")
             return {
+                "name": None,
                 "skills": [],
                 "roles": [],
                 "experience_years": 0,
@@ -451,6 +462,7 @@ Return:
         print(f"[CV EXTRACT] Cleaned tech_skills: {tech_skills}", flush=True)
 
         return {
+            "name": extracted.get("name", None),
             "skills": tech_skills,
             "roles": clean_roles(extracted.get("roles", [])),
             "experience_years": extracted.get("experience_years", 0),

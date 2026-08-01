@@ -19,7 +19,10 @@ async def get_user_profile(user_id: str = Depends(get_user_id)):
     """
     try:
         result = execute_query(
-            "SELECT * FROM user_profiles WHERE user_id = %s",
+            """SELECT up.*, u.email, u.name
+               FROM user_profiles up
+               LEFT JOIN users u ON up.user_id = u.id
+               WHERE up.user_id = %s""",
             (user_id,)
         )
 

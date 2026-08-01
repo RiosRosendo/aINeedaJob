@@ -219,7 +219,10 @@ export default function Dashboard() {
     }
   };
 
-  const greeting = `Morning, ${profile?.name?.split(' ')[0] || 'there'}. Let's see who's hiring.`;
+  const hour = new Date().getHours();
+  const timeGreeting = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
+  const firstName = (profile as any)?.cv_data?.name?.split(' ')[0] || (profile as any)?.name?.split(' ')[0] || '';
+  const greeting = `${timeGreeting}, ${firstName || 'there'}. Let's see who's hiring.`;
   const today = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
     month: 'long',
