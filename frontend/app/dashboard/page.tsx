@@ -828,7 +828,7 @@ export default function Dashboard() {
                   <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--dborder)' }}>
                     {selectedJob.strengths && selectedJob.strengths.length > 0 && (
                       <div style={{ marginBottom: '16px' }}>
-                        <h3 style={{ fontSize: '12px', fontWeight: 700, color: '#10b981', margin: '0 0 8px', textTransform: 'uppercase' }}>✓ Strengths</h3>
+                        <h3 style={{ fontSize: '12px', fontWeight: 700, color: '#7A8A5E', margin: '0 0 8px', textTransform: 'uppercase' }}>✓ Strengths</h3>
                         <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: 'var(--dmuted)' }}>
                           {selectedJob.strengths.map((s, i) => <li key={i} style={{ marginBottom: '4px' }}>{s}</li>)}
                         </ul>
@@ -836,7 +836,7 @@ export default function Dashboard() {
                     )}
                     {selectedJob.gaps && selectedJob.gaps.length > 0 && (
                       <div>
-                        <h3 style={{ fontSize: '12px', fontWeight: 700, color: '#ef4444', margin: '0 0 8px', textTransform: 'uppercase' }}>✗ Gaps</h3>
+                        <h3 style={{ fontSize: '12px', fontWeight: 700, color: '#C67139', margin: '0 0 8px', textTransform: 'uppercase' }}>✗ Gaps</h3>
                         <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: 'var(--dmuted)' }}>
                           {selectedJob.gaps.map((g, i) => <li key={i} style={{ marginBottom: '4px' }}>{g}</li>)}
                         </ul>
