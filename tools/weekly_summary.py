@@ -205,9 +205,12 @@ def _generate_llm_summary(user_id: str, stats: dict, top_jobs: list, pending_app
     try:
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-        prompt = f"""You are a helpful career coach. Summarize this week's job search activity in a friendly, encouraging tone.
+        prompt = f"""You are Scout, an AI agent searching for jobs on behalf of the user. Write a weekly summary FROM YOUR perspective as Scout.
 
-WEEKLY STATISTICS (showing only verified active jobs, excluding expired listings):
+Use first-person language: 'I found', 'I discovered', 'I scored', 'I spotted'. NOT 'you found' or 'your pipeline'.
+Be enthusiastic but concise. Max 3 sentences.
+
+WEEKLY STATISTICS (verified active jobs only, excluding expired listings):
 - Active jobs discovered: {stats.get('jobs_found', 0)}
 - Active jobs scored: {stats.get('jobs_scored', 0)}
 - Jobs applied to: {stats.get('applied', 0)}
@@ -215,18 +218,12 @@ WEEKLY STATISTICS (showing only verified active jobs, excluding expired listings
 - Rejections: {stats.get('rejections', 0)}
 - Pending your approval: {stats.get('pending_approval', 0)}
 
-NOTE: The system autonomously verifies job freshness weekly and removes expired listings (> 30 days old or 404 URLs). This keeps your pipeline clean and focused on real opportunities.
-
 TOP JOBS THIS WEEK:
 {_format_top_jobs(top_jobs)}
 
-Write a 2-3 sentence summary that:
-1. Acknowledges the week's activity with verified active jobs
-2. Highlights any wins (applications, interviews, etc.)
-3. Mentions job verification/cleanup if relevant
-4. Is encouraging and positive
+Example tone: "This week I found 4,765 active job listings and scored 388 matches for you. I spotted some great robotics and embedded systems roles - take a look at the 28 pending approvals waiting for you!"
 
-Keep it concise and actionable."""
+Write the summary FROM Scout's perspective, reporting TO the user about what I (Scout) did this week."""
 
         response = client.chat.completions.create(
             model=os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
