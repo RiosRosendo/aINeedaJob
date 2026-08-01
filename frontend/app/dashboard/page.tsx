@@ -290,16 +290,9 @@ export default function Dashboard() {
                 width: '100%',
               }}
             >
-              {!sidebarOpen && (
-                <span style={{ fontFamily: 'var(--font-heading)', fontSize: '38px', fontWeight: 400, color: 'var(--text)', whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '1', letterSpacing: '-2px', display: 'block' }}>
-                  ai
-                </span>
-              )}
-              {sidebarOpen && (
-                <span style={{ fontFamily: 'var(--font-heading)', fontSize: '38px', fontWeight: 400, color: 'var(--text)', whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '1', letterSpacing: '-2px', display: 'block' }}>
-                  aiNeedJob
-                </span>
-              )}
+              <span style={{ fontFamily: 'var(--font-heading)', fontSize: '38px', fontWeight: 400, color: 'var(--text)', whiteSpace: 'nowrap', textAlign: 'left', lineHeight: '1', letterSpacing: '-2px', display: 'block', transition: 'all 0.38s cubic-bezier(.4,0,.2,1)' }}>
+                {sidebarOpen ? 'aiNeedJob' : 'ai'}
+              </span>
             </div>
           </div>
 
@@ -456,19 +449,19 @@ export default function Dashboard() {
                 marginTop: '16px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                padding: '10px 0',
+                justifyContent: 'flex-start',
+                gap: '11px',
+                padding: '11px 16px',
                 borderRadius: '999px',
                 border: 'none',
                 background: 'var(--dcard)',
                 color: 'var(--dmuted)',
-                font: '500 12px var(--font-body)',
+                font: '400 14px var(--font-body)',
                 cursor: 'pointer',
                 boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18), inset 0 -1px 0 rgba(255,255,255,.5)',
               }}
             >
-              {isDark ? <Sun size={13} /> : <Moon size={13} />}
+              {isDark ? <Sun size={17} /> : <Moon size={17} />}
               <span>{isDark ? 'Light' : 'Dark'}</span>
             </button>
           )}
@@ -477,22 +470,22 @@ export default function Dashboard() {
           <button
             style={{
               width: 'calc(100% - 32px)',
-              marginTop: '16px',
+              marginTop: '8px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              padding: '10px 0',
+              justifyContent: 'flex-start',
+              gap: '11px',
+              padding: '11px 16px',
               borderRadius: '999px',
               border: 'none',
               background: 'var(--dcard)',
               color: 'var(--dmuted)',
-              font: '500 12px var(--font-body)',
+              font: '400 14px var(--font-body)',
               cursor: 'pointer',
               boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18), inset 0 -1px 0 rgba(255,255,255,.5)',
             }}
           >
-            <LogOut size={13} style={{ flex: 'none' }} />
+            <LogOut size={17} style={{ flex: 'none' }} />
             {sidebarOpen && <span>Logout</span>}
           </button>
         </aside>
