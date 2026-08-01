@@ -282,22 +282,19 @@ export default function Dashboard() {
               onClick={() => setSidebarOpen(!sidebarOpen)}
               style={{
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                gap: '9px',
+                justifyContent: 'center',
+                gap: sidebarOpen ? '6px' : '0',
                 cursor: 'pointer',
+                width: '100%',
               }}
             >
-              <div
-                style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '38% 62% 55% 45% / 50% 45% 55% 50%',
-                  background: `linear-gradient(140deg, var(--color-accent), var(--color-accent-2))`,
-                  animation: 'ainSway 5s ease-in-out infinite',
-                }}
-              />
+              <span style={{ fontFamily: 'var(--font-heading)', fontSize: '38px', fontWeight: 400, color: 'var(--text)', whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '1', letterSpacing: '-2px', display: 'block' }}>
+                ai
+              </span>
               {sidebarOpen && (
-                <span style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', whiteSpace: 'nowrap' }}>
+                <span style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', whiteSpace: 'nowrap', textAlign: 'center' }}>
                   aiNeedJob
                 </span>
               )}
