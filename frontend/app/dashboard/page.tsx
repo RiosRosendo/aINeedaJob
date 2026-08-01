@@ -290,36 +290,17 @@ export default function Dashboard() {
                 width: '100%',
               }}
             >
-              <span style={{ fontFamily: 'var(--font-heading)', fontSize: '38px', fontWeight: 400, color: 'var(--text)', whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '1', letterSpacing: '-2px', display: 'block' }}>
-                ai
-              </span>
+              {!sidebarOpen && (
+                <span style={{ fontFamily: 'var(--font-heading)', fontSize: '38px', fontWeight: 400, color: 'var(--text)', whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '1', letterSpacing: '-2px', display: 'block' }}>
+                  ai
+                </span>
+              )}
               {sidebarOpen && (
-                <span style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                <span style={{ fontFamily: 'var(--font-heading)', fontSize: '38px', fontWeight: 400, color: 'var(--text)', whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '1', letterSpacing: '-2px', display: 'block' }}>
                   aiNeedJob
                 </span>
               )}
             </div>
-
-            {sidebarOpen && (
-              <button
-                onClick={() => setIsDark(!isDark)}
-                style={{
-                  width: '30px',
-                  height: '30px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: '10px',
-                  border: 'none',
-                  background: 'var(--dcard)',
-                  color: 'var(--dmuted)',
-                  cursor: 'pointer',
-                  boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18), inset 0 -1px 0 rgba(255,255,255,.5)',
-                }}
-              >
-                {isDark ? <Sun size={13} /> : <Moon size={13} />}
-              </button>
-            )}
           </div>
 
           {/* Scout Mascot */}
@@ -465,6 +446,32 @@ export default function Dashboard() {
               </Link>
             ))}
           </nav>
+
+          {/* Theme Toggle */}
+          {sidebarOpen && (
+            <button
+              onClick={() => setIsDark(!isDark)}
+              style={{
+                width: 'calc(100% - 32px)',
+                marginTop: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '10px 0',
+                borderRadius: '999px',
+                border: 'none',
+                background: 'var(--dcard)',
+                color: 'var(--dmuted)',
+                font: '500 12px var(--font-body)',
+                cursor: 'pointer',
+                boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18), inset 0 -1px 0 rgba(255,255,255,.5)',
+              }}
+            >
+              {isDark ? <Sun size={13} /> : <Moon size={13} />}
+              <span>{isDark ? 'Light' : 'Dark'}</span>
+            </button>
+          )}
 
           {/* Logout */}
           <button
