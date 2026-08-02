@@ -37,6 +37,8 @@ export default function ProfilePage() {
 
   const [languages, setLanguages] = useState<Array<{language: string; level: string}>>([]);
   const [nationality, setNationality] = useState<string>('');
+  const [countryInput, setCountryInput] = useState<string>('');
+  const [showCountryInput, setShowCountryInput] = useState(false);
 
   const lightTheme = {
     '--bg': '#f0e4cf',
@@ -374,6 +376,27 @@ export default function ProfilePage() {
     setLanguages([...languages, { language: '', level: 'Intermediate' }]);
   };
 
+  const addCountry = (country: string) => {
+    if (country.trim() && !(formData.preferred_countries || []).includes(country.trim())) {
+      setFormData({
+        ...formData,
+        preferred_countries: [...(formData.preferred_countries || []), country.trim()]
+      });
+      setCountryInput('');
+      setShowCountryInput(false);
+    }
+  };
+
+  const removeCountry = (index: number) => {
+    const countries = formData.preferred_countries || [];
+    setFormData({
+      ...formData,
+      preferred_countries: countries.filter((_, i) => i !== index)
+    });
+  };
+
+
+
   if (loading) {
     return (
       <div style={{ ...theme as any, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg)', color: 'var(--text)', fontFamily: "'Figtree', sans-serif" }}>
@@ -528,7 +551,7 @@ export default function ProfilePage() {
             <div style={{ marginBottom: '16px' }}>
               <label style={{ fontSize: '13px', color: 'var(--text)', display: 'block', marginBottom: '8px' }}>Modality</label>
               <select value={formData.preferred_modality || ''} onChange={(e) => setFormData({...formData, preferred_modality: e.target.value as any})} style={{ appearance: 'none', borderRadius: '999px', background: 'var(--bg)', color: 'var(--color-accent-700)', font: '700 13px var(--font-body)', padding: '10px 16px', border: 'none', boxShadow: 'inset 0 2px 5px rgba(32,30,29,.2)', width: '100%', paddingRight: '28px', cursor: 'pointer' }}>
-                <option value="">Select...</option>
+                <option value="">Any</option>
                 <option value="remote">Remote</option>
                 <option value="hybrid">Hybrid</option>
                 <option value="on-site">On-site</option>
@@ -539,23 +562,52 @@ export default function ProfilePage() {
             <div style={{ marginBottom: '16px' }}>
               <label style={{ fontSize: '13px', color: 'var(--text)', display: 'block', marginBottom: '8px' }}>Priority country</label>
               <select value={formData.preferred_countries?.[0] || ''} onChange={(e) => setFormData({...formData, preferred_countries: [e.target.value, ...(formData.preferred_countries?.slice(1) || [])]})} style={{ appearance: 'none', borderRadius: '999px', background: 'var(--bg)', color: 'var(--text)', font: '600 12px var(--font-body)', padding: '6px 12px', border: 'none', boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18)', width: '100%', paddingRight: '24px', cursor: 'pointer' }}>
-                <option value="">Select...</option>
-                <option value="Mexico">Mexico</option>
-                <option value="United States">United States</option>
-                <option value="Canada">Canada</option>
+                <option value="">None</option>
+                {[...new Set(formData.preferred_countries || [])].map((country: string) => (
+                  <option key={country} value={country}>{country}</option>
+                ))}
               </select>
             </div>
 
             {/* Also searching in */}
             <div>
               <div style={{ fontSize: '12px', color: 'var(--faint)', marginBottom: '8px' }}>Also searching in</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: showCountryInput ? '12px' : 0 }}>
                 {((formData.preferred_countries || []).slice(1) || []).map((country: string, i: number) => (
-                  <span key={i} style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '12px', color: 'var(--faint)', background: 'transparent', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)' }}>
-                    {country}
-                  </span>
+                  <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <span style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '12px', color: 'var(--faint)', background: 'transparent', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)' }}>
+                      {country}
+                    </span>
+                    <button onClick={() => removeCountry(i + 1)} style={{ padding: '2px 6px', borderRadius: '999px', border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer', fontSize: '12px' }}>×</button>
+                  </div>
                 ))}
               </div>
+              {showCountryInput ? (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={countryInput}
+                    onChange={(e) => setCountryInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        addCountry(countryInput);
+                      }
+                    }}
+                    placeholder="Country name"
+                    autoFocus
+                    style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '12px', border: 'none', background: 'var(--bg)', color: 'var(--text)', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', flex: 1 }}
+                  />
+                  <button onClick={() => addCountry(countryInput)} style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '12px', color: 'var(--faint)', border: '1px dashed var(--faint)', background: 'transparent', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    Add
+                  </button>
+                </div>
+              ) : (
+                <div style={{ marginTop: '12px' }}>
+                  <button onClick={() => setShowCountryInput(true)} style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '12px', color: 'var(--faint)', border: '1px dashed var(--faint)', background: 'transparent', cursor: 'pointer', width: '100%' }}>
+                    + Add country
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

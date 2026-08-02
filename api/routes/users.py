@@ -129,9 +129,10 @@ async def update_user_profile(
             WHERE user_id = %s
         """
 
+        modality = profile.preferred_modality if profile.preferred_modality else None
         params = (
             json.dumps(profile.target_roles),
-            profile.preferred_modality,
+            modality,
             json.dumps(profile.preferred_countries),
             profile.priority_country,
             profile.salary_min,
@@ -155,7 +156,7 @@ async def update_user_profile(
             insert_params = (
                 user_id,
                 json.dumps(profile.target_roles),
-                profile.preferred_modality,
+                modality,
                 json.dumps(profile.preferred_countries),
                 profile.priority_country,
                 profile.salary_min,
