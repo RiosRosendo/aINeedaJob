@@ -526,9 +526,9 @@ export default function ProfilePage() {
             <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)', marginBottom: '16px' }}>Target Roles</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {(formData.target_roles || []).map((role: string, i: number) => (
-                <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input size={Math.max(role.length + 2, 8)} value={role} onChange={(e) => updateTargetRole(i, e.target.value)} placeholder="Role" style={{ padding: '6px 14px', borderRadius: '999px', fontSize: '13px', border: 'none', background: 'var(--bg)', color: '#8C491A', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', whiteSpace: 'nowrap' }} />
-                  <button onClick={() => removeTargetRole(i)} style={{ padding: '4px 8px', borderRadius: '999px', border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer', fontSize: '12px' }}>×</button>
+                <div key={i} style={{display:'flex', alignItems:'center', padding:'6px 14px', borderRadius:'999px', background:'var(--bg)', boxShadow:'inset 0 1px 3px rgba(32,30,29,.15)'}}>
+                  <input size={Math.max(role.length + 2, 8)} value={role} onChange={(e) => updateTargetRole(i, e.target.value)} placeholder="Role" style={{border:'none', background:'transparent', color:'#8C491A', fontSize:'13px', outline:'none'}} />
+                  <button onClick={() => removeTargetRole(i)} style={{border:'none', background:'transparent', color:'#8C491A', cursor:'pointer', fontSize:'14px', padding:'0 0 0 4px', lineHeight:1}}>×</button>
                 </div>
               ))}
               <button onClick={addTargetRole} style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '13px', color: 'var(--faint)', border: '1px dashed var(--faint)', background: 'transparent', cursor: 'pointer' }}>
@@ -542,9 +542,9 @@ export default function ProfilePage() {
             <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)', marginBottom: '16px' }}>Skills</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {(formData.tech_stack || []).map((skill: string, i: number) => (
-                <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input size={Math.max(skill.length + 2, 8)} value={skill} onChange={(e) => updateTechStack(i, e.target.value)} placeholder="Skill" style={{ padding: '8px 14px', borderRadius: '999px', fontSize: '13px', border: 'none', background: '#F0FAE1', color: 'var(--color-accent-2-800)', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)' }} />
-                  <button onClick={() => removeTechStack(i)} style={{ padding: '4px 8px', borderRadius: '999px', border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer', fontSize: '12px' }}>×</button>
+                <div key={i} style={{display:'flex', alignItems:'center', padding:'6px 14px', borderRadius:'999px', background:'#F0FAE1', boxShadow:'inset 0 1px 3px rgba(32,30,29,.15)'}}>
+                  <input size={Math.max(skill.length + 2, 8)} value={skill} onChange={(e) => updateTechStack(i, e.target.value)} placeholder="Skill" style={{border:'none', background:'transparent', color:'var(--color-accent-2-800)', fontSize:'13px', outline:'none'}} />
+                  <button onClick={() => removeTechStack(i)} style={{border:'none', background:'transparent', color:'var(--color-accent-2-800)', cursor:'pointer', fontSize:'14px', padding:'0 0 0 4px', lineHeight:1}}>×</button>
                 </div>
               ))}
               <button onClick={addTechStack} style={{ padding: '8px 14px', borderRadius: '999px', fontSize: '13px', color: 'var(--faint)', border: '1px dashed var(--faint)', background: 'transparent', cursor: 'pointer' }}>
