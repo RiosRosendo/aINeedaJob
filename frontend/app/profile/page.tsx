@@ -422,7 +422,7 @@ export default function ProfilePage() {
       ...formData,
       cv_data: {
         ...cvData,
-        links: links.filter((_, i) => i !== index)
+        links: links.filter((_: any, i: number) => i !== index)
       }
     });
   };
