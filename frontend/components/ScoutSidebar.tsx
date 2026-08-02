@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { LogOut, Sun, Moon } from 'lucide-react';
+import { Home, Briefcase, CheckCircle, FileText, User, LogOut, Sun, Moon } from 'lucide-react';
 
 interface ScoutSidebarProps {
   isDark: boolean;
@@ -165,11 +165,11 @@ export function ScoutSidebar({ isDark, setIsDark, sidebarOpen, setSidebarOpen, s
       {/* Nav */}
       <nav style={{ width: '100%', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: 'auto', boxSizing: 'border-box' }}>
         {[
-          { icon: 'Dashboard', label: 'Dashboard', href: '/dashboard', active: pathname === '/dashboard' },
-          { icon: 'Briefcase', label: 'Jobs', href: '/jobs', active: pathname === '/jobs' },
-          { icon: 'CheckCircle', label: 'Approvals', href: '/approvals', badge: stats?.needs_approval, active: pathname === '/approvals' },
-          { icon: 'FileText', label: 'Applications', href: '/applications', active: pathname === '/applications' },
-          { icon: 'User', label: 'Profile', href: '/profile', active: pathname === '/profile' },
+          { icon: Home, label: 'Dashboard', href: '/dashboard', active: pathname === '/dashboard' },
+          { icon: Briefcase, label: 'Jobs', href: '/jobs', active: pathname === '/jobs' },
+          { icon: CheckCircle, label: 'Approvals', href: '/approvals', badge: stats?.needs_approval, active: pathname === '/approvals' },
+          { icon: FileText, label: 'Applications', href: '/applications', active: pathname === '/applications' },
+          { icon: User, label: 'Profile', href: '/profile', active: pathname === '/profile' },
         ].map((item, i) => (
           <a
             key={i}
@@ -183,12 +183,10 @@ export function ScoutSidebar({ isDark, setIsDark, sidebarOpen, setSidebarOpen, s
               textDecoration: 'none',
               borderRadius: '999px',
               transition: 'all .25s',
-              color: item.active ? 'var(--text)' : 'var(--muted)',
-              fontWeight: item.active ? 700 : 400,
-              fontSize: '14px',
+              boxShadow: item.active ? 'inset 0 2px 5px rgba(32,30,29,.18), inset 0 -1px 0 rgba(255,255,255,.5)' : 'none',
             }}
           >
-            <span style={{ flex: 'none' }}>•</span>
+            <item.icon size={17} style={{ flex: 'none', color: item.active ? 'var(--text)' : 'var(--muted)' }} />
             {sidebarOpen && (
               <>
                 <span style={{ fontSize: '14px', fontWeight: item.active ? 700 : 400, color: item.active ? 'var(--text)' : 'var(--muted)', whiteSpace: 'nowrap' }}>

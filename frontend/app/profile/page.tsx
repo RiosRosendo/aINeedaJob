@@ -10,6 +10,7 @@ export default function ProfilePage() {
   const [isDark, setIsDark] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const lightTheme = {
     '--bg': '#f0e4cf',
@@ -85,8 +86,6 @@ export default function ProfilePage() {
       </div>
     );
   }
-
-  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const firstName = (profile as any)?.cv_data?.name?.split(' ')[0] || (profile as any)?.name?.split(' ')[0] || 'User';
   const initials = firstName.charAt(0).toUpperCase();
