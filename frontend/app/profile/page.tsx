@@ -116,7 +116,7 @@ export default function ProfilePage() {
               }
               return null;
             })
-            .filter((l: any) => l && l.language);
+            .filter((l): l is {language: string; level: string} => l !== null);
           if (parsedLanguages.length > 0) setLanguages(parsedLanguages);
         }
 
@@ -420,9 +420,16 @@ export default function ProfilePage() {
           {/* 2. Résumé Card */}
           <div style={{ background: 'var(--card)', borderRadius: '24px', padding: '22px', marginBottom: '20px', boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
-              <div style={{ width: '44px', height: '44px', borderRadius: '56% 44% 48% 52% / 50% 55% 45% 50%', background: `radial-gradient(circle at 30% 26%, var(--color-accent-200), var(--color-accent) 55%, var(--color-accent-700) 100%)`, flex: '0 0 44px' }} />
+              {/* Scout Mascot - Small */}
+              <div style={{ position: 'relative', width: '48px', height: '48px', display: 'block', flex: '0 0 48px' }}>
+                <div style={{ position: 'absolute', inset: 0, borderRadius: '58% 42% 45% 55% / 45% 55% 45% 55%', background: `radial-gradient(circle at 30% 26%, var(--color-accent-200), var(--color-accent) 55%, var(--color-accent-700) 100%)`, boxShadow: '0 6px 12px -4px rgba(32,30,29,.3), inset 0 2px 4px rgba(255,255,255,.3), inset 0 -4px 6px rgba(64,35,16,.3)' }} />
+                <div style={{ position: 'absolute', left: '18%', top: '14%', width: '26%', height: '16%', borderRadius: '50%', background: 'rgba(255,255,255,.4)', filter: 'blur(2px)' }} />
+                <div style={{ position: 'absolute', left: '36%', top: '38%', width: '4px', height: '4px', borderRadius: '50%', background: 'var(--bg)' }} />
+                <div style={{ position: 'absolute', left: '58%', top: '38%', width: '4px', height: '4px', borderRadius: '50%', background: 'var(--bg)' }} />
+                <div style={{ position: 'absolute', left: '32%', top: '56%', width: '36%', height: '4px', borderRadius: '0 0 10px 10px', borderBottom: '1px solid var(--bg)' }} />
+              </div>
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>Résumé on file</div>
+                <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '18px', fontWeight: 400, color: 'var(--text)' }}>Résumé on file</div>
                 <div style={{ fontSize: '12px', color: 'var(--faint)', marginTop: '2px' }}>{cvSuccess || cvError || 'resume.pdf • Updated 3 days ago'}</div>
               </div>
             </div>
@@ -437,7 +444,7 @@ export default function ProfilePage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
               <Mail size={24} style={{ color: 'var(--color-accent-2)', flex: '0 0 auto' }} />
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>Gmail {gmailStatus.connected ? 'connected' : 'not connected'}</div>
+                <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)' }}>Gmail {gmailStatus.connected ? 'connected' : 'not connected'}</div>
                 <div style={{ fontSize: '12px', color: 'var(--faint)', marginTop: '2px' }}>{gmailStatus.email || 'No email connected'}</div>
               </div>
             </div>
@@ -448,7 +455,7 @@ export default function ProfilePage() {
 
           {/* 4. Target Roles Card */}
           <div style={{ background: 'var(--card)', borderRadius: '24px', padding: '22px', marginBottom: '20px', boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)' }}>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--faint)', marginBottom: '12px', textTransform: 'uppercase' }}>Target Roles</div>
+            <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)', marginBottom: '16px' }}>Target Roles</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {(formData.target_roles || []).map((role: string, i: number) => (
                 <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -464,7 +471,7 @@ export default function ProfilePage() {
 
           {/* 5. Skills Card */}
           <div style={{ background: 'var(--card)', borderRadius: '24px', padding: '22px', marginBottom: '20px', boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)' }}>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--faint)', marginBottom: '12px', textTransform: 'uppercase' }}>Skills</div>
+            <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)', marginBottom: '16px' }}>Skills</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {(formData.tech_stack || []).map((skill: string, i: number) => (
                 <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -482,7 +489,7 @@ export default function ProfilePage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
             {/* Languages */}
             <div style={{ background: 'var(--card)', borderRadius: '24px', padding: '22px', boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)' }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--faint)', marginBottom: '16px', textTransform: 'uppercase' }}>Languages</div>
+              <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)', marginBottom: '16px' }}>Languages</div>
               {languages.map((lang: any, i: number) => (
                 <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', marginBottom: i === languages.length - 1 ? 0 : '12px' }}>
                   <input value={lang.language} onChange={(e) => updateLanguage(i, 'language', e.target.value)} placeholder="Language" style={{ padding: '6px 12px', borderRadius: '999px', background: 'var(--bg)', color: 'var(--text)', font: '600 12px var(--font-body)', border: 'none', boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18)', width: '60%' }} />
@@ -502,7 +509,7 @@ export default function ProfilePage() {
 
             {/* Nationality */}
             <div style={{ background: 'var(--card)', borderRadius: '24px', padding: '22px', boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)' }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--faint)', marginBottom: '16px', textTransform: 'uppercase' }}>Nationality</div>
+              <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)', marginBottom: '16px' }}>Nationality</div>
               <select value={nationality} onChange={(e) => setNationality(e.target.value)} style={{ appearance: 'none', borderRadius: '999px', background: 'var(--bg)', color: 'var(--text)', font: '600 12px var(--font-body)', padding: '6px 12px', border: 'none', boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18)', width: '100%', paddingRight: '24px', cursor: 'pointer' }}>
                 <option>Mexican</option>
                 <option>American</option>
@@ -515,7 +522,7 @@ export default function ProfilePage() {
 
           {/* 7. Where you'll work */}
           <div style={{ background: 'var(--card)', borderRadius: '24px', padding: '22px', marginBottom: '20px', boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)' }}>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--faint)', marginBottom: '16px', textTransform: 'uppercase' }}>Where you'll work</div>
+            <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)', marginBottom: '16px' }}>Where you'll work</div>
 
             {/* Modality */}
             <div style={{ marginBottom: '16px' }}>
@@ -556,7 +563,7 @@ export default function ProfilePage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             {/* Salary */}
             <div style={{ background: 'var(--card)', borderRadius: '24px', padding: '22px', boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)' }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--faint)', marginBottom: '12px', textTransform: 'uppercase' }}>Minimum salary</div>
+              <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)', marginBottom: '12px' }}>Minimum salary</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontFamily: "'Caprasimo', serif", fontSize: '24px', fontWeight: 400, color: 'var(--text)' }}>$</span>
                 <input type="number" value={formData.salary_min || 100000} onChange={(e) => setFormData({...formData, salary_min: parseInt(e.target.value) || 0})} style={{ fontFamily: "'Caprasimo', serif", fontSize: '24px', fontWeight: 400, color: 'var(--text)', background: 'var(--bg)', border: 'none', boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18)', borderRadius: '8px', padding: '8px 12px', width: '100%' }} />
@@ -565,7 +572,7 @@ export default function ProfilePage() {
 
             {/* Links */}
             <div style={{ background: 'var(--card)', borderRadius: '24px', padding: '22px', boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)' }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--faint)', marginBottom: '12px', textTransform: 'uppercase' }}>Links</div>
+              <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)', marginBottom: '12px' }}>Links</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>GitHub</label>

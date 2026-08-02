@@ -11,6 +11,15 @@ export interface UserProfile {
   cv_base_url?: string;
   github_url?: string;
   linkedin_url?: string;
+  cv_data?: {
+    name?: string;
+    languages?: Array<{language: string; level: string}>;
+    nationality?: string;
+    experience?: any[];
+    projects?: any[];
+    education?: any[];
+    skills?: string[];
+  };
 }
 
 export interface Job {
