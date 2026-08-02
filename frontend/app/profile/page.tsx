@@ -506,9 +506,14 @@ export default function ProfilePage() {
           <div style={{ background: 'var(--card)', borderRadius: '24px', padding: '22px', marginBottom: '20px', boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
               <Mail size={24} style={{ color: 'var(--color-accent-2)', flex: '0 0 auto' }} />
-              <div>
-                <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)' }}>Gmail {gmailStatus.connected ? 'connected' : 'not connected'}</div>
-                <div style={{ fontSize: '12px', color: 'var(--faint)', marginTop: '2px' }}>{gmailStatus.email || 'No email connected'}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: '1.4' }}>
+                  {gmailStatus.connected ? (
+                    <><span style={{fontWeight: 700}}>Scout</span> watches for replies & interview invites — {gmailStatus.email}</>
+                  ) : (
+                    <>Connect your email for <span style={{fontWeight: 700}}>Scout to watch for replies & interview invites</span> </>
+                  )}
+                </div>
               </div>
             </div>
             <button onClick={gmailStatus.connected ? handleDisconnectGmail : handleConnectGmail} disabled={gmailLoading} style={{ padding: '10px 16px', borderRadius: '999px', border: 'none', background: 'var(--bg)', color: 'var(--muted)', font: '600 12px var(--font-body)', cursor: gmailLoading ? 'not-allowed' : 'pointer', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', flex: '0 0 auto', whiteSpace: 'nowrap', opacity: gmailLoading ? 0.6 : 1 }}>
@@ -522,7 +527,7 @@ export default function ProfilePage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {(formData.target_roles || []).map((role: string, i: number) => (
                 <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input value={role} onChange={(e) => updateTargetRole(i, e.target.value)} placeholder="Role" style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '13px', border: 'none', background: 'var(--bg)', color: 'var(--text)', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', width: '120px' }} />
+                  <input value={role} onChange={(e) => updateTargetRole(i, e.target.value)} placeholder="Role" style={{ padding: '6px 14px', borderRadius: '999px', fontSize: '13px', border: 'none', background: 'var(--bg)', color: '#8C491A', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', whiteSpace: 'nowrap' }} />
                   <button onClick={() => removeTargetRole(i)} style={{ padding: '4px 8px', borderRadius: '999px', border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer', fontSize: '12px' }}>×</button>
                 </div>
               ))}
@@ -538,7 +543,7 @@ export default function ProfilePage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {(formData.tech_stack || []).map((skill: string, i: number) => (
                 <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input value={skill} onChange={(e) => updateTechStack(i, e.target.value)} placeholder="Skill" style={{ padding: '8px 14px', borderRadius: '999px', fontSize: '13px', border: 'none', background: 'var(--color-accent-2-100)', color: 'var(--color-accent-2-800)', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', width: '120px' }} />
+                  <input value={skill} onChange={(e) => updateTechStack(i, e.target.value)} placeholder="Skill" style={{ padding: '8px 14px', borderRadius: '999px', fontSize: '13px', border: 'none', background: '#F0FAE1', color: 'var(--color-accent-2-800)', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', width: '120px' }} />
                   <button onClick={() => removeTechStack(i)} style={{ padding: '4px 8px', borderRadius: '999px', border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer', fontSize: '12px' }}>×</button>
                 </div>
               ))}
