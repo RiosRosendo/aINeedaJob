@@ -511,7 +511,7 @@ export default function ProfilePage() {
                   {gmailStatus.connected ? (
                     <><span style={{fontWeight: 700}}>Scout</span> watches for replies & interview invites — {gmailStatus.email}</>
                   ) : (
-                    <>Connect your email for <span style={{fontWeight: 700}}>Scout to watch for replies & interview invites</span> </>
+                    <>Connect your email for <span style={{fontWeight: 700}}>Scout</span> to watch for replies & interview invites</>
                   )}
                 </div>
               </div>
@@ -527,7 +527,7 @@ export default function ProfilePage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {(formData.target_roles || []).map((role: string, i: number) => (
                 <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input value={role} onChange={(e) => updateTargetRole(i, e.target.value)} placeholder="Role" style={{ padding: '6px 14px', borderRadius: '999px', fontSize: '13px', border: 'none', background: 'var(--bg)', color: '#8C491A', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', whiteSpace: 'nowrap' }} />
+                  <input size={Math.max(role.length + 2, 8)} value={role} onChange={(e) => updateTargetRole(i, e.target.value)} placeholder="Role" style={{ padding: '6px 14px', borderRadius: '999px', fontSize: '13px', border: 'none', background: 'var(--bg)', color: '#8C491A', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', whiteSpace: 'nowrap' }} />
                   <button onClick={() => removeTargetRole(i)} style={{ padding: '4px 8px', borderRadius: '999px', border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer', fontSize: '12px' }}>×</button>
                 </div>
               ))}
@@ -543,7 +543,7 @@ export default function ProfilePage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {(formData.tech_stack || []).map((skill: string, i: number) => (
                 <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input value={skill} onChange={(e) => updateTechStack(i, e.target.value)} placeholder="Skill" style={{ padding: '8px 14px', borderRadius: '999px', fontSize: '13px', border: 'none', background: '#F0FAE1', color: 'var(--color-accent-2-800)', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', width: '120px' }} />
+                  <input size={Math.max(skill.length + 2, 8)} value={skill} onChange={(e) => updateTechStack(i, e.target.value)} placeholder="Skill" style={{ padding: '8px 14px', borderRadius: '999px', fontSize: '13px', border: 'none', background: '#F0FAE1', color: 'var(--color-accent-2-800)', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)' }} />
                   <button onClick={() => removeTechStack(i)} style={{ padding: '4px 8px', borderRadius: '999px', border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer', fontSize: '12px' }}>×</button>
                 </div>
               ))}
