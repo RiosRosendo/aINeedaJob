@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { Home, Briefcase, CheckCircle, FileText, User, LogOut, Sun, Moon } from 'lucide-react';
 
@@ -11,8 +12,27 @@ interface ScoutSidebarProps {
   stats?: { needs_approval: number };
 }
 
+const injectStyles = () => {
+  if (typeof window === 'undefined') return;
+  if (document.getElementById('scout-sidebar-styles')) return;
+
+  const style = document.createElement('style');
+  style.id = 'scout-sidebar-styles';
+  style.textContent = `
+    @keyframes ainBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+    @keyframes ainLook { 0%, 12% { transform: translate(0, 0); } 20%, 32% { transform: translate(-3px, 1px); } 40%, 52% { transform: translate(3px, -1px); } 60%, 72% { transform: translate(-2px, 2px); } 80%, 100% { transform: translate(0, 0); } }
+    @keyframes ainBlink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.15); } }
+    @keyframes ainTalk { 0%, 100% { transform: scaleX(1) scaleY(1); } 30% { transform: scaleX(0.75) scaleY(1.3); } 55% { transform: scaleX(1.15) scaleY(0.7); } 80% { transform: scaleX(0.9) scaleY(1.1); } }
+  `;
+  document.head.appendChild(style);
+};
+
 export function ScoutSidebar({ isDark, setIsDark, sidebarOpen, setSidebarOpen, stats }: ScoutSidebarProps) {
   const pathname = usePathname();
+
+  useEffect(() => {
+    injectStyles();
+  }, []);
 
   const mascotSize = sidebarOpen ? 120 : 46;
   const eyeSize = Math.round(mascotSize * 0.08);
