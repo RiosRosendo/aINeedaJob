@@ -39,6 +39,9 @@ export default function ProfilePage() {
   const [nationality, setNationality] = useState<string>('');
   const [countryInput, setCountryInput] = useState<string>('');
   const [showCountryInput, setShowCountryInput] = useState(false);
+  const [linkLabel, setLinkLabel] = useState<string>('');
+  const [linkUrl, setLinkUrl] = useState<string>('');
+  const [showLinkInput, setShowLinkInput] = useState(false);
 
   const lightTheme = {
     '--bg': '#f0e4cf',
@@ -395,6 +398,35 @@ export default function ProfilePage() {
     });
   };
 
+  const addLink = (label: string, url: string) => {
+    if (label.trim() && url.trim()) {
+      const cvData = formData.cv_data || {};
+      const links = cvData.links || [];
+      setFormData({
+        ...formData,
+        cv_data: {
+          ...cvData,
+          links: [...links, { label: label.trim(), url: url.trim() }]
+        }
+      });
+      setLinkLabel('');
+      setLinkUrl('');
+      setShowLinkInput(false);
+    }
+  };
+
+  const removeLink = (index: number) => {
+    const cvData = formData.cv_data || {};
+    const links = cvData.links || [];
+    setFormData({
+      ...formData,
+      cv_data: {
+        ...cvData,
+        links: links.filter((_, i) => i !== index)
+      }
+    });
+  };
+
 
 
   if (loading) {
@@ -624,17 +656,54 @@ export default function ProfilePage() {
 
             {/* Links */}
             <div style={{ background: 'var(--card)', borderRadius: '24px', padding: '22px', boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)' }}>
-              <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)', marginBottom: '12px' }}>Links</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>GitHub</label>
-                  <input type="text" value={(formData as any)?.github_url || ''} onChange={(e) => setFormData({...formData, github_url: e.target.value})} placeholder="username" style={{ fontSize: '13px', color: 'var(--text)', background: 'var(--bg)', border: 'none', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', borderRadius: '8px', padding: '6px 10px', width: '100%' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>LinkedIn</label>
-                  <input type="text" value={(formData as any)?.linkedin_url || ''} onChange={(e) => setFormData({...formData, linkedin_url: e.target.value})} placeholder="username" style={{ fontSize: '13px', color: 'var(--text)', background: 'var(--bg)', border: 'none', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', borderRadius: '8px', padding: '6px 10px', width: '100%' }} />
-                </div>
+              <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '18px', fontWeight: 400, color: 'var(--text)', marginBottom: '12px' }}>Links</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: showLinkInput ? '12px' : 0 }}>
+                {((formData.cv_data?.links || []) as any[]).map((link: any, i: number) => (
+                  <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <a href={link.url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '12px', color: 'var(--color-accent)', background: 'transparent', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', textDecoration: 'none' }}>
+                      {link.label}
+                    </a>
+                    <button onClick={() => removeLink(i)} style={{ padding: '2px 6px', borderRadius: '999px', border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer', fontSize: '12px' }}>×</button>
+                  </div>
+                ))}
               </div>
+              {showLinkInput ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={linkLabel}
+                    onChange={(e) => setLinkLabel(e.target.value)}
+                    placeholder="e.g. GitHub, LinkedIn, Portfolio"
+                    style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '12px', border: 'none', background: 'var(--bg)', color: 'var(--text)', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)' }}
+                  />
+                  <input
+                    type="text"
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    placeholder="https://..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        addLink(linkLabel, linkUrl);
+                      }
+                    }}
+                    style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '12px', border: 'none', background: 'var(--bg)', color: 'var(--text)', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)' }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => addLink(linkLabel, linkUrl)} style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '12px', color: 'var(--faint)', border: '1px dashed var(--faint)', background: 'transparent', cursor: 'pointer', flex: 1 }}>
+                      Add
+                    </button>
+                    <button onClick={() => { setShowLinkInput(false); setLinkLabel(''); setLinkUrl(''); }} style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '12px', color: 'var(--faint)', border: '1px dashed var(--faint)', background: 'transparent', cursor: 'pointer', flex: 1 }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginTop: '12px' }}>
+                  <button onClick={() => setShowLinkInput(true)} style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '12px', color: 'var(--faint)', border: '1px dashed var(--faint)', background: 'transparent', cursor: 'pointer', width: '100%' }}>
+                    + Add link
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

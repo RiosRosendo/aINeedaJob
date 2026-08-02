@@ -19,6 +19,7 @@ export interface UserProfile {
     projects?: any[];
     education?: any[];
     skills?: string[];
+    links?: Array<{label: string; url: string}>;
   };
 }
 
