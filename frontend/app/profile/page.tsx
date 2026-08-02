@@ -42,6 +42,9 @@ export default function ProfilePage() {
   const [linkLabel, setLinkLabel] = useState<string>('');
   const [linkUrl, setLinkUrl] = useState<string>('');
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const [userName, setUserName] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [cvUploadDate, setCvUploadDate] = useState<string>('');
 
   const lightTheme = {
     '--bg': '#f0e4cf',
@@ -112,6 +115,12 @@ export default function ProfilePage() {
           cv_data: data.cv_data || {},
         };
         setFormData(formDataToSet);
+        setUserName(data.name || (data as any).cv_data?.name || '');
+        setUserEmail(data.email || '');
+
+        if (data.cv_data && Object.keys(data.cv_data).length > 0) {
+          setCvUploadDate('on file');
+        }
 
         if (data.cv_data && data.cv_data.languages && Array.isArray(data.cv_data.languages)) {
           const parsedLanguages = data.cv_data.languages
@@ -278,6 +287,7 @@ export default function ProfilePage() {
       }
 
       setCvSuccess(`CV processed - ${extractedData.skills?.length || 0} skills extracted`);
+      setCvUploadDate(new Date().toLocaleDateString());
       if (fileInputRef.current) fileInputRef.current.value = '';
       setTimeout(() => handleSave(), 2000);
     } catch (err) {
@@ -437,8 +447,6 @@ export default function ProfilePage() {
     );
   }
 
-  const firstName = (profile as any)?.cv_data?.name?.split(' ')[0] || (profile as any)?.name?.split(' ')[0] || 'User';
-  const initials = firstName.charAt(0).toUpperCase();
 
   return (
     <div style={{ ...theme as any, minHeight: '100vh', backgroundColor: 'var(--bg)', color: 'var(--text)', fontFamily: "'Figtree', sans-serif" }}>
@@ -452,16 +460,16 @@ export default function ProfilePage() {
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', flex: 1 }}>
               {/* Avatar Blob */}
               <div style={{ width: '68px', height: '68px', borderRadius: '56% 44% 48% 52% / 50% 55% 45% 50%', background: `radial-gradient(circle at 30% 26%, var(--color-accent-200), var(--color-accent) 55%, var(--color-accent-700) 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 68px', fontFamily: "'Caprasimo', serif", fontSize: '28px', fontWeight: 400, color: 'var(--bg)' }}>
-                {initials}
+                {userName.charAt(0).toUpperCase() || 'U'}
               </div>
 
               {/* Name & Email */}
               <div>
                 <h1 style={{ fontFamily: "'Caprasimo', serif", fontSize: '32px', fontWeight: 400, color: 'var(--text)', margin: 0 }}>
-                  {(profile as any)?.cv_data?.name || (profile as any)?.name || 'User Profile'}
+                  {userName || 'User Profile'}
                 </h1>
                 <p style={{ fontSize: '13.5px', color: 'var(--muted)', margin: '4px 0 0' }}>
-                  {(profile as any)?.email || 'email@example.com'}
+                  {userEmail || 'email@example.com'}
                 </p>
               </div>
             </div>
@@ -484,8 +492,8 @@ export default function ProfilePage() {
                 <div style={{ position: 'absolute', left: '32%', top: '56%', width: '36%', height: '4px', borderRadius: '0 0 10px 10px', borderBottom: '1px solid var(--bg)' }} />
               </div>
               <div>
-                <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '18px', fontWeight: 400, color: 'var(--text)' }}>Résumé on file</div>
-                <div style={{ fontSize: '12px', color: 'var(--faint)', marginTop: '2px' }}>{cvSuccess || cvError || 'resume.pdf • Updated 3 days ago'}</div>
+                <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '18px', fontWeight: 400, color: 'var(--text)' }}>{cvUploadDate ? 'Résumé on file' : 'No résumé'}</div>
+                <div style={{ fontSize: '12px', color: 'var(--faint)', marginTop: '2px' }}>{cvSuccess || cvError || (cvUploadDate ? 'resume.pdf • Uploaded' : 'Upload your CV to get started')}</div>
               </div>
             </div>
             <button onClick={() => fileInputRef.current?.click()} disabled={cvUploading} style={{ padding: '10px 16px', borderRadius: '999px', border: 'none', background: 'var(--bg)', color: 'var(--muted)', font: '600 12px var(--font-body)', cursor: cvUploading ? 'not-allowed' : 'pointer', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', flex: '0 0 auto', whiteSpace: 'nowrap', opacity: cvUploading ? 0.6 : 1 }}>
