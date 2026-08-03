@@ -1,0 +1,46 @@
+:root {
+  --bg: #f0e4cf;
+  --card: #fffaf1;
+  --active: #e8d9c0;
+  --border: #ddd0b8;
+  --text: #2b1f0f;
+  --muted: #7a6a55;
+  --faint: #ede0cc;
+  --track: #ddd0b8;
+  --color-accent: #c67139;
+  --color-accent-200: #f4d9c6;
+  --color-accent-700: #7a3f1f;
+  --color-accent-2: #7a8a5e;
+  --color-accent-2-200: #dde5cc;
+  --color-accent-2-800: #4a5233;
+  --font-heading: 'Caprasimo', serif;
+  --font-body: 'Figtree', sans-serif;
+}
+
+[data-dark] {
+  --bg: #2b2118;
+  --card: #3a2c1e;
+  --active: #4a3828;
+  --border: #5a4535;
+  --text: #f0e4cf;
+  --muted: #a89070;
+  --faint: #453220;
+  --track: #5a4535;
+  --color-accent: #c67139;
+  --color-accent-200: #f4d9c6;
+  --color-accent-700: #7a3f1f;
+  --color-accent-2: #7a8a5e;
+  --color-accent-2-200: #dde5cc;
+  --color-accent-2-800: #4a5233;
+}
+
+@keyframes ainFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

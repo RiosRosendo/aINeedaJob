@@ -2,13 +2,27 @@
 
 import { useEffect, useState } from 'react';
 import { getScoredJobs, getJobs } from '@/lib/api';
+import { ScoutSidebar } from '@/components/ScoutSidebar';
 import { Job } from '@/lib/types';
 import { X, Search } from 'lucide-react';
 
 type DecisionFilter = 'all' | 'apply' | 'review' | 'ignore';
 type ModalityFilter = 'all' | 'remote' | 'hybrid' | 'on-site';
 
+const getScoreRingColor = (score: number): string => {
+  return score >= 70 ? '#7a8a5e' : '#c67139';
+};
+
+const getDecisionColor = (fitScore?: number): { color: string; bgColor: string } => {
+  if (!fitScore && fitScore !== 0) return { color: 'var(--muted)', bgColor: 'transparent' };
+  if (fitScore >= 85) return { color: 'var(--color-accent-2-800)', bgColor: 'transparent' };
+  if (fitScore >= 60) return { color: 'var(--color-accent-700)', bgColor: 'transparent' };
+  return { color: 'var(--muted)', bgColor: 'transparent' };
+};
+
 export default function JobsPage() {
+  const [isDark, setIsDark] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [totalJobs, setTotalJobs] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -23,12 +37,20 @@ export default function JobsPage() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   useEffect(() => {
+    const root = document.documentElement;
+    if (isDark) {
+      root.setAttribute('data-dark', '');
+    } else {
+      root.removeAttribute('data-dark');
+    }
+  }, [isDark]);
+
+  useEffect(() => {
     const loadJobs = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Load user profile to get priority country
         const profileResponse = await fetch('http://localhost:8001/api/users/profile', {
           headers: {
             'x-user-id': localStorage.getItem('user_id') || '',
@@ -57,7 +79,6 @@ export default function JobsPage() {
     loadJobs();
   }, []);
 
-  // Calculate decision from fit score
   const getDecision = (fitScore?: number): 'apply' | 'review' | 'ignore' => {
     if (!fitScore && fitScore !== 0) return 'ignore';
     if (fitScore >= 85) return 'apply';
@@ -65,21 +86,17 @@ export default function JobsPage() {
     return 'ignore';
   };
 
-  // Filter jobs
   const filteredJobs = jobs.filter(job => {
     const decision = getDecision(job.fit_score);
 
-    // Hide jobs with no score or score=0 by default unless showIgnored is true
     if (!showIgnored && (!job.fit_score || job.fit_score === 0)) {
       return false;
     }
 
-    // Decision filter
     if (decisionFilter !== 'all' && decision !== decisionFilter) {
       return false;
     }
 
-    // Modality filter
     if (modalityFilter !== 'all') {
       const jobModality = (job.modality || 'on-site').toLowerCase();
       if (jobModality !== modalityFilter) {
@@ -87,7 +104,6 @@ export default function JobsPage() {
       }
     }
 
-    // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const titleMatch = (job.title || '').toLowerCase().includes(query);
@@ -100,143 +116,190 @@ export default function JobsPage() {
     return true;
   });
 
-  // Sort filtered jobs: priority country first, then by fit_score descending
   const sortedJobs = filteredJobs.sort((a, b) => {
-    // Check if jobs are from priority country
     const aInPriorityCountry = priorityCountry && (a.location || '').includes(priorityCountry);
     const bInPriorityCountry = priorityCountry && (b.location || '').includes(priorityCountry);
 
-    // If only one is from priority country, put it first
     if (aInPriorityCountry && !bInPriorityCountry) return -1;
     if (!aInPriorityCountry && bInPriorityCountry) return 1;
 
-    // Otherwise sort by fit_score descending (highest first)
     return (b.fit_score || 0) - (a.fit_score || 0);
   });
 
+  const getDecisionCounts = () => {
+    const allJobs = jobs.filter(j => !showIgnored && (!j.fit_score || j.fit_score === 0) ? false : true);
+    const applyJobs = allJobs.filter(j => getDecision(j.fit_score) === 'apply').length;
+    const reviewJobs = allJobs.filter(j => getDecision(j.fit_score) === 'review').length;
+    const ignoreJobs = allJobs.filter(j => getDecision(j.fit_score) === 'ignore').length;
+    return { apply: applyJobs, review: reviewJobs, ignore: ignoreJobs };
+  };
+
+  const counts = getDecisionCounts();
+
   return (
-    <div>
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-semibold mb-2" style={{ color: 'var(--text)' }}>
-          All Jobs
-        </h1>
-        <p style={{ color: 'var(--muted)' }}>
-          {sortedJobs.length} of {jobs.length} scored jobs • {jobs.length} of {totalJobs} total discovered
-        </p>
-      </div>
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+      <ScoutSidebar isDark={isDark} setIsDark={setIsDark} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
-      {error && (
-        <div
-          className="mb-6 p-4 border rounded-lg"
-          style={{
-            borderColor: 'var(--border)',
-            backgroundColor: '#fee',
-            color: '#c00',
-          }}
-        >
-          {error}
+      <main style={{ flex: 1, maxWidth: '980px', margin: '0 auto', width: '100%', padding: '44px 50px 70px', boxSizing: 'border-box' }}>
+        {/* Header */}
+        <div style={{ marginBottom: '44px' }}>
+          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '34px', fontWeight: 400, color: 'var(--text)', margin: '0 0 8px', letterSpacing: '-0.015em' }}>
+            All the roles Scout has found
+          </h1>
+          <p style={{ fontSize: '14px', color: 'var(--muted)', margin: 0 }}>
+            {sortedJobs.length} of {jobs.length} scored jobs · {jobs.length} of {totalJobs} total discovered
+          </p>
         </div>
-      )}
 
-      {/* Filters */}
-      <div className="mb-8 space-y-4">
-        {/* Search */}
-        <div
-          className="flex items-center gap-3 border rounded-lg px-4 py-3"
-          style={{
-            borderColor: 'var(--border)',
-            backgroundColor: 'var(--card)',
-          }}
-        >
-          <Search size={18} style={{ color: 'var(--muted)' }} />
+        {/* Error Banner */}
+        {error && (
+          <div style={{
+            padding: '13.2px 17.6px',
+            borderRadius: '20px',
+            background: 'transparent',
+            color: 'var(--color-accent-700)',
+            fontSize: '13px',
+            marginBottom: '26.4px',
+            boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)',
+          }}>
+            {error}
+          </div>
+        )}
+
+        {/* Search Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '10px 16px',
+          borderRadius: '999px',
+          background: 'transparent',
+          boxShadow: 'inset 0 2px 5px rgba(32,30,29,.16)',
+          marginBottom: '35.2px',
+        }}>
+          <Search size={18} style={{ color: 'var(--muted)', flexShrink: 0 }} />
           <input
             type="text"
-            placeholder="Search by title or company..."
+            placeholder="Search by title or company…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 outline-none text-sm"
             style={{
-              backgroundColor: 'transparent',
+              flex: 1,
+              border: 'none',
+              background: 'transparent',
               color: 'var(--text)',
+              fontSize: '14px',
+              fontFamily: 'var(--font-body)',
+              outline: 'none',
             }}
           />
         </div>
 
-        {/* Filter Row */}
-        <div className="flex flex-wrap gap-4 items-start">
+        {/* Filters Row */}
+        <div style={{ display: 'flex', gap: '44px', marginBottom: '35.2px', flexWrap: 'wrap' }}>
           {/* Decision Filter */}
           <div>
-            <label
-              className="text-xs font-semibold uppercase mb-2 block"
-              style={{ color: 'var(--faint)' }}
-            >
+            <label style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 8.8px', display: 'block' }}>
               Decision
             </label>
-            <div className="flex gap-2">
-              {(['all', 'apply', 'review', 'ignore'] as DecisionFilter[]).map(
-                (option) => (
+            <div style={{ display: 'flex', gap: '8.8px' }}>
+              {(['all', 'apply', 'review', 'ignore'] as DecisionFilter[]).map(option => {
+                const isActive = decisionFilter === option;
+                let count = 0;
+                if (option === 'all') count = filteredJobs.length;
+                else if (option === 'apply') count = counts.apply;
+                else if (option === 'review') count = counts.review;
+                else count = counts.ignore;
+
+                return (
                   <button
                     key={option}
                     onClick={() => setDecisionFilter(option)}
-                    className="px-3 py-2 rounded-lg text-xs font-medium transition-all"
                     style={{
-                      backgroundColor:
-                        decisionFilter === option ? 'var(--primary-bg)' : 'var(--card)',
-                      color:
-                        decisionFilter === option ? 'var(--primary-text)' : 'var(--muted)',
-                      borderColor: 'var(--border)',
-                      border: '1px solid',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      padding: '7px 12px',
+                      borderRadius: '999px',
+                      border: 'none',
+                      background: isActive ? '#fff' : 'transparent',
+                      color: isActive ? 'var(--color-accent-700)' : 'var(--muted)',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '13px',
+                      fontWeight: isActive ? 700 : 400,
+                      cursor: 'pointer',
+                      boxShadow: isActive ? 'inset 0 2px 5px rgba(32,30,29,.2)' : 'inset 0 1px 3px rgba(32,30,29,.15)',
+                      transition: 'all 0.25s',
                     }}
                   >
-                    {option.charAt(0).toUpperCase() + option.slice(1)}
+                    {option.charAt(0).toUpperCase() + option.slice(1)} · {count}
                   </button>
-                )
-              )}
+                );
+              })}
             </div>
           </div>
 
           {/* Modality Filter */}
           <div>
-            <label
-              className="text-xs font-semibold uppercase mb-2 block"
-              style={{ color: 'var(--faint)' }}
-            >
+            <label style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 8.8px', display: 'block' }}>
               Modality
             </label>
-            <div className="flex gap-2">
-              {(['all', 'remote', 'hybrid', 'on-site'] as ModalityFilter[]).map(
-                (option) => (
+            <div style={{ display: 'flex', gap: '8.8px' }}>
+              {(['all', 'remote', 'hybrid', 'on-site'] as ModalityFilter[]).map(option => {
+                const isActive = modalityFilter === option;
+                return (
                   <button
                     key={option}
                     onClick={() => setModalityFilter(option)}
-                    className="px-3 py-2 rounded-lg text-xs font-medium transition-all"
                     style={{
-                      backgroundColor:
-                        modalityFilter === option ? 'var(--primary-bg)' : 'var(--card)',
-                      color:
-                        modalityFilter === option ? 'var(--primary-text)' : 'var(--muted)',
-                      borderColor: 'var(--border)',
-                      border: '1px solid',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      padding: '7px 12px',
+                      borderRadius: '999px',
+                      border: 'none',
+                      background: isActive ? '#fff' : 'transparent',
+                      color: isActive ? 'var(--color-accent-700)' : 'var(--muted)',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '13px',
+                      fontWeight: isActive ? 700 : 400,
+                      cursor: 'pointer',
+                      boxShadow: isActive ? 'inset 0 2px 5px rgba(32,30,29,.2)' : 'inset 0 1px 3px rgba(32,30,29,.15)',
+                      transition: 'all 0.25s',
                     }}
                   >
                     {option.charAt(0).toUpperCase() + option.slice(1)}
                   </button>
-                )
-              )}
+                );
+              })}
             </div>
           </div>
 
           {/* Show Ignored Toggle */}
-          <div className="pt-6">
+          <div>
+            <label style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 8.8px', display: 'block' }}>
+              Filter
+            </label>
             <button
               onClick={() => setShowIgnored(!showIgnored)}
-              className="px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2"
               style={{
-                backgroundColor: showIgnored ? 'var(--border)' : 'var(--card)',
-                color: 'var(--muted)',
-                borderColor: 'var(--border)',
-                border: '1px solid',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '7px 12px',
+                borderRadius: '999px',
+                border: 'none',
+                background: showIgnored ? '#fff' : 'transparent',
+                color: showIgnored ? 'var(--color-accent-700)' : 'var(--muted)',
+                fontFamily: 'var(--font-body)',
+                fontSize: '13px',
+                fontWeight: showIgnored ? 700 : 400,
+                cursor: 'pointer',
+                boxShadow: showIgnored ? 'inset 0 2px 5px rgba(32,30,29,.2)' : 'inset 0 1px 3px rgba(32,30,29,.15)',
+                transition: 'all 0.25s',
               }}
             >
               <span>{showIgnored ? '✓' : '○'}</span>
@@ -244,44 +307,49 @@ export default function JobsPage() {
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Jobs List */}
-      {loading ? (
-        <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '40px' }}>
-          Loading jobs...
-        </div>
-      ) : sortedJobs.length === 0 ? (
-        <div
-          style={{
-            padding: '40px 20px',
-            textAlign: 'center',
-            borderRadius: '12px',
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
-            color: 'var(--muted)',
-          }}
-        >
-          <p className="text-lg">No jobs found</p>
-          <p className="text-sm mt-2">Try adjusting your filters or search query</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {sortedJobs.map((job, index) => (
-            <JobRow
-              key={job.id}
-              job={job}
-              onViewDetails={() => setSelectedJob(job)}
-              delay={index * 0.02}
-            />
-          ))}
-        </div>
-      )}
+        {/* Empty State */}
+        {!loading && sortedJobs.length === 0 && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '70px 50px',
+            borderRadius: '20px',
+            background: 'transparent',
+            boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)',
+          }}>
+            <p style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', color: 'var(--text)', margin: '0 0 8.8px' }}>
+              No jobs found
+            </p>
+            <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>
+              Try adjusting your filters or search query
+            </p>
+          </div>
+        )}
 
-      {/* Job Details Modal */}
-      {selectedJob && (
-        <JobDetailsModal job={selectedJob} onClose={() => setSelectedJob(null)} />
-      )}
+        {/* Loading State */}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
+            Loading jobs...
+          </div>
+        )}
+
+        {/* Jobs List */}
+        {!loading && sortedJobs.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '13.2px' }}>
+            {sortedJobs.map((job, index) => (
+              <JobRow key={job.id} job={job} onViewDetails={() => setSelectedJob(job)} delay={index * 0.04} />
+            ))}
+          </div>
+        )}
+
+        {/* Job Details Modal */}
+        {selectedJob && (
+          <JobDetailsModal job={selectedJob} onClose={() => setSelectedJob(null)} />
+        )}
+      </main>
     </div>
   );
 }
@@ -300,146 +368,168 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
     return 'ignore';
   };
 
-  const getScoreColor = (score?: number) => {
-    if (!score && score !== 0) return '#9ca3af';
-    if (score >= 85) return '#10b981';
-    if (score >= 60) return '#f59e0b';
-    return '#ef4444';
-  };
-
   const decision = getDecision(job.fit_score);
   const fitScore = job.fit_score !== undefined ? Math.round(job.fit_score) : null;
-  const location = job.location ? job.location : 'Location N/A';
+  const location = job.location || 'Location N/A';
   const createdDate = new Date(job.created_at);
-  const dateStr = createdDate.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
+  const dateStr = createdDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const getDecisionLabel = (decision: 'apply' | 'review' | 'ignore'): string => {
+    switch (decision) {
+      case 'apply':
+        return 'Apply';
+      case 'review':
+        return 'Review';
+      case 'ignore':
+        return 'Ignore';
+    }
+  };
+
+  const getDecisionColor = (fitScore?: number): string => {
+    if (!fitScore && fitScore !== 0) return 'var(--muted)';
+    if (fitScore >= 85) return 'var(--color-accent-2-800)';
+    if (fitScore >= 60) return 'var(--color-accent-700)';
+    return 'var(--muted)';
+  };
 
   return (
-    <div
-      className="border rounded-lg p-4 hover:shadow-md transition-all animate-fade-up"
-      style={{
-        borderColor: 'var(--border)',
-        backgroundColor: 'var(--card)',
-        animationDelay: `${delay}s`,
-      }}
-    >
-      <div className="flex items-start justify-between gap-4">
-        {/* Left: Title and Company */}
-        <div className="flex-1 min-w-0">
-          <h3
-            className="font-semibold text-sm mb-1 truncate"
-            style={{
-              color: 'var(--text)',
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {job.title}
-          </h3>
-          <p
-            className="text-xs mb-3"
-            style={{ color: 'var(--muted)' }}
-          >
-            {job.company}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {/* Modality */}
-            <span
-              className="text-xs px-2 py-1 rounded-full border"
-              style={{
-                borderColor: 'var(--border)',
-                color: 'var(--muted)',
-              }}
-            >
-              {job.modality || 'unknown'}
-            </span>
-
-            {/* Location */}
-            <span
-              className="text-xs px-2 py-1 rounded-full border"
-              style={{
-                borderColor: 'var(--border)',
-                color: 'var(--muted)',
-              }}
-            >
-              {location}
-            </span>
-
-            {/* Status */}
-            <span
-              className="text-xs px-2 py-1 rounded-full border"
-              style={{
-                borderColor: 'var(--border)',
-                color: 'var(--faint)',
-              }}
-            >
-              {job.status}
-            </span>
-
-            {/* Date */}
-            <span
-              className="text-xs px-2 py-1 rounded-full border"
-              style={{
-                borderColor: 'var(--border)',
-                color: 'var(--faint)',
-              }}
-            >
-              {dateStr}
-            </span>
-          </div>
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: '26.4px',
+      padding: '17.6px',
+      borderRadius: '20px',
+      background: 'var(--card)',
+      boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)',
+      transition: 'opacity 0.3s',
+      animation: `ainFadeUp 0.5s ease-out forwards`,
+      animationDelay: `${Math.min(delay, 0.4)}s`,
+    }}>
+      {/* Left: Job Info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', color: 'var(--text)', margin: '0 0 4.4px', fontWeight: 400 }}>
+          {job.title}
+        </h3>
+        <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 8.8px' }}>
+          {job.company}
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          <span style={{
+            fontSize: '11px',
+            padding: '3px 10px',
+            borderRadius: 'calc(16px * 0.75)',
+            background: 'transparent',
+            color: 'var(--muted)',
+            boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+          }}>
+            {job.modality || 'unknown'}
+          </span>
+          <span style={{
+            fontSize: '11px',
+            padding: '3px 10px',
+            borderRadius: 'calc(16px * 0.75)',
+            background: 'transparent',
+            color: 'var(--muted)',
+            boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+          }}>
+            {location}
+          </span>
+          <span style={{
+            fontSize: '11px',
+            padding: '3px 10px',
+            borderRadius: 'calc(16px * 0.75)',
+            background: 'transparent',
+            color: 'var(--faint)',
+            boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+          }}>
+            {job.status}
+          </span>
+          <span style={{
+            fontSize: '11px',
+            padding: '3px 10px',
+            borderRadius: 'calc(16px * 0.75)',
+            background: 'transparent',
+            color: 'var(--faint)',
+            boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+          }}>
+            {dateStr}
+          </span>
         </div>
+      </div>
 
-        {/* Middle: Fit Score */}
+      {/* Right: Score Ring + Decision + Button */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8.8px', width: '110px', flexShrink: 0 }}>
+        {/* Progress Ring */}
         {fitScore !== null && (
-          <div
-            className="flex flex-col items-center justify-center flex-shrink-0"
-            style={{
-              minWidth: '60px',
-            }}
-          >
-            <div
-              className="relative w-12 h-12 flex items-center justify-center rounded-full border-2"
-              style={{
-                borderColor: getScoreColor(job.fit_score),
-                backgroundColor: 'var(--bg)',
-              }}
-            >
-              <span
-                className="text-sm font-bold"
-                style={{ color: getScoreColor(job.fit_score) }}
-              >
-                {fitScore}
-              </span>
+          <>
+            <svg width="44" height="44" viewBox="0 0 64 64" style={{ overflow: 'visible' }}>
+              <circle cx="32" cy="32" r="26" fill="none" stroke="var(--track)" strokeWidth="6" />
+              <circle
+                cx="32"
+                cy="32"
+                r="26"
+                fill="none"
+                stroke={getScoreRingColor(fitScore)}
+                strokeWidth="6"
+                strokeDasharray={163.36}
+                strokeDashoffset={163.36 * (1 - fitScore / 100)}
+                strokeLinecap="round"
+                style={{
+                  transform: 'rotate(-90deg)',
+                  transformOrigin: '32px 32px',
+                  transition: 'stroke-dashoffset 0.3s ease',
+                }}
+              />
+              <text x="32" y="36" textAnchor="middle" fontSize="16" fontWeight="700" fill={getScoreRingColor(fitScore)} fontFamily="var(--font-body)">
+                {fitScore}%
+              </text>
+            </svg>
+
+            {/* Decision Label */}
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '3px 10px',
+              borderRadius: 'calc(16px * 0.75)',
+              background: 'transparent',
+              color: getDecisionColor(fitScore),
+              fontSize: '11px',
+              fontFamily: 'var(--font-heading)',
+              fontWeight: 400,
+              boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+            }}>
+              {getDecisionLabel(decision)}
             </div>
-            <span
-              className="text-xs mt-1"
-              style={{
-                color: 'var(--faint)',
-              }}
-            >
-              {decision.charAt(0).toUpperCase() + decision.slice(1)}
-            </span>
-          </div>
+          </>
         )}
 
-        {/* Right: Button */}
+        {/* View Details Button */}
         <button
           onClick={onViewDetails}
-          className="px-4 py-2 rounded-lg text-xs font-medium flex-shrink-0 transition-all"
           style={{
-            backgroundColor: 'var(--sidebar-active)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            width: 'auto',
+            padding: '5px 16px',
+            borderRadius: '999px',
+            border: 'none',
+            background: 'var(--bg)',
             color: 'var(--muted)',
-            border: '1px solid var(--border)',
+            fontFamily: 'var(--font-body)',
+            fontSize: '11px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+            transition: 'all 0.25s',
+            marginTop: fitScore !== null ? '0px' : '0px',
           }}
-          onMouseEnter={(e) => {
-            const el = e.currentTarget as HTMLButtonElement;
-            el.style.backgroundColor = 'var(--border)';
-          }}
-          onMouseLeave={(e) => {
-            const el = e.currentTarget as HTMLButtonElement;
-            el.style.backgroundColor = 'var(--sidebar-active)';
-          }}
+          onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+          onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
         >
           View Details
         </button>
@@ -454,15 +544,7 @@ interface JobDetailsModalProps {
 }
 
 function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
-  const getScoreColor = (score?: number) => {
-    if (!score && score !== 0) return '#9ca3af';
-    if (score >= 85) return '#10b981';
-    if (score >= 60) return '#f59e0b';
-    return '#ef4444';
-  };
-
   useEffect(() => {
-    // Disable body scroll when modal is open
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = 'auto';
@@ -473,14 +555,17 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,.5)',
+          zIndex: 40,
+        }}
         onClick={onClose}
-        style={{ animation: 'fadeIn 0.2s ease-in-out' }}
       />
 
       {/* Modal */}
       <div
-        className="border rounded-2xl overflow-y-auto"
         style={{
           position: 'fixed',
           top: '50%',
@@ -491,81 +576,58 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
           maxHeight: '80vh',
           zIndex: 1000,
           padding: '32px',
-          borderColor: 'var(--border)',
+          borderRadius: '24px',
           backgroundColor: 'var(--card)',
-          animation: 'slideUp 0.3s ease-out',
+          boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)',
+          overflowY: 'auto',
         }}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-6 right-6 p-2 hover:bg-opacity-20 transition-all"
           style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            padding: '8px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
             color: 'var(--muted)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           <X size={20} />
         </button>
 
         {/* Header */}
-        <div className="mb-6 pr-10">
-          <h2
-            className="text-2xl font-semibold mb-2"
-            style={{
-              color: 'var(--text)',
-              letterSpacing: '-0.02em',
-            }}
-          >
+        <div style={{ marginBottom: '24px', paddingRight: '32px' }}>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '24px', fontWeight: 400, color: 'var(--text)', margin: '0 0 8px', letterSpacing: '-0.02em' }}>
             {job.title}
           </h2>
-          <p
-            className="text-sm mb-4"
-            style={{ color: 'var(--muted)' }}
-          >
+          <p style={{ fontSize: '14px', color: 'var(--muted)', margin: '0 0 16px' }}>
             {job.company}
           </p>
 
           {/* Meta */}
-          <div className="flex flex-wrap gap-4">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
             <div>
-              <span
-                className="text-xs"
-                style={{ color: 'var(--faint)' }}
-              >
-                Location
-              </span>
-              <p
-                className="text-sm font-medium"
-                style={{ color: 'var(--text)' }}
-              >
+              <span style={{ fontSize: '11px', color: 'var(--faint)', display: 'block' }}>Location</span>
+              <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: '4px 0 0' }}>
                 {job.location || 'N/A'}
               </p>
             </div>
             <div>
-              <span
-                className="text-xs"
-                style={{ color: 'var(--faint)' }}
-              >
-                Modality
-              </span>
-              <p
-                className="text-sm font-medium"
-                style={{ color: 'var(--text)' }}
-              >
+              <span style={{ fontSize: '11px', color: 'var(--faint)', display: 'block' }}>Modality</span>
+              <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: '4px 0 0' }}>
                 {job.modality || 'Unknown'}
               </p>
             </div>
             <div>
-              <span
-                className="text-xs"
-                style={{ color: 'var(--faint)' }}
-              >
-                Salary
-              </span>
-              <p
-                className="text-sm font-medium"
-                style={{ color: 'var(--text)' }}
-              >
+              <span style={{ fontSize: '11px', color: 'var(--faint)', display: 'block' }}>Salary</span>
+              <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: '4px 0 0' }}>
                 {job.salary_min && job.salary_max
                   ? `$${job.salary_min.toLocaleString()}-${job.salary_max.toLocaleString()}`
                   : 'Not specified'}
@@ -573,27 +635,29 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
             </div>
             {job.fit_score !== undefined && (
               <div>
-                <span
-                  className="text-xs"
-                  style={{ color: 'var(--faint)' }}
-                >
-                  Fit Score
-                </span>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-8 h-8 rounded-full border-2 flex items-center justify-center"
-                    style={{
-                      borderColor: getScoreColor(job.fit_score),
-                      backgroundColor: 'var(--bg)',
-                    }}
-                  >
-                    <span
-                      className="text-xs font-bold"
-                      style={{ color: getScoreColor(job.fit_score) }}
-                    >
+                <span style={{ fontSize: '11px', color: 'var(--faint)', display: 'block' }}>Fit Score</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <svg width="32" height="32" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="26" fill="none" stroke="var(--track)" strokeWidth="6" />
+                    <circle
+                      cx="32"
+                      cy="32"
+                      r="26"
+                      fill="none"
+                      stroke={getScoreRingColor(Math.round(job.fit_score))}
+                      strokeWidth="6"
+                      strokeDasharray={163.36}
+                      strokeDashoffset={163.36 * (1 - job.fit_score / 100)}
+                      strokeLinecap="round"
+                      style={{
+                        transform: 'rotate(-90deg)',
+                        transformOrigin: '32px 32px',
+                      }}
+                    />
+                    <text x="32" y="36" textAnchor="middle" fontSize="14" fontWeight="700" fill={getScoreRingColor(Math.round(job.fit_score))} fontFamily="var(--font-body)">
                       {Math.round(job.fit_score)}
-                    </span>
-                  </div>
+                    </text>
+                  </svg>
                 </div>
               </div>
             )}
@@ -602,23 +666,16 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
 
         {/* Strengths & Gaps */}
         {(job.strengths || job.gaps) && (
-          <div className="mb-6 pb-6 border-b" style={{ borderColor: 'var(--border)' }}>
+          <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
             {job.strengths && job.strengths.length > 0 && (
-              <div className="mb-4">
-                <h3
-                  className="text-sm font-semibold mb-2"
-                  style={{ color: '#10b981' }}
-                >
+              <div style={{ marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 600, margin: '0 0 8px', color: 'var(--color-accent-2-800)' }}>
                   ✓ Strengths
                 </h3>
-                <ul className="space-y-1">
+                <ul style={{ margin: 0, paddingLeft: '16px' }}>
                   {job.strengths.map((strength, i) => (
-                    <li
-                      key={i}
-                      className="text-xs"
-                      style={{ color: 'var(--muted)' }}
-                    >
-                      • {strength}
+                    <li key={i} style={{ fontSize: '13px', color: 'var(--muted)', margin: '4px 0' }}>
+                      {strength}
                     </li>
                   ))}
                 </ul>
@@ -626,20 +683,13 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
             )}
             {job.gaps && job.gaps.length > 0 && (
               <div>
-                <h3
-                  className="text-sm font-semibold mb-2"
-                  style={{ color: '#ef4444' }}
-                >
+                <h3 style={{ fontSize: '14px', fontWeight: 600, margin: '0 0 8px', color: 'var(--color-accent-700)' }}>
                   ✗ Gaps
                 </h3>
-                <ul className="space-y-1">
+                <ul style={{ margin: 0, paddingLeft: '16px' }}>
                   {job.gaps.map((gap, i) => (
-                    <li
-                      key={i}
-                      className="text-xs"
-                      style={{ color: 'var(--muted)' }}
-                    >
-                      • {gap}
+                    <li key={i} style={{ fontSize: '13px', color: 'var(--muted)', margin: '4px 0' }}>
+                      {gap}
                     </li>
                   ))}
                 </ul>
@@ -650,21 +700,21 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
 
         {/* Skills */}
         {job.required_skills && job.required_skills.length > 0 && (
-          <div className="mb-6 pb-6 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h3
-              className="text-sm font-semibold mb-3"
-              style={{ color: 'var(--text)' }}
-            >
+          <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 600, margin: '0 0 12px', color: 'var(--text)' }}>
               Required Skills
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {job.required_skills.map((skill, i) => (
                 <span
                   key={i}
-                  className="text-xs px-3 py-1.5 rounded-full border"
                   style={{
-                    borderColor: 'var(--border)',
+                    fontSize: '11px',
+                    padding: '4px 12px',
+                    borderRadius: 'calc(16px * 0.75)',
+                    background: 'transparent',
                     color: 'var(--muted)',
+                    boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
                   }}
                 >
                   {skill}
@@ -676,16 +726,10 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
 
         {/* Description */}
         <div>
-          <h3
-            className="text-sm font-semibold mb-3"
-            style={{ color: 'var(--text)' }}
-          >
+          <h3 style={{ fontSize: '14px', fontWeight: 600, margin: '0 0 12px', color: 'var(--text)' }}>
             Description
           </h3>
-          <p
-            className="text-sm leading-relaxed whitespace-pre-wrap"
-            style={{ color: 'var(--muted)' }}
-          >
+          <p style={{ fontSize: '13px', lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--muted)', margin: 0 }}>
             {job.description_raw || 'No description available'}
           </p>
         </div>
