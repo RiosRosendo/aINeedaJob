@@ -6,6 +6,10 @@ import { GlobeMap } from '@/components/GlobeMap';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
 import { Job, UserProfile, DashboardStats } from '@/lib/types';
 
+const getScoreRingColor = (score: number): string => {
+  return score >= 70 ? '#7a8a5e' : '#c67139';
+};
+
 // CSS Keyframes - add to head
 const injectStyles = () => {
   if (typeof window === 'undefined') return;
@@ -450,9 +454,9 @@ export default function Dashboard() {
                     <div style={{ position: 'relative', width: '52px', height: '52px', flex: '0 0 52px' }}>
                       <svg width="52" height="52" viewBox="0 0 64 64" style={{ transform: 'rotate(-90deg)' }}>
                         <circle cx="32" cy="32" r="26" fill="none" stroke="var(--dtrack)" strokeWidth="5" />
-                        <circle cx="32" cy="32" r="26" fill="none" stroke="var(--color-accent)" strokeWidth="5" strokeLinecap="round" strokeDasharray={`${163.36 * ((job.fit_score || 75) / 100)} ${163.36}`} />
+                        <circle cx="32" cy="32" r="26" fill="none" stroke={getScoreRingColor(job.fit_score || 75)} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${163.36 * ((job.fit_score || 75) / 100)} ${163.36}`} />
                       </svg>
-                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: getScoreRingColor(job.fit_score || 75) }}>
                         {job.fit_score || 75}
                       </div>
                     </div>
