@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Check } from 'lucide-react';
 import { getApplications } from '@/lib/api';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
 
@@ -57,6 +58,10 @@ const getStatusLabel = (status: string): string => {
     default:
       return status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   }
+};
+
+const getScoreRingColor = (score: number): string => {
+  return score >= 70 ? '#7a8a5e' : '#c67139';
 };
 
 const getRelativeTime = (date: Date): string => {
@@ -467,7 +472,7 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
           'x-user-id': localStorage.getItem('user_id') || '',
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
         },
-        body: JSON.stringify({ status: 'applied' }),
+        body: JSON.stringify({ status: 'pending_application' }),
       });
       window.location.reload();
     } catch (e) {
@@ -576,6 +581,62 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
             </button>
           </div>
         )}
+
+        {/* Apply Buttons - Bottom Left */}
+        {shouldShowApplyButtons && (
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '6px', marginTop: '8.8px' }}>
+            <button
+              onClick={handleApplyNow}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                width: 'auto',
+                padding: '5px 16px',
+                borderRadius: '999px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--color-accent-700)',
+                fontFamily: 'var(--font-heading)',
+                fontSize: '11px',
+                fontWeight: 400,
+                cursor: 'pointer',
+                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                transition: 'all 0.25s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
+            >
+              Apply now
+            </button>
+            <button
+              onClick={handleMarkApplied}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                width: 'auto',
+                padding: '5px 16px',
+                borderRadius: '999px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--muted)',
+                fontFamily: 'var(--font-heading)',
+                fontSize: '11px',
+                fontWeight: 400,
+                cursor: 'pointer',
+                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                transition: 'all 0.25s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
+            >
+              Mark applied
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Right: Score ring + status label + actions */}
@@ -602,7 +663,7 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
             cy="32"
             r="26"
             fill="none"
-            stroke={statusInfo.ring}
+            stroke={getScoreRingColor(fitScore)}
             strokeWidth="6"
             strokeDasharray={163.36}
             strokeDashoffset={163.36 * (1 - fitScore / 100)}
@@ -620,7 +681,7 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
             textAnchor="middle"
             fontSize="16"
             fontWeight="700"
-            fill={statusInfo.ring}
+            fill={getScoreRingColor(fitScore)}
             fontFamily="var(--font-body)"
           >
             {fitScore}%
@@ -642,64 +703,10 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
           fontWeight: 400,
           boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
         }}>
+          {application.status === 'applied' && <Check size={12} style={{ marginRight: '2px' }} />}
           {statusLabel}
         </div>
 
-        {/* Action Buttons */}
-        {shouldShowApplyButtons && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
-            <button
-              onClick={handleApplyNow}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                width: '100%',
-                padding: '6px 8px',
-                borderRadius: '999px',
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--color-accent-700)',
-                fontFamily: 'var(--font-heading)',
-                fontSize: '11px',
-                fontWeight: 400,
-                cursor: 'pointer',
-                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
-                transition: 'all 0.25s',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
-              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
-            >
-              Apply now
-            </button>
-            <button
-              onClick={handleMarkApplied}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                width: '100%',
-                padding: '6px 8px',
-                borderRadius: '999px',
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--muted)',
-                fontFamily: 'var(--font-heading)',
-                fontSize: '11px',
-                fontWeight: 400,
-                cursor: 'pointer',
-                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
-                transition: 'all 0.25s',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
-              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
-            >
-              Mark applied
-            </button>
-          </div>
-        )}
 
       </div>
     </div>
