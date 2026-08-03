@@ -410,7 +410,7 @@ function ApprovalCard({
               {fitScore}
             </div>
           </div>
-          <span style={{ fontSize: '10.5px', color: 'var(--faint)' }}>Fit Score</span>
+          <span style={{ fontSize: '10.5px', color: 'var(--muted)' }}>Fit Score</span>
         </div>
 
         {/* Right: Action buttons */}
@@ -498,7 +498,7 @@ function ApprovalCard({
           margin: 0,
           fontSize: '12.5px',
           lineHeight: '1.6',
-          color: 'var(--faint)',
+          color: 'var(--muted)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           display: '-webkit-box',
