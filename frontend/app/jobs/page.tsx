@@ -411,8 +411,11 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
         <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', color: 'var(--text)', margin: '0 0 4.4px', fontWeight: 400 }}>
           {job.title}
         </h3>
-        <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 8.8px' }}>
-          {job.company}
+        <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 4.4px' }}>
+          {job.company} · {location}
+        </p>
+        <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 8.8px' }}>
+          Found {dateStr} · {job.status}
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
           <span style={{
@@ -434,26 +437,6 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
             boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
           }}>
             {location}
-          </span>
-          <span style={{
-            fontSize: '11px',
-            padding: '3px 10px',
-            borderRadius: 'calc(16px * 0.75)',
-            background: 'transparent',
-            color: 'var(--faint)',
-            boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
-          }}>
-            {job.status}
-          </span>
-          <span style={{
-            fontSize: '11px',
-            padding: '3px 10px',
-            borderRadius: 'calc(16px * 0.75)',
-            background: 'transparent',
-            color: 'var(--faint)',
-            boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
-          }}>
-            {dateStr}
           </span>
         </div>
       </div>
