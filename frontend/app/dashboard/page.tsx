@@ -477,7 +477,7 @@ export default function Dashboard() {
                           border: 'none',
                           background: 'var(--dbg)',
                           color: 'var(--dmuted)',
-                          font: '500 12.5px var(--font-body)',
+                          font: '700 12.5px var(--font-body)',
                           cursor: 'pointer',
                           boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
                         }}
@@ -629,7 +629,7 @@ export default function Dashboard() {
                       borderRadius: '999px',
                       border: 'none',
                       background: 'var(--dbg)',
-                      color: 'var(--color-accent-700)',
+                      color: '#c67139',
                       font: '700 13px var(--font-body)',
                       cursor: 'pointer',
                       boxShadow: 'inset 0 2px 5px rgba(32,30,29,.2)',
