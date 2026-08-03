@@ -306,7 +306,7 @@ export default function ApplicationsPage() {
 
         {/* Filter Row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '26.4px', gap: '16px' }}>
-          <label style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: 0 }}>
+          <label style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: 0, fontFamily: 'var(--font-body)' }}>
             Filter by Status
           </label>
           {ignoredCount > 0 && (
@@ -349,13 +349,13 @@ export default function ApplicationsPage() {
                 padding: '7px 12px',
                 borderRadius: '999px',
                 border: 'none',
-                background: 'transparent',
+                background: statusFilter === status ? 'var(--card)' : 'transparent',
                 color: statusFilter === status ? 'var(--color-accent-700)' : 'var(--muted)',
                 fontFamily: 'var(--font-heading)',
                 fontSize: '13px',
                 fontWeight: statusFilter === status ? 700 : 400,
                 cursor: 'pointer',
-                boxShadow: statusFilter === status ? 'inset 0 2px 5px rgba(32,30,29,.2)' : 'inset 0 1px 3px rgba(32,30,29,.15)',
+                boxShadow: statusFilter === status ? 'inset 0 2px 5px rgba(32,30,29,.15)' : 'none',
                 transition: 'all 0.25s',
               }}
             >
