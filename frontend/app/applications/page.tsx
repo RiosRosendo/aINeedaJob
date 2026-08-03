@@ -504,7 +504,7 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
     <div style={{
       display: 'flex',
       justifyContent: 'space-between',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       gap: '26.4px',
       padding: '17.6px',
       borderRadius: '20px',
@@ -643,11 +643,11 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
       </div>
 
       {/* Right: Score ring + status label + actions */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8.8px', width: '110px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8.8px', width: '110px', flexShrink: 0, alignSelf: 'center', marginTop: '8px' }}>
         {/* Progress Ring */}
         <svg
-          width="44"
-          height="44"
+          width="64"
+          height="64"
           viewBox="0 0 64 64"
           style={{ overflow: 'visible' }}
         >
@@ -690,27 +690,6 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
             {fitScore}
           </text>
         </svg>
-
-        {/* Status Label */}
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '6px',
-          padding: '3px 10px',
-          borderRadius: 'calc(16px * 0.75)',
-          background: 'var(--bg)',
-          color: statusInfo.text,
-          fontSize: '11px',
-          fontFamily: 'var(--font-heading)',
-          fontWeight: 400,
-          boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
-        }}>
-          {application.status === 'applied' && <Check size={12} style={{ marginRight: '2px' }} />}
-          {statusLabel}
-        </div>
-
-
       </div>
     </div>
   );

@@ -499,27 +499,10 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
                   transition: 'stroke-dashoffset 0.3s ease',
                 }}
               />
-              <text x="32" y="37" textAnchor="middle" fill={getScoreRingColor(fitScore)} style={{ fontSize: '18px', fontWeight: '700', fontFamily: 'var(--font-body)' }}>
+              <text x="32" y="37" textAnchor="middle" fill={getScoreRingColor(fitScore)} style={{ fontSize: '16px', fontWeight: '700', fontFamily: 'var(--font-body)' }}>
                 {fitScore}
               </text>
             </svg>
-
-            {/* Decision Label */}
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              padding: '3px 10px',
-              borderRadius: 'calc(16px * 0.75)',
-              background: 'var(--bg)',
-              color: getDecisionColor(fitScore),
-              fontSize: '13px',
-              fontFamily: 'var(--font-heading)',
-              boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
-            }}>
-              {getDecisionLabel(decision)}
-            </div>
           </>
         )}
       </div>
