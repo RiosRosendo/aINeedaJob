@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getApplications } from '@/lib/api';
+import { ScoutSidebar } from '@/components/ScoutSidebar';
 
 interface ApplicationData {
   id: string;
@@ -15,6 +16,7 @@ interface ApplicationData {
   updated_at: string;
   job_title?: string;
   job_company?: string;
+  job_location?: string;
   job_url?: string;
   application_method?: 'email' | 'form' | 'manual';
   application_notes?: string;
@@ -24,7 +26,54 @@ interface ApplicationData {
   gaps?: string[];
 }
 
+const getStatusColor = (status: string): { ring: string; text: string; isClosedOut: boolean } => {
+  switch (status) {
+    case 'pending_approval':
+    case 'pending_application':
+    case 'requires_manual':
+      return { ring: 'var(--color-accent-700)', text: 'var(--color-accent-700)', isClosedOut: false };
+    case 'applied':
+    case 'interview':
+    case 'offer':
+    case 'in_review':
+      return { ring: 'var(--color-accent-2-800)', text: 'var(--color-accent-2-800)', isClosedOut: false };
+    case 'rejected':
+    case 'ignored':
+    default:
+      return { ring: 'var(--muted)', text: 'var(--muted)', isClosedOut: status === 'rejected' || status === 'ignored' };
+  }
+};
+
+const getStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'pending_approval':
+      return 'Pending Review';
+    case 'pending_application':
+      return 'Pending Apply';
+    case 'requires_manual':
+      return 'Manual Apply';
+    case 'in_review':
+      return 'In Review';
+    default:
+      return status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
+};
+
+const getAllStatuses = (applications: ApplicationData[]) => {
+  const statuses = new Set<string>();
+  applications.forEach(app => {
+    if (app.status === 'pending_application' || app.status === 'requires_manual') {
+      statuses.add('pending_application');
+    } else {
+      statuses.add(app.status);
+    }
+  });
+  return Array.from(statuses).sort();
+};
+
 export default function ApplicationsPage() {
+  const [isDark, setIsDark] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [applications, setApplications] = useState<ApplicationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,20 +83,22 @@ export default function ApplicationsPage() {
   const [showIgnored, setShowIgnored] = useState(false);
 
   useEffect(() => {
+    const root = document.documentElement;
+    if (isDark) {
+      root.setAttribute('data-dark', '');
+    } else {
+      root.removeAttribute('data-dark');
+    }
+  }, [isDark]);
+
+  useEffect(() => {
     const loadApplications = async () => {
       try {
         setLoading(true);
         setError(null);
-
-        console.log('[APP AUTH] user_id from localStorage:', localStorage.getItem('user_id'));
-        console.log('[APP AUTH] token from localStorage:', localStorage.getItem('access_token') ? 'exists' : 'missing');
-
         const apps = await getApplications(1000);
-        console.log('[APP LOAD] Total from API:', apps.length);
-        console.log('[APP LOAD] First item:', apps[0]);
         setApplications(apps);
 
-        // Try to load last checked time from localStorage
         const cached = localStorage.getItem('emailCheckTime');
         if (cached) {
           setLastChecked(cached);
@@ -56,7 +107,6 @@ export default function ApplicationsPage() {
         console.error('Failed to load applications:', err);
         setError('Failed to load applications. Please try again.');
       } finally {
-        console.log('[APP LOAD] Finally block executing, setting loading to false');
         setLoading(false);
       }
     };
@@ -67,6 +117,7 @@ export default function ApplicationsPage() {
   const handleCheckEmails = async () => {
     try {
       setChecking(true);
+      setError(null);
       const response = await fetch('http://localhost:8001/api/gmail/check', {
         method: 'GET',
         headers: {
@@ -79,10 +130,6 @@ export default function ApplicationsPage() {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log('[EMAIL CHECK] Result:', data);
-
-      // Save last checked time
       const now = new Date().toLocaleTimeString('en-US', {
         month: 'short',
         day: 'numeric',
@@ -92,10 +139,7 @@ export default function ApplicationsPage() {
       setLastChecked(now);
       localStorage.setItem('emailCheckTime', now);
 
-      // Reload applications to reflect any status updates
       const apps = await getApplications(1000);
-      console.log('[EMAIL CHECK] Total from API:', apps.length);
-      console.log('[EMAIL CHECK] First item:', apps[0]);
       setApplications(apps);
 
     } catch (err) {
@@ -106,75 +150,20 @@ export default function ApplicationsPage() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'applied':
-        return '#3b82f6'; // blue
-      case 'interview':
-        return '#f59e0b'; // amber
-      case 'offer':
-        return '#10b981'; // green
-      case 'rejected':
-        return '#ef4444'; // red
-      case 'ignored':
-        return '#6b7280'; // gray
-      case 'pending_approval':
-        return '#f59e0b'; // amber
-      default:
-        return '#9ca3af'; // neutral gray
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'pending_approval':
-        return 'Pending Review';
-      case 'pending_application':
-        return 'Pending Apply';
-      case 'requires_manual':
-        return 'Manual Apply';
-      case 'in_review':
-        return 'In Review';
-      default:
-        return status.charAt(0).toUpperCase() + status.slice(1);
-    }
-  };
-
-  const extractCompanyFromUrl = (url?: string, company?: string): string => {
-    if (company && company !== 'Unknown Company') return company;
-    if (!url) return 'Unknown Company';
-
-    try {
-      const urlObj = new URL(url);
-      const domain = urlObj.hostname.replace('www.', '').split('.')[0];
-      return domain.charAt(0).toUpperCase() + domain.slice(1);
-    } catch {
-      return company || 'Unknown Company';
-    }
-  };
-
-  // Filter applications
   const filteredApplications = applications.filter(item => {
     const status = item?.status;
     const fitScore = item?.fit_score || 0;
 
-    // Hide ignored by default unless showIgnored is true
     if (!showIgnored && status === 'ignored') {
       return false;
     }
 
-    // Filter out low-relevance jobs (fit_score < 60)
-    // But always show applications that are pending or already applied
-    if (fitScore < 60 && !['ignored', 'pending_approval', 'pending_application', 'applied', 'interview', 'offer', 'rejected'].includes(status)) {
+    if (fitScore < 60 && !['ignored', 'pending_approval', 'pending_application', 'applied', 'interview', 'offer', 'rejected', 'requires_manual'].includes(status)) {
       return false;
     }
 
     if (statusFilter === 'all') return true;
 
-    // Map filter tabs to actual status values
-    if (statusFilter === 'pending_approval') {
-      return status === 'pending_approval';
-    }
     if (statusFilter === 'pending_application') {
       return status === 'pending_application' || status === 'requires_manual';
     }
@@ -182,147 +171,181 @@ export default function ApplicationsPage() {
     return status === statusFilter;
   });
 
-  console.log('[APP FILTER] Total before filter:', applications.length);
-  console.log('[APP FILTER] Total after filter:', filteredApplications.length);
-  console.log('[APP FILTER] First item status:', applications[0]?.status);
-  console.log('[APP FILTER] First item fit_score:', applications[0]?.fit_score);
-  console.log('[APP FILTER] First item full object:', applications[0]);
+  const ignoredCount = applications.filter(item => item?.status === 'ignored').length;
+  const allStatuses = ['all', ...getAllStatuses(applications)];
 
-  const statuses = ['all', 'pending_approval', 'pending_application', 'applied', 'interview', 'offer', 'rejected'];
-  const ignoredCount = applications.filter(item => (item?.application?.status || item?.status) === 'ignored').length;
+  const getStatusCount = (status: string): number => {
+    if (status === 'all') return filteredApplications.length;
+
+    return filteredApplications.filter(app => {
+      if (status === 'pending_application') {
+        return app.status === 'pending_application' || app.status === 'requires_manual';
+      }
+      return app.status === status;
+    }).length;
+  };
 
   return (
-    <div>
-      <div className="mb-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold mb-2" style={{ color: 'var(--text)' }}>
-              Applications
-            </h1>
-            <p style={{ color: 'var(--muted)' }}>
-              {filteredApplications.length} of {applications.length} applications
-            </p>
-            {lastChecked && (
-              <p
-                className="text-xs mt-2"
-                style={{ color: 'var(--faint)' }}
-              >
-                Last email check: {lastChecked}
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+      <ScoutSidebar isDark={isDark} setIsDark={setIsDark} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+
+      <main style={{ flex: 1, maxWidth: '980px', margin: '0 auto', width: '100%', padding: '44px 50px 70px', boxSizing: 'border-box' }}>
+        {/* Header */}
+        <div style={{ marginBottom: '44px' }}>
+          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '34px', fontWeight: 400, color: 'var(--text)', margin: '0 0 8px', letterSpacing: '-0.015em' }}>
+            Where things stand
+          </h1>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+            <div>
+              <p style={{ fontSize: '14px', color: 'var(--muted)', margin: '0 0 4px' }}>
+                {filteredApplications.length} of {applications.length} applications
               </p>
-            )}
+              {lastChecked && (
+                <p style={{ fontSize: '12px', color: 'var(--faint)', margin: 0 }}>
+                  Last email check: {lastChecked}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handleCheckEmails}
+              disabled={checking}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '8.8px calc(13.2px * 1.2)',
+                borderRadius: '999px',
+                border: 'none',
+                background: checking ? 'transparent' : 'transparent',
+                color: checking ? 'var(--muted)' : 'var(--color-accent-700)',
+                fontFamily: 'var(--font-heading)',
+                fontSize: '14px',
+                fontWeight: 400,
+                cursor: checking ? 'not-allowed' : 'pointer',
+                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                transition: 'all 0.25s',
+              }}
+              onMouseEnter={(e) => !checking && (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+              onMouseLeave={(e) => !checking && (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
+            >
+              {checking ? 'Checking…' : 'Check emails'}
+            </button>
           </div>
-          <button
-            onClick={handleCheckEmails}
-            disabled={checking}
-            className="px-4 py-2 rounded-lg font-medium text-sm transition-all"
-            style={{
-              backgroundColor: checking ? 'var(--border)' : 'var(--primary-bg)',
-              color: checking ? 'var(--muted)' : 'var(--primary-text)',
-              cursor: checking ? 'not-allowed' : 'pointer',
-              opacity: checking ? 0.6 : 1,
-            }}
-          >
-            {checking ? 'Checking...' : 'Check Emails'}
-          </button>
         </div>
-      </div>
 
-      {error && (
-        <div
-          className="mb-6 p-4 border rounded-lg"
-          style={{
-            borderColor: 'var(--border)',
-            backgroundColor: '#fee',
-            color: '#c00',
-          }}
-        >
-          {error}
-        </div>
-      )}
+        {/* Error Banner */}
+        {error && (
+          <div style={{
+            padding: '13.2px 17.6px',
+            borderRadius: '20px',
+            background: 'transparent',
+            color: 'var(--color-accent-700)',
+            fontSize: '13px',
+            marginBottom: '26.4px',
+            boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)',
+          }}>
+            {error}
+          </div>
+        )}
 
-      {/* Status Filter */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <label
-            className="text-xs font-semibold uppercase"
-            style={{ color: 'var(--faint)' }}
-          >
+        {/* Filter Row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '26.4px', gap: '16px' }}>
+          <label style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)', margin: 0 }}>
             Filter by Status
           </label>
           {ignoredCount > 0 && (
             <button
               onClick={() => setShowIgnored(!showIgnored)}
-              className="text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all"
               style={{
-                backgroundColor: showIgnored ? 'var(--primary-bg)' : 'var(--card)',
-                color: showIgnored ? 'var(--primary-text)' : 'var(--muted)',
-                borderColor: 'var(--border)',
-                border: '1px solid',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '8.8px calc(13.2px * 1.2)',
+                borderRadius: '999px',
+                border: 'none',
+                background: showIgnored ? 'var(--color-accent-700)' : 'transparent',
+                color: showIgnored ? '#f0e4cf' : 'var(--muted)',
+                fontFamily: 'var(--font-heading)',
+                fontSize: '14px',
+                fontWeight: 400,
+                cursor: 'pointer',
+                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                transition: 'all 0.25s',
               }}
             >
               {showIgnored ? `Hide ignored (${ignoredCount})` : `Show ignored (${ignoredCount})`}
             </button>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {statuses.map(status => (
+
+        {/* Status Tabs */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8.8px', marginBottom: '35.2px' }}>
+          {allStatuses.map(status => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className="px-3 py-2 rounded-lg text-xs font-medium transition-all"
               style={{
-                backgroundColor:
-                  statusFilter === status ? 'var(--primary-bg)' : 'var(--card)',
-                color:
-                  statusFilter === status ? 'var(--primary-text)' : 'var(--muted)',
-                borderColor: 'var(--border)',
-                border: '1px solid',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '7px 12px',
+                borderRadius: '999px',
+                border: 'none',
+                background: 'transparent',
+                color: statusFilter === status ? 'var(--color-accent-700)' : 'var(--muted)',
+                fontFamily: 'var(--font-heading)',
+                fontSize: '13px',
+                fontWeight: statusFilter === status ? 700 : 400,
+                cursor: 'pointer',
+                boxShadow: statusFilter === status ? 'inset 0 2px 5px rgba(32,30,29,.2)' : 'inset 0 1px 3px rgba(32,30,29,.15)',
+                transition: 'all 0.25s',
               }}
             >
-              {getStatusLabel(status)}
+              {status === 'all' ? 'All' : getStatusLabel(status)} · {getStatusCount(status)}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Applications List */}
-      {loading ? (
-        <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '40px' }}>
-          Loading applications...
-        </div>
-      ) : filteredApplications.length === 0 ? (
-        <div
-          style={{
-            padding: '40px 20px',
-            textAlign: 'center',
-            borderRadius: '12px',
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
-            color: 'var(--muted)',
-          }}
-        >
-          <p className="text-lg">No applications found</p>
-          <p className="text-sm mt-2">Try adjusting your filters</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {console.log('[APP RENDER] Rendering', filteredApplications.length, 'applications')}
-          {filteredApplications.map((app, index) => {
-            try {
-              return (
-                <ApplicationRow
-                  key={app.id}
-                  application={app}
-                  delay={index * 0.02}
-                />
-              );
-            } catch (e) {
-              console.error('[APP ROW] Error rendering app:', app.id, e);
-              return <div key={app.id}>Error: {app.job_title}</div>;
-            }
-          })}
-        </div>
-      )}
+        {/* Empty State */}
+        {!loading && filteredApplications.length === 0 && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '70px 50px',
+            borderRadius: '20px',
+            background: 'transparent',
+            boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)',
+          }}>
+            <p style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', color: 'var(--text)', margin: '0 0 8.8px' }}>
+              No applications found
+            </p>
+            <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>
+              Try adjusting your filters
+            </p>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
+            Loading applications...
+          </div>
+        )}
+
+        {/* Applications List */}
+        {!loading && filteredApplications.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '13.2px' }}>
+            {filteredApplications.map((app, index) => (
+              <ApplicationRow key={app.id} application={app} delay={index * 0.04} />
+            ))}
+          </div>
+        )}
+      </main>
     </div>
   );
 }
@@ -333,21 +356,17 @@ interface ApplicationRowProps {
 }
 
 function ApplicationRow({ application, delay }: ApplicationRowProps) {
-  console.log('[APP ROW] Rendering:', application.job_title);
-
-  // Filter out poorly extracted titles
   const isValidTitle = (title?: string) => {
     if (!title) return false;
     const lower = title.toLowerCase();
-    if (title.length > 120) return false; // Too long - likely bad extraction
+    if (title.length > 120) return false;
     if (lower.includes('extract') || lower.includes('not specified') || lower.includes('job title')) return false;
-    if (lower.includes('please') || lower.includes('update')) return false; // Common extraction errors
+    if (lower.includes('please') || lower.includes('update')) return false;
     return true;
   };
 
   const displayTitle = isValidTitle(application.job_title) ? application.job_title : 'Unknown Position';
 
-  // Format date
   const formatDate = (dateString?: string) => {
     if (!dateString) return null;
     try {
@@ -359,10 +378,14 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
   };
 
   const dateStr = formatDate(application.created_at || application.applied_at);
+  const fitScore = application.fit_score || 0;
+  const statusInfo = getStatusColor(application.status);
+  const statusLabel = getStatusLabel(application.status);
 
-  // Handle action buttons
+  const shouldShowApplyButtons = application.status === 'pending_application' || application.status === 'requires_manual';
+  const shouldShowApprovalButtons = application.status === 'pending_approval';
+
   const handleApplyNow = () => {
-    console.log('[APPLY NOW] job_url:', application.job_url);
     if (application.job_url) {
       window.open(application.job_url, '_blank');
     }
@@ -386,75 +409,247 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
   };
 
   const handleApprove = async () => {
-    // TODO: Call API to approve
-    console.log('[APP ROW] Approve:', application.id);
+    try {
+      await fetch(`http://localhost:8001/api/applications/${application.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': localStorage.getItem('user_id') || '',
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+        },
+        body: JSON.stringify({ status: 'applied' }),
+      });
+      window.location.reload();
+    } catch (e) {
+      console.error('Failed to approve:', e);
+    }
   };
 
   const handleDismiss = async () => {
-    // TODO: Call API to dismiss
-    console.log('[APP ROW] Dismiss:', application.id);
+    try {
+      await fetch(`http://localhost:8001/api/applications/${application.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': localStorage.getItem('user_id') || '',
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+        },
+        body: JSON.stringify({ status: 'ignored' }),
+      });
+      window.location.reload();
+    } catch (e) {
+      console.error('Failed to dismiss:', e);
+    }
   };
 
   return (
-    <div className="rounded-lg p-4 mb-3 border border-gray-700 bg-gray-800 hover:bg-gray-750 transition-all">
-      <div className="flex justify-between items-start gap-4">
-        <div className="flex-1">
-          <h3 className="font-bold text-white text-lg">{displayTitle}</h3>
-          <p className="text-gray-400 text-sm">{application.job_company}</p>
-          <p className="text-gray-500 text-xs mt-1">{application.job_location}</p>
-          {dateStr && <p className="text-gray-600 text-xs mt-1">Found {dateStr}</p>}
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <span className="text-blue-400 font-bold text-xl">{application.fit_score}%</span>
-          <span className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300">
-            {application.status?.replace(/_/g, ' ')}
-          </span>
-        </div>
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: '26.4px',
+      padding: '17.6px',
+      borderRadius: '20px',
+      background: 'transparent',
+      boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)',
+      opacity: statusInfo.isClosedOut ? 0.65 : 1,
+      transition: 'opacity 0.3s',
+      animation: `ainFadeUp 0.5s ease-out forwards`,
+      animationDelay: `${Math.min(delay, 0.4)}s`,
+    }}>
+      {/* Left: Role info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', color: 'var(--text)', margin: '0 0 4.4px', fontWeight: 400 }}>
+          {displayTitle}
+        </h3>
+        <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 4.4px' }}>
+          {application.job_company || 'Unknown'} {application.job_location ? `· ${application.job_location}` : ''}
+        </p>
+        {dateStr && (
+          <p style={{ fontSize: '11px', color: 'var(--faint)', margin: 0 }}>
+            Found {dateStr}
+          </p>
+        )}
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-2 mt-3">
-        {(application.status === 'pending_application' || application.status === 'requires_manual') && (
-          <>
+      {/* Right: Score ring + status label + actions */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8.8px', width: '110px', flexShrink: 0 }}>
+        {/* Progress Ring */}
+        <svg
+          width="44"
+          height="44"
+          viewBox="0 0 64 64"
+          style={{ overflow: 'visible' }}
+        >
+          {/* Track */}
+          <circle
+            cx="32"
+            cy="32"
+            r="26"
+            fill="none"
+            stroke="var(--track)"
+            strokeWidth="6"
+          />
+          {/* Progress */}
+          <circle
+            cx="32"
+            cy="32"
+            r="26"
+            fill="none"
+            stroke={statusInfo.ring}
+            strokeWidth="6"
+            strokeDasharray={163.36}
+            strokeDashoffset={163.36 * (1 - fitScore / 100)}
+            strokeLinecap="round"
+            style={{
+              transform: 'rotate(-90deg)',
+              transformOrigin: '32px 32px',
+              transition: 'stroke-dashoffset 0.3s ease',
+            }}
+          />
+          {/* Score text */}
+          <text
+            x="32"
+            y="36"
+            textAnchor="middle"
+            fontSize="16"
+            fontWeight="700"
+            fill={statusInfo.ring}
+            fontFamily="var(--font-body)"
+          >
+            {fitScore}%
+          </text>
+        </svg>
+
+        {/* Status Label */}
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          padding: '3px 10px',
+          borderRadius: 'calc(16px * 0.75)',
+          background: 'transparent',
+          color: statusInfo.text,
+          fontSize: '11px',
+          fontFamily: 'var(--font-heading)',
+          fontWeight: 400,
+          boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+        }}>
+          {statusLabel}
+        </div>
+
+        {/* Action Buttons */}
+        {shouldShowApplyButtons && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
             <button
               onClick={handleApplyNow}
-              className="px-3 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                width: '100%',
+                padding: '6px 8px',
+                borderRadius: '999px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--color-accent-700)',
+                fontFamily: 'var(--font-heading)',
+                fontSize: '11px',
+                fontWeight: 400,
+                cursor: 'pointer',
+                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                transition: 'all 0.25s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
             >
-              Apply Now
+              Apply now
             </button>
             <button
               onClick={handleMarkApplied}
-              className="px-3 py-1 text-xs rounded border border-gray-600 text-gray-300 hover:bg-gray-700"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                width: '100%',
+                padding: '6px 8px',
+                borderRadius: '999px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--muted)',
+                fontFamily: 'var(--font-heading)',
+                fontSize: '11px',
+                fontWeight: 400,
+                cursor: 'pointer',
+                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                transition: 'all 0.25s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
             >
-              Mark Applied
+              Mark applied
             </button>
-          </>
+          </div>
         )}
 
-        {application.status === 'pending_approval' && (
-          <>
+        {shouldShowApprovalButtons && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
             <button
               onClick={handleApprove}
-              className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                width: '100%',
+                padding: '6px 8px',
+                borderRadius: '999px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--color-accent-2-800)',
+                fontFamily: 'var(--font-heading)',
+                fontSize: '11px',
+                fontWeight: 400,
+                cursor: 'pointer',
+                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                transition: 'all 0.25s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
             >
               Approve
             </button>
             <button
               onClick={handleDismiss}
-              className="px-3 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                width: '100%',
+                padding: '6px 8px',
+                borderRadius: '999px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--muted)',
+                fontFamily: 'var(--font-heading)',
+                fontSize: '11px',
+                fontWeight: 400,
+                cursor: 'pointer',
+                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                transition: 'all 0.25s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
             >
               Dismiss
             </button>
-          </>
-        )}
-
-        {application.status === 'applied' && (
-          <span className="px-3 py-1 text-xs rounded-full bg-green-900 text-green-300">
-            Applied ✓
-          </span>
+          </div>
         )}
       </div>
-
     </div>
   );
 }

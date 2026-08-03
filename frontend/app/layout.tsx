@@ -10,9 +10,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const showSidebar = !pathname.startsWith('/dashboard') && !pathname.startsWith('/profile');
+  const showSidebar = !pathname.startsWith('/dashboard') && !pathname.startsWith('/profile') && !pathname.startsWith('/applications');
   const isDashboard = pathname.startsWith('/dashboard');
   const isProfile = pathname.startsWith('/profile');
+  const isApplications = pathname.startsWith('/applications');
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -31,7 +32,7 @@ export default function RootLayout({
             className="flex-1 overflow-y-auto"
             style={{ backgroundColor: 'var(--bg)' }}
           >
-            {isDashboard || isProfile ? children : (
+            {isDashboard || isProfile || isApplications ? children : (
               <div className="max-w-5xl mx-auto px-12 py-10 pb-16">
                 {children}
               </div>
