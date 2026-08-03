@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { getApplications, getJob, approveApplication, dismissApplication, getTailoredCV, getCVProfile, autoApplyForJob } from '@/lib/api';
 import { Application, Job } from '@/lib/types';
 import { generateCVHTML, downloadCVAsHTML } from '@/lib/cvGenerator';
-import { X, ExternalLink } from 'lucide-react';
+import { ScoutSidebar } from '@/components/ScoutSidebar';
+import { X } from 'lucide-react';
 
 interface PendingJob {
   application: Application;
@@ -19,6 +20,8 @@ interface TailoredCV {
 }
 
 export default function ApprovalsPage() {
+  const [isDark, setIsDark] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,12 +31,21 @@ export default function ApprovalsPage() {
     tailored: TailoredCV;
   } | null>(null);
 
+  useEffect(() => {
+    const isDarkMode = document.documentElement.getAttribute('data-dark') === 'true';
+    setIsDark(isDarkMode);
+    const handleThemeChange = () => {
+      setIsDark(document.documentElement.getAttribute('data-dark') === 'true');
+    };
+    window.addEventListener('storage', handleThemeChange);
+    return () => window.removeEventListener('storage', handleThemeChange);
+  }, []);
+
   const loadPendingJobs = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Load user profile to get priority country
       const profileResponse = await fetch('http://localhost:8001/api/users/profile', {
         headers: {
           'x-user-id': localStorage.getItem('user_id') || '',
@@ -54,7 +66,6 @@ export default function ApprovalsPage() {
           const jobData = await getJob(app.job_id);
           const job = jobData.job || jobData;
 
-          // Filter: only show jobs with fit_score >= 60
           const fitScore = (app as any).fit_score || job.fit_score || 0;
           if (fitScore >= 60) {
             jobsData.push({
@@ -67,20 +78,15 @@ export default function ApprovalsPage() {
         }
       }
 
-      // Deduplicate by job title + description hash (handles duplicate job listings)
       const deduplicatedJobs = deduplicateByJobContent(jobsData);
 
-      // Sort by priority country first, then by fit_score descending
       deduplicatedJobs.sort((a, b) => {
-        // Check if jobs are from priority country
         const aInPriorityCountry = priorityCountry && (a.job?.location || '').includes(priorityCountry);
         const bInPriorityCountry = priorityCountry && (b.job?.location || '').includes(priorityCountry);
 
-        // If only one is from priority country, put it first
         if (aInPriorityCountry && !bInPriorityCountry) return -1;
         if (!aInPriorityCountry && bInPriorityCountry) return 1;
 
-        // Otherwise sort by fit_score descending (highest score first)
         return ((b.application as any).fit_score || 0) - ((a.application as any).fit_score || 0);
       });
 
@@ -93,7 +99,6 @@ export default function ApprovalsPage() {
     }
   };
 
-  // Deduplicate jobs by title + first 100 chars of description
   const deduplicateByJobContent = (jobs: PendingJob[]): PendingJob[] => {
     const seen = new Set<string>();
     const deduped: PendingJob[] = [];
@@ -102,8 +107,6 @@ export default function ApprovalsPage() {
       const title = item.job?.title || '';
       const desc = item.job?.description_raw || '';
       const descPreview = desc.substring(0, 100);
-
-      // Create a simple hash-like key from title + description
       const key = title + '|' + descPreview;
 
       if (!seen.has(key)) {
@@ -117,22 +120,19 @@ export default function ApprovalsPage() {
 
   useEffect(() => {
     loadPendingJobs();
-  }, []);
+  }, [priorityCountry]);
 
   const handleApprove = async (applicationId: string, jobId: string, job: Job) => {
     try {
       await approveApplication(applicationId);
 
-      // Fetch tailored CV after approval
       try {
         const tailored = await getTailoredCV(jobId);
         setTailoringModalData({ job, tailored });
       } catch (err) {
         console.warn('Could not fetch tailored CV:', err);
-        // Continue even if tailoring fails - approval was still successful
       }
 
-      // Reload the pending jobs list
       await loadPendingJobs();
     } catch (err) {
       console.error('Failed to approve application:', err);
@@ -151,66 +151,95 @@ export default function ApprovalsPage() {
   };
 
   return (
-    <div>
-      <h1 className="text-3xl font-semibold mb-2" style={{ color: 'var(--text)' }}>
-        Pending Approvals
-      </h1>
-      <p className="mb-8" style={{ color: 'var(--muted)' }}>
-        Jobs that need your approval (fit score 60-84)
-      </p>
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
+      <ScoutSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
-      {error && (
-        <div
-          className="mb-6 p-4 border rounded-lg"
-          style={{
-            borderColor: 'var(--border)',
-            backgroundColor: '#fee',
-            color: '#c00',
-          }}
-        >
-          {error}
-        </div>
-      )}
+      <main style={{ flex: 1, maxWidth: '900px', margin: '0 auto', padding: '44px 50px 70px', width: '100%' }}>
+        <h1 style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: '34px',
+          fontWeight: 400,
+          margin: '0 0 8px',
+          color: 'var(--text)',
+        }}>
+          Roles waiting on your yes
+        </h1>
+        <p style={{
+          margin: '0 0 26px',
+          fontSize: '14px',
+          color: 'var(--muted)',
+        }}>
+          Jobs that need your approval (fit score 60-84) · {pendingJobs.length} pending
+        </p>
 
-      {loading ? (
-        <div style={{ color: 'var(--muted)' }}>Loading...</div>
-      ) : pendingJobs.length === 0 ? (
-        <div
-          style={{
+        {error && (
+          <div style={{
+            margin: '0 0 20px',
+            padding: '14px 18px',
+            borderRadius: '16px',
+            backgroundColor: 'var(--card)',
+            color: 'var(--color-accent-700)',
+            fontSize: '13px',
+            boxShadow: 'inset 0 2px 6px rgba(32,30,29,.15)',
+          }}>
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{
             padding: '40px 20px',
             textAlign: 'center',
-            borderRadius: '12px',
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
             color: 'var(--muted)',
-          }}
-        >
-          <p className="text-lg">No pending approvals</p>
-          <p className="text-sm mt-2">All your job reviews are up to date!</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {pendingJobs.map((item, index) => (
-            <ApprovalCard
-              key={item.application.id}
-              application={item.application}
-              job={item.job}
-              onApprove={handleApprove}
-              onDismiss={handleDismiss}
-              delay={index * 0.08}
-            />
-          ))}
-        </div>
-      )}
+          }}>
+            Loading...
+          </div>
+        ) : pendingJobs.length === 0 ? (
+          <div style={{
+            borderRadius: '22px',
+            backgroundColor: 'var(--card)',
+            padding: '50px 20px',
+            textAlign: 'center',
+            boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16)',
+          }}>
+            <p style={{
+              margin: '0 0 6px',
+              fontSize: '16px',
+              color: 'var(--text)',
+            }}>
+              No pending approvals
+            </p>
+            <p style={{
+              margin: 0,
+              fontSize: '13px',
+              color: 'var(--muted)',
+            }}>
+              All your job reviews are up to date!
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {pendingJobs.map((item, index) => (
+              <ApprovalCard
+                key={item.application.id}
+                application={item.application}
+                job={item.job}
+                onApprove={handleApprove}
+                onDismiss={handleDismiss}
+                delay={index * 0.08}
+              />
+            ))}
+          </div>
+        )}
 
-      {/* CV Tailoring Modal */}
-      {tailoringModalData && (
-        <TailoringModal
-          job={tailoringModalData.job}
-          tailored={tailoringModalData.tailored}
-          onClose={() => setTailoringModalData(null)}
-        />
-      )}
+        {tailoringModalData && (
+          <TailoringModal
+            job={tailoringModalData.job}
+            tailored={tailoringModalData.tailored}
+            onClose={() => setTailoringModalData(null)}
+          />
+        )}
+      </main>
     </div>
   );
 }
@@ -261,20 +290,7 @@ function ApprovalCard({
     try {
       const response = await autoApplyForJob(application.id);
 
-      // Debug logging to understand response structure
-      console.log('[AUTO-APPLY] Raw response type:', typeof response);
-      console.log('[AUTO-APPLY] Response keys:', Object.keys(response || {}));
-      console.log('[AUTO-APPLY] response.result:', response?.result);
-      console.log('[AUTO-APPLY] response.data:', response?.data);
-      console.log('[AUTO-APPLY] Full response:', JSON.stringify(response));
-
-      // autoApplyForJob() returns response.data directly, so response.result is the nested result
       if (response && response.result) {
-        console.log('[AUTO-APPLY] what_i_tried:', response.result.what_i_tried);
-        console.log('[AUTO-APPLY] why_i_need_help:', response.result.why_i_need_help);
-        console.log('[AUTO-APPLY] status:', response.result.status);
-        console.log('[AUTO-APPLY] method:', response.result.method);
-
         setAutoApplyResult({
           status: response.result.status,
           method: response.result.method,
@@ -283,14 +299,8 @@ function ApprovalCard({
           why_i_need_help: response.result.why_i_need_help,
           error: response.result.error
         });
-        console.log('[AUTO_APPLY] Successfully set autoApplyResult:', {
-          status: response.result.status,
-          method: response.result.method,
-          what_i_tried: response.result.what_i_tried,
-          why_i_need_help: response.result.why_i_need_help
-        });
       } else {
-        console.error('[AUTO_APPLY] Invalid response structure - no result field', response);
+        console.error('[AUTO_APPLY] Invalid response structure', response);
         setAutoApplyError('Invalid response from server');
       }
     } catch (err) {
@@ -302,271 +312,315 @@ function ApprovalCard({
   };
 
   const fitScore = application.fit_score !== undefined ? Math.round(application.fit_score) : (job.fit_score !== undefined ? Math.round(job.fit_score) : 0);
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return '#10b981'; // green
-    if (score >= 70) return '#f59e0b'; // amber
-    if (score >= 60) return '#ef4444'; // red
-    return '#6b7280'; // gray
-  };
-
+  const getScoreRingColor = (score: number) => score >= 70 ? '#7a8a5e' : '#c67139';
   const location = job.location ? job.location.split(',')[0] : 'Location N/A';
+  const isBusy = isApproving || isDismissing || isAutoApplying;
 
   return (
-    <div
-      className="border rounded-2xl p-6 animate-fade-up hover:shadow-lg transition-all"
-      style={{
-        borderColor: 'var(--border)',
-        backgroundColor: 'var(--card)',
-        animationDelay: `${delay}s`,
-      }}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start mb-4">
-        {/* Job Info */}
-        <div className="md:col-span-2">
-          <h3
-            className="text-lg font-semibold mb-1"
-            style={{
-              color: 'var(--text)',
-              letterSpacing: '-0.02em',
-            }}
-          >
+    <div style={{
+      borderRadius: '24px',
+      backgroundColor: 'var(--card)',
+      padding: '26px',
+      boxShadow: 'inset 0 4px 12px rgba(32,30,29,.18), inset 0 -1px 0 rgba(255,255,255,.4)',
+      animation: `ainFadeUp 0.55s cubic-bezier(.2,.8,.2,1) ${delay}s backwards`,
+    }}>
+      {/* 3-column grid layout */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '2fr auto auto',
+        gap: '20px',
+        alignItems: 'flex-start',
+        marginBottom: '16px',
+      }}>
+        {/* Left: Job info */}
+        <div>
+          <div style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: '19px',
+            color: 'var(--text)',
+            marginBottom: '4px',
+          }}>
             {job.title}
-          </h3>
-          <p
-            className="text-sm mb-3"
-            style={{ color: 'var(--muted)' }}
-          >
+          </div>
+          <div style={{
+            fontSize: '13px',
+            color: 'var(--muted)',
+            marginBottom: '12px',
+          }}>
             {job.company}
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <span
-              className="text-xs px-2 py-1 border rounded-full"
-              style={{
-                borderColor: 'var(--border)',
-                color: 'var(--muted)',
-              }}
-            >
+          </div>
+
+          {/* Chips */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            <span style={{
+              fontSize: '11px',
+              padding: '4px 12px',
+              borderRadius: '999px',
+              color: 'var(--muted)',
+              boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+            }}>
               {job.modality || 'unknown'}
             </span>
-            <span
-              className="text-xs px-2 py-1 border rounded-full"
-              style={{
-                borderColor: 'var(--border)',
-                color: 'var(--muted)',
-              }}
-            >
+            <span style={{
+              fontSize: '11px',
+              padding: '4px 12px',
+              borderRadius: '999px',
+              color: 'var(--muted)',
+              boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+            }}>
               {location}
             </span>
             <EligibilityBadge job={job} />
           </div>
         </div>
 
-        {/* Fit Score */}
-        <div className="flex flex-col items-center justify-center">
-          <div
-            className="relative w-16 h-16 flex items-center justify-center"
-            style={{
-              borderRadius: '50%',
-              border: `4px solid ${getScoreColor(fitScore)}`,
-              backgroundColor: 'var(--bg)',
-            }}
-          >
-            <div
-              style={{
-                fontSize: '20px',
-                fontWeight: 'bold',
-                color: getScoreColor(fitScore),
-              }}
-            >
+        {/* Center: Score ring */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '6px',
+        }}>
+          <div style={{ position: 'relative', width: '58px', height: '58px' }}>
+            <svg width="58" height="58" viewBox="0 0 64 64" style={{ transform: 'rotate(-90deg)' }}>
+              <circle cx="32" cy="32" r="26" fill="none" stroke="var(--track)" strokeWidth="5" />
+              <circle
+                cx="32"
+                cy="32"
+                r="26"
+                fill="none"
+                stroke={getScoreRingColor(fitScore)}
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeDasharray={163.36}
+                strokeDashoffset={163.36 * (1 - fitScore / 100)}
+              />
+            </svg>
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px',
+              fontWeight: 700,
+              fontFamily: 'var(--font-body)',
+              color: 'var(--text)',
+            }}>
               {fitScore}
             </div>
           </div>
-          <p
-            className="text-xs mt-2 text-center"
-            style={{ color: 'var(--faint)' }}
-          >
-            Fit Score
-          </p>
+          <span style={{ fontSize: '10.5px', color: 'var(--faint)' }}>Fit Score</span>
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-col gap-2">
+        {/* Right: Action buttons */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          minWidth: '130px',
+        }}>
           <button
             onClick={handleApproveClick}
-            disabled={isApproving || isDismissing || isAutoApplying}
-            className="px-4 py-2 rounded-lg font-medium text-sm transition-all"
+            disabled={isBusy}
             style={{
-              backgroundColor: '#10b981',
-              color: 'white',
-              opacity: isApproving || isDismissing || isAutoApplying ? 0.6 : 1,
-              cursor: isApproving || isDismissing || isAutoApplying ? 'not-allowed' : 'pointer',
+              padding: '9px 0',
+              borderRadius: '999px',
+              border: 'none',
+              fontFamily: 'var(--font-body)',
+              fontSize: '12.5px',
+              fontWeight: 700,
+              background: 'var(--bg)',
+              color: '#7a8a5e',
+              boxShadow: 'inset 0 2px 5px rgba(32,30,29,.2)',
+              cursor: isBusy ? 'not-allowed' : 'pointer',
+              opacity: isBusy ? 0.6 : 1,
+              transition: 'all 0.25s',
             }}
+            onMouseEnter={(e) => !isBusy && (e.currentTarget.style.boxShadow = 'inset 0 3px 7px rgba(32,30,29,.25)')}
+            onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
           >
-            {isApproving ? 'Approving...' : 'Approve'}
+            {isApproving ? 'Approving…' : 'Approve'}
           </button>
           <button
             onClick={handleAutoApplyClick}
-            disabled={isApproving || isDismissing || isAutoApplying}
-            className="px-4 py-2 rounded-lg font-medium text-sm transition-all"
+            disabled={isBusy}
             style={{
-              backgroundColor: '#3b82f6',
-              color: 'white',
-              opacity: isApproving || isDismissing || isAutoApplying ? 0.6 : 1,
-              cursor: isApproving || isDismissing || isAutoApplying ? 'not-allowed' : 'pointer',
+              padding: '9px 0',
+              borderRadius: '999px',
+              border: 'none',
+              fontFamily: 'var(--font-body)',
+              fontSize: '12.5px',
+              fontWeight: 700,
+              background: 'var(--bg)',
+              color: '#c67139',
+              boxShadow: 'inset 0 2px 5px rgba(32,30,29,.2)',
+              cursor: isBusy ? 'not-allowed' : 'pointer',
+              opacity: isBusy ? 0.6 : 1,
+              transition: 'all 0.25s',
             }}
+            onMouseEnter={(e) => !isBusy && (e.currentTarget.style.boxShadow = 'inset 0 3px 7px rgba(32,30,29,.25)')}
+            onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
           >
-            {isAutoApplying ? 'Applying...' : 'Auto-Apply'}
+            {isAutoApplying ? 'Applying…' : 'Auto-Apply'}
           </button>
           <button
             onClick={handleDismissClick}
-            disabled={isApproving || isDismissing || isAutoApplying}
-            className="px-4 py-2 rounded-lg font-medium text-sm transition-all"
+            disabled={isBusy}
             style={{
-              backgroundColor: 'var(--border)',
+              padding: '9px 0',
+              borderRadius: '999px',
+              border: 'none',
+              fontFamily: 'var(--font-body)',
+              fontSize: '12.5px',
+              fontWeight: 500,
+              background: 'var(--bg)',
               color: 'var(--muted)',
-              opacity: isApproving || isDismissing || isAutoApplying ? 0.6 : 1,
-              cursor: isApproving || isDismissing || isAutoApplying ? 'not-allowed' : 'pointer',
+              boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+              cursor: isBusy ? 'not-allowed' : 'pointer',
+              opacity: isBusy ? 0.6 : 1,
+              transition: 'all 0.25s',
             }}
+            onMouseEnter={(e) => !isBusy && (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+            onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
           >
-            {isDismissing ? 'Dismissing...' : 'Dismiss'}
+            {isDismissing ? 'Dismissing…' : 'Dismiss'}
           </button>
         </div>
       </div>
 
-      {/* Eligibility Details */}
+      {/* Eligibility details */}
       <EligibilityDetails job={job} />
 
       {/* Description snippet */}
       {job.description_raw && (
-        <p
-          className="text-sm line-clamp-2 mt-4"
-          style={{ color: 'var(--faint)' }}
-        >
-          {job.description_raw.substring(0, 200)}...
+        <p style={{
+          margin: 0,
+          fontSize: '12.5px',
+          lineHeight: '1.6',
+          color: 'var(--faint)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+        }}>
+          {job.description_raw.substring(0, 200)}
         </p>
       )}
 
-      {/* Auto-Apply Result */}
+      {/* Auto-Apply result */}
       {autoApplyResult && (
-        <div
-          className="mt-4 p-4 rounded-lg border"
-          style={{
-            backgroundColor: autoApplyResult.status === 'applied' ? '#f0fdf4' : '#fef3c7',
-            borderColor: autoApplyResult.status === 'applied' ? '#d1fae5' : '#fcd34d',
-          }}
-        >
-          {/* Success Case */}
-          {autoApplyResult.status === 'applied' && (
+        <div style={{
+          marginTop: '14px',
+          borderRadius: '16px',
+          padding: '16px',
+          boxShadow: 'inset 0 2px 6px rgba(32,30,29,.16)',
+          backgroundColor: 'var(--bg)',
+        }}>
+          {autoApplyResult.status === 'applied' ? (
             <>
-              <p
-                className="text-sm font-medium mb-2"
-                style={{ color: '#10b981' }}
-              >
+              <p style={{
+                margin: '0 0 6px',
+                fontSize: '13px',
+                fontWeight: 700,
+                color: '#7a8a5e',
+              }}>
                 ✓ Applied Successfully
               </p>
-              <p
-                className="text-xs"
-                style={{ color: '#6b7280' }}
-              >
-                Applied via <strong>{autoApplyResult.method || 'form'}</strong>
+              <p style={{
+                margin: 0,
+                fontSize: '11.5px',
+                color: 'var(--muted)',
+              }}>
+                Applied via <b style={{ color: 'var(--text)' }}>{autoApplyResult.method || 'form'}</b>
               </p>
             </>
-          )}
-
-          {/* Manual Required Case */}
-          {autoApplyResult.status !== 'applied' && (
+          ) : (
             <>
-              <p
-                className="text-sm font-medium mb-3"
-                style={{ color: '#d97706' }}
-              >
+              <p style={{
+                margin: '0 0 10px',
+                fontSize: '13px',
+                fontWeight: 700,
+                color: '#c67139',
+              }}>
                 Manual Action Required
               </p>
-
-              {/* What the agent tried */}
-              <div className="mb-3 p-3 rounded bg-white/50">
-                <p
-                  className="text-xs font-semibold mb-1"
-                  style={{ color: '#92400e' }}
-                >
+              <div style={{ marginBottom: '10px' }}>
+                <p style={{
+                  margin: '0 0 3px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: 'var(--text)',
+                }}>
                   What I tried:
                 </p>
-                <p
-                  className="text-xs"
-                  style={{ color: '#78350f' }}
-                >
+                <p style={{
+                  margin: 0,
+                  fontSize: '11.5px',
+                  color: 'var(--muted)',
+                }}>
                   {autoApplyResult.what_i_tried || 'I attempted to apply for this job'}
                 </p>
               </div>
-
-              {/* Why it couldn't complete */}
-              <div className="mb-3 p-3 rounded bg-white/50">
-                <p
-                  className="text-xs font-semibold mb-1"
-                  style={{ color: '#92400e' }}
-                >
+              <div style={{ marginBottom: '10px' }}>
+                <p style={{
+                  margin: '0 0 3px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: 'var(--text)',
+                }}>
                   Why I need your help:
                 </p>
-                <p
-                  className="text-xs"
-                  style={{ color: '#78350f' }}
-                >
+                <p style={{
+                  margin: 0,
+                  fontSize: '11.5px',
+                  color: 'var(--muted)',
+                }}>
                   {autoApplyResult.why_i_need_help || 'The application requires manual completion'}
                 </p>
               </div>
-
-              {/* Call to action */}
               {job.url && (
-                <div className="p-3 rounded bg-white/50">
-                  <p
-                    className="text-xs font-semibold mb-2"
-                    style={{ color: '#92400e' }}
-                  >
-                    What you can do:
-                  </p>
-                  <a
-                    href={job.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium text-white transition-all"
-                    style={{
-                      backgroundColor: '#d97706',
-                    }}
-                    onMouseEnter={(e) => {
-                      const el = e.currentTarget as HTMLAnchorElement;
-                      el.style.backgroundColor = '#b45309';
-                    }}
-                    onMouseLeave={(e) => {
-                      const el = e.currentTarget as HTMLAnchorElement;
-                      el.style.backgroundColor = '#d97706';
-                    }}
-                  >
-                    Open Job Page <ExternalLink size={14} />
-                  </a>
-                  <p
-                    className="text-xs mt-2"
-                    style={{ color: '#92400e' }}
-                  >
-                    Click to apply directly on the company website
-                  </p>
-                </div>
+                <a
+                  href={job.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    color: '#c67139',
+                    textDecoration: 'none',
+                    padding: '8px 14px',
+                    borderRadius: '999px',
+                    boxShadow: 'inset 0 2px 5px rgba(32,30,29,.2)',
+                    backgroundColor: 'var(--card)',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 3px 7px rgba(32,30,29,.25)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+                >
+                  Open Job Page ↗
+                </a>
               )}
             </>
           )}
         </div>
       )}
 
-      {/* Auto-Apply Error */}
+      {/* Auto-Apply error */}
       {autoApplyError && (
-        <div
-          className="mt-4 p-3 rounded-lg border"
-          style={{
-            backgroundColor: '#fee',
-            borderColor: '#fcc',
-            color: '#c00',
-          }}
-        >
-          <p className="text-xs font-medium">{autoApplyError}</p>
+        <div style={{
+          marginTop: '14px',
+          padding: '12px 14px',
+          borderRadius: '16px',
+          backgroundColor: 'var(--bg)',
+          color: 'var(--color-accent-700)',
+          fontSize: '11.5px',
+          boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+        }}>
+          {autoApplyError}
         </div>
       )}
     </div>
@@ -584,33 +638,27 @@ function EligibilityBadge({ job }: EligibilityBadgeProps) {
     return null;
   }
 
-  const getBadgeColor = () => {
+  const getColors = () => {
     if (!eligibility.eligible) {
-      return { bg: '#fee', border: '#fcc', text: '#c00' };
+      return { color: 'var(--muted)', label: 'Not eligible' };
     }
     if (eligibility.visa_required) {
-      return { bg: '#fef3c7', border: '#fcd34d', text: '#92400e' };
+      return { color: '#c67139', label: 'Visa may be required' };
     }
-    return { bg: '#f0fdf4', border: '#d1fae5', text: '#10b981' };
+    return { color: '#7a8a5e', label: 'No visa required' };
   };
 
-  const colors = getBadgeColor();
-  const label = !eligibility.eligible
-    ? 'Work permit required'
-    : eligibility.visa_required
-    ? 'Visa may be required'
-    : 'No visa required';
+  const { color, label } = getColors();
 
   return (
-    <span
-      className="text-xs px-2 py-1 border rounded-full font-medium"
-      style={{
-        backgroundColor: colors.bg,
-        borderColor: colors.border,
-        color: colors.text,
-      }}
-      title={eligibility.reason}
-    >
+    <span style={{
+      fontSize: '11px',
+      fontWeight: 600,
+      padding: '4px 12px',
+      borderRadius: '999px',
+      color,
+      boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+    }} title={eligibility.reason}>
       {label}
     </span>
   );
@@ -623,45 +671,49 @@ function EligibilityDetails({ job }: { job: Job }) {
     return null;
   }
 
-  const backgroundColor = !eligibility.eligible
-    ? '#fee'
-    : eligibility.visa_required
-    ? '#fef3c7'
-    : '#f0fdf4';
+  const getColor = () => {
+    if (!eligibility.eligible) {
+      return 'var(--muted)';
+    }
+    if (eligibility.visa_required) {
+      return '#c67139';
+    }
+    return '#7a8a5e';
+  };
 
-  const borderColor = !eligibility.eligible
-    ? '#fcc'
-    : eligibility.visa_required
-    ? '#fcd34d'
-    : '#d1fae5';
-
-  const textColor = !eligibility.eligible
-    ? '#c00'
-    : eligibility.visa_required
-    ? '#92400e'
-    : '#10b981';
+  const color = getColor();
 
   return (
-    <div
-      className="mt-3 p-3 rounded-lg border text-xs space-y-2"
-      style={{
-        backgroundColor,
-        borderColor,
-      }}
-    >
-      <p style={{ color: textColor, fontWeight: '500' }}>
-        ℹ️ {eligibility.reason}
+    <div style={{
+      borderRadius: '16px',
+      padding: '14px 16px',
+      boxShadow: 'inset 0 2px 6px rgba(32,30,29,.15)',
+      marginBottom: '14px',
+      backgroundColor: 'var(--bg)',
+    }}>
+      <p style={{
+        margin: '0 0 6px',
+        fontSize: '12px',
+        fontWeight: 600,
+        color,
+      }}>
+        ℹ {eligibility.reason}
       </p>
       {eligibility.visa_type && (
-        <p style={{ color: textColor }}>
-          <strong>Visa type:</strong> {eligibility.visa_type}
+        <p style={{
+          margin: '0 0 4px',
+          fontSize: '11.5px',
+          color: 'var(--muted)',
+        }}>
+          <b>Visa type:</b> {eligibility.visa_type}
         </p>
       )}
-      <p style={{ color: textColor }}>
-        <strong>Recommendation:</strong> {eligibility.recommendation}
-      </p>
-      <p style={{ color: textColor, fontSize: '0.7rem', fontStyle: 'italic' }}>
-        Confidence: {eligibility.confidence}
+      <p style={{
+        margin: 0,
+        fontSize: '11.5px',
+        color: 'var(--muted)',
+      }}>
+        <b>Recommendation:</b> {eligibility.recommendation}
       </p>
     </div>
   );
@@ -678,13 +730,12 @@ function TailoringModal({ job, tailored, onClose }: TailoringModalProps) {
   const [cvData, setCVData] = useState<any>(null);
 
   useEffect(() => {
-    // Fetch user's CV profile for CV generation
     const loadCVProfile = async () => {
       try {
         const data = await getCVProfile();
         setCVData(data);
       } catch (err) {
-        console.warn('Failed to load CV profile for download:', err);
+        console.warn('Failed to load CV profile:', err);
       }
     };
     loadCVProfile();
@@ -698,20 +749,14 @@ function TailoringModal({ job, tailored, onClose }: TailoringModalProps) {
 
     try {
       setIsDownloading(true);
-
-      // Generate HTML CV dynamically from database
       const htmlContent = await generateCVHTML(job, tailored, cvData);
-
-      // Create filename: firstname_lastname_jobtitle_date.html
       const firstName = cvData.name?.split(' ')[0] || 'CV';
       const lastName = cvData.name?.split(' ').slice(1).join('_') || '';
       const jobTitleSlug = job.title?.toLowerCase().replace(/\s+/g, '_') || 'position';
       const date = new Date().toISOString().split('T')[0];
       const filename = `${firstName}_${lastName}_${jobTitleSlug}_${date}.html`.replace(/_{2,}/g, '_');
 
-      // Trigger download
       downloadCVAsHTML(filename, htmlContent);
-
       console.log('[CV] Download triggered:', filename);
     } catch (err) {
       console.error('[CV] Download failed:', err);
@@ -722,16 +767,17 @@ function TailoringModal({ job, tailored, onClose }: TailoringModalProps) {
 
   return (
     <>
-      {/* Overlay */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,.5)',
+          zIndex: 40,
+        }}
         onClick={onClose}
-        style={{ animation: 'fadeIn 0.2s ease-in-out' }}
       />
 
-      {/* Modal */}
       <div
-        className="border rounded-2xl overflow-y-auto"
         style={{
           position: 'fixed',
           top: '50%',
@@ -741,60 +787,91 @@ function TailoringModal({ job, tailored, onClose }: TailoringModalProps) {
           maxWidth: '600px',
           maxHeight: '80vh',
           zIndex: 1000,
-          borderColor: 'var(--border)',
+          borderRadius: '24px',
           backgroundColor: 'var(--card)',
-          animation: 'slideUp 0.3s ease-out',
+          boxShadow: 'inset 0 4px 12px rgba(32,30,29,.18)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          animation: 'ainModalUp 0.3s ease-out',
         }}
       >
         {/* Header */}
         <div
-          className="sticky top-0 flex items-center justify-between p-6 border-b"
-          style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card)' }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '26px',
+            borderBottom: '1px solid var(--border)',
+          }}
         >
           <div>
-            <h2
-              className="text-2xl font-bold"
-              style={{
-                color: 'var(--text)',
-                letterSpacing: '-0.02em',
-              }}
-            >
+            <h2 style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: '24px',
+              fontWeight: 400,
+              margin: 0,
+              color: 'var(--text)',
+            }}>
               ✨ CV Tailored
             </h2>
-            <p
-              className="text-sm mt-1"
-              style={{ color: 'var(--muted)' }}
-            >
+            <p style={{
+              fontSize: '14px',
+              margin: '6px 0 0',
+              color: 'var(--muted)',
+            }}>
               {job.title} at {job.company}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:opacity-70 transition-opacity"
-            style={{ color: 'var(--muted)' }}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: '8px',
+              cursor: 'pointer',
+              color: 'var(--muted)',
+              transition: 'opacity 0.25s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.7')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
           >
             <X size={24} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '26px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '24px',
+        }}>
           {/* Professional Summary */}
           <section>
-            <h3
-              className="text-sm font-bold mb-3 uppercase tracking-wider"
-              style={{ color: 'var(--text)' }}
-            >
+            <h3 style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              margin: '0 0 12px',
+              color: 'var(--text)',
+            }}>
               Professional Summary
             </h3>
-            <p
-              className="text-sm leading-relaxed p-4 rounded-lg border"
-              style={{
-                borderColor: 'var(--border)',
-                backgroundColor: 'var(--bg)',
-                color: 'var(--muted)',
-              }}
-            >
+            <p style={{
+              fontSize: '13px',
+              lineHeight: '1.6',
+              padding: '14px 16px',
+              borderRadius: '16px',
+              margin: 0,
+              backgroundColor: 'var(--bg)',
+              color: 'var(--muted)',
+              boxShadow: 'inset 0 2px 6px rgba(32,30,29,.15)',
+            }}>
               {tailored.summary}
             </p>
           </section>
@@ -802,21 +879,28 @@ function TailoringModal({ job, tailored, onClose }: TailoringModalProps) {
           {/* Highlighted Skills */}
           {tailored.highlighted_skills && tailored.highlighted_skills.length > 0 && (
             <section>
-              <h3
-                className="text-sm font-bold mb-3 uppercase tracking-wider"
-                style={{ color: 'var(--text)' }}
-              >
+              <h3 style={{
+                fontSize: '12px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                margin: '0 0 12px',
+                color: 'var(--text)',
+              }}>
                 Highlighted Skills
               </h3>
-              <div className="flex flex-wrap gap-2">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {tailored.highlighted_skills.map((skill, i) => (
                   <span
                     key={i}
-                    className="text-xs font-medium px-3 py-1.5 rounded-full"
                     style={{
-                      backgroundColor: '#10b98120',
-                      color: '#10b981',
-                      border: '1px solid #10b98140',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      padding: '6px 12px',
+                      borderRadius: '999px',
+                      backgroundColor: '#dde5cc',
+                      color: '#7a8a5e',
+                      boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
                     }}
                   >
                     ✓ {skill}
@@ -829,32 +913,41 @@ function TailoringModal({ job, tailored, onClose }: TailoringModalProps) {
           {/* Relevant Projects */}
           {tailored.relevant_projects && tailored.relevant_projects.length > 0 && (
             <section>
-              <h3
-                className="text-sm font-bold mb-3 uppercase tracking-wider"
-                style={{ color: 'var(--text)' }}
-              >
+              <h3 style={{
+                fontSize: '12px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                margin: '0 0 12px',
+                color: 'var(--text)',
+              }}>
                 Relevant Projects to Emphasize
               </h3>
-              <div className="space-y-3">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {tailored.relevant_projects.map((project, i) => (
                   <div
                     key={i}
-                    className="p-4 rounded-lg border"
                     style={{
-                      borderColor: 'var(--border)',
+                      padding: '14px 16px',
+                      borderRadius: '16px',
                       backgroundColor: 'var(--bg)',
+                      boxShadow: 'inset 0 2px 6px rgba(32,30,29,.15)',
                     }}
                   >
-                    <h4
-                      className="text-sm font-semibold mb-2"
-                      style={{ color: 'var(--text)' }}
-                    >
+                    <h4 style={{
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      margin: '0 0 8px',
+                      color: 'var(--text)',
+                    }}>
                       {project.name}
                     </h4>
-                    <p
-                      className="text-xs leading-relaxed"
-                      style={{ color: 'var(--muted)' }}
-                    >
+                    <p style={{
+                      fontSize: '12px',
+                      lineHeight: '1.5',
+                      margin: 0,
+                      color: 'var(--muted)',
+                    }}>
                       {project.why_relevant}
                     </p>
                   </div>
@@ -863,100 +956,111 @@ function TailoringModal({ job, tailored, onClose }: TailoringModalProps) {
             </section>
           )}
 
-          {/* Tailoring Notes */}
+          {/* What Was Tailored */}
           {tailored.tailoring_notes && (
             <section>
-              <h3
-                className="text-sm font-bold mb-3 uppercase tracking-wider"
-                style={{ color: 'var(--text)' }}
-              >
+              <h3 style={{
+                fontSize: '12px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                margin: '0 0 12px',
+                color: 'var(--text)',
+              }}>
                 What Was Tailored
               </h3>
-              <p
-                className="text-sm leading-relaxed p-4 rounded-lg border italic"
-                style={{
-                  borderColor: 'var(--border)',
-                  backgroundColor: 'var(--bg)',
-                  color: 'var(--muted)',
-                }}
-              >
+              <p style={{
+                fontSize: '13px',
+                lineHeight: '1.6',
+                padding: '14px 16px',
+                borderRadius: '16px',
+                margin: 0,
+                backgroundColor: 'var(--bg)',
+                color: 'var(--muted)',
+                fontStyle: 'italic',
+                boxShadow: 'inset 0 2px 6px rgba(32,30,29,.15)',
+              }}>
                 {tailored.tailoring_notes}
               </p>
             </section>
           )}
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-            <button
-              onClick={onClose}
-              className="flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition-all"
-              style={{
-                backgroundColor: 'var(--sidebar-active)',
-                color: 'var(--text)',
-                border: '1px solid var(--border)',
-              }}
-              onMouseEnter={(e) => {
-                const el = e.currentTarget as HTMLButtonElement;
-                el.style.backgroundColor = 'var(--border)';
-              }}
-              onMouseLeave={(e) => {
-                const el = e.currentTarget as HTMLButtonElement;
-                el.style.backgroundColor = 'var(--sidebar-active)';
-              }}
-            >
-              Close
-            </button>
-            <button
-              onClick={handleDownloadCV}
-              disabled={isDownloading || !cvData}
-              className="flex-1 px-4 py-2.5 rounded-lg font-medium text-sm text-white transition-all"
-              style={{
-                backgroundColor: isDownloading || !cvData ? '#9ca3af' : '#3b82f6',
-                cursor: isDownloading || !cvData ? 'not-allowed' : 'pointer',
-              }}
-              onMouseEnter={(e) => {
-                if (!isDownloading && cvData) {
-                  const el = e.currentTarget as HTMLButtonElement;
-                  el.style.backgroundColor = '#2563eb';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isDownloading && cvData) {
-                  const el = e.currentTarget as HTMLButtonElement;
-                  el.style.backgroundColor = '#3b82f6';
-                }
-              }}
-            >
-              {isDownloading ? '⏳ Generating...' : '⬇️ Download CV'}
-            </button>
-          </div>
+          {/* AI note */}
+          <p style={{
+            fontSize: '11px',
+            textAlign: 'center',
+            color: 'var(--faint)',
+            margin: 0,
+            fontStyle: 'italic',
+          }}>
+            Your CV has been customized using AI to highlight relevant experience for this role.
+          </p>
+        </div>
 
-          {/* Callout */}
-          <div
-            className="p-4 rounded-lg border"
+        {/* Footer Actions */}
+        <div style={{
+          padding: '20px 26px',
+          borderTop: '1px solid var(--border)',
+          display: 'flex',
+          gap: '12px',
+        }}>
+          <button
+            onClick={onClose}
             style={{
-              borderColor: '#3b82f6',
-              backgroundColor: '#3b82f620',
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: '999px',
+              border: 'none',
+              fontFamily: 'var(--font-body)',
+              fontSize: '13px',
+              fontWeight: 400,
+              background: 'var(--bg)',
+              color: 'var(--muted)',
+              boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+              cursor: 'pointer',
+              transition: 'all 0.25s',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+            onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
           >
-            <p
-              className="text-xs"
-              style={{ color: '#3b82f6' }}
-            >
-              💡 Your CV has been customized for this role using AI. The highlighted skills and projects above are optimized for ATS scoring and relevance.
-            </p>
-          </div>
+            Close
+          </button>
+          <button
+            onClick={handleDownloadCV}
+            disabled={isDownloading || !cvData}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: '999px',
+              border: 'none',
+              fontFamily: 'var(--font-body)',
+              fontSize: '13px',
+              fontWeight: 700,
+              background: 'var(--bg)',
+              color: '#c67139',
+              boxShadow: 'inset 0 2px 5px rgba(32,30,29,.2)',
+              cursor: isDownloading || !cvData ? 'not-allowed' : 'pointer',
+              opacity: isDownloading || !cvData ? 0.6 : 1,
+              transition: 'all 0.25s',
+            }}
+            onMouseEnter={(e) => !isDownloading && !cvData && (e.currentTarget.style.boxShadow = 'inset 0 3px 7px rgba(32,30,29,.25)')}
+            onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+          >
+            {isDownloading ? 'Generating…' : 'Download CV'}
+          </button>
         </div>
       </div>
 
       <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from { transform: translateY(20px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
+        @keyframes ainModalUp {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -46%);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, -50%);
+          }
         }
       `}</style>
     </>
