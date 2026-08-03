@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { getUserProfile, updateUserProfile } from '@/lib/api';
+import { getUserProfile, updateUserProfile, getApplications } from '@/lib/api';
 import { UserProfile } from '@/lib/types';
 import { Mail, X } from 'lucide-react';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
@@ -17,6 +17,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [stats, setStats] = useState<{ needs_approval: number }>({ needs_approval: 0 });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -103,8 +104,13 @@ export default function ProfilePage() {
       try {
         setLoading(true);
         setError(null);
-        const data = await getUserProfile();
+        const [data, apps] = await Promise.all([
+          getUserProfile(),
+          getApplications(100),
+        ]);
         setProfile(data);
+        const pendingApprovalCount = apps.filter((app: any) => app.status === 'pending_approval').length;
+        setStats({ needs_approval: pendingApprovalCount });
         const formDataToSet = {
           target_roles: data.target_roles || [],
           tech_stack: data.tech_stack || [],
@@ -451,7 +457,7 @@ export default function ProfilePage() {
   return (
     <div style={{ ...theme as any, minHeight: '100vh', backgroundColor: 'var(--bg)', color: 'var(--text)', fontFamily: "'Figtree', sans-serif" }}>
       <div style={{ display: 'flex', minHeight: '100vh' }}>
-        <ScoutSidebar isDark={isDark} setIsDark={setIsDark} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        <ScoutSidebar isDark={isDark} setIsDark={setIsDark} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} stats={stats} />
 
         {/* Main Content */}
         <main style={{ flex: 1, maxWidth: '900px', margin: '0 auto', padding: '44px 50px 70px', width: '100%' }}>

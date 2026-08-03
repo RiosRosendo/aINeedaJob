@@ -34,6 +34,10 @@ export function ScoutSidebar({ isDark, setIsDark, sidebarOpen, setSidebarOpen, s
     injectStyles();
   }, []);
 
+  useEffect(() => {
+    console.log('[SIDEBAR] Stats prop received:', stats);
+  }, [stats]);
+
   const mascotSize = sidebarOpen ? 120 : 46;
   const eyeSize = Math.round(mascotSize * 0.08);
   const eyeLeft1 = '35%';
@@ -213,7 +217,7 @@ export function ScoutSidebar({ isDark, setIsDark, sidebarOpen, setSidebarOpen, s
                   {item.label}
                 </span>
                 {(item.badge || 0) > 0 && (
-                  <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, padding: '2px 9px', borderRadius: '999px', background: `linear-gradient(180deg, var(--color-accent-2-200), var(--color-accent-2-100))`, color: 'var(--color-accent-2-800)' }}>
+                  <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, padding: '2px 9px', borderRadius: '999px', background: '#7a8a5e', color: '#ffffff' }}>
                     {item.badge}
                   </span>
                 )}

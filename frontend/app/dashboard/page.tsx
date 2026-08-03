@@ -491,7 +491,7 @@ export default function Dashboard() {
                           borderRadius: '999px',
                           border: 'none',
                           background: 'var(--dbg)',
-                          color: 'var(--color-accent-700)',
+                          color: '#7a8a5e',
                           font: '700 12.5px var(--font-body)',
                           cursor: 'pointer',
                           boxShadow: 'inset 0 2px 5px rgba(32,30,29,.2)',

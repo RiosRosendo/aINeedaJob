@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getScoredJobs, getJobs } from '@/lib/api';
+import { getScoredJobs, getJobs, getApplications } from '@/lib/api';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
 import { Job } from '@/lib/types';
 import { X, Search } from 'lucide-react';
@@ -28,6 +28,7 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [priorityCountry, setPriorityCountry] = useState<string | null>(null);
+  const [stats, setStats] = useState<{ needs_approval: number }>({ needs_approval: 0 });
 
   const [decisionFilter, setDecisionFilter] = useState<DecisionFilter>('all');
   const [modalityFilter, setModalityFilter] = useState<ModalityFilter>('all');
@@ -62,12 +63,19 @@ export default function JobsPage() {
           setPriorityCountry(profile.priority_country || null);
         }
 
-        const [scoredData, allJobsData] = await Promise.all([
+        const [scoredData, allJobsData, applications] = await Promise.all([
           getScoredJobs(1000),
           getJobs(1000),
+          getApplications(100),
         ]);
+        console.log('[JOBS] getScoredJobs response:', scoredData);
+        console.log('[JOBS] getJobs response:', allJobsData);
+        console.log('[JOBS] getApplications response:', applications);
+        console.log('[JOBS] Auth headers - user_id:', localStorage.getItem('user_id'));
         setJobs(scoredData);
         setTotalJobs(allJobsData.length);
+        const pendingApprovalCount = applications.filter((app: any) => app.status === 'pending_approval').length;
+        setStats({ needs_approval: pendingApprovalCount });
       } catch (err) {
         console.error('Failed to load jobs:', err);
         setError('Failed to load jobs. Please try again.');
@@ -138,7 +146,7 @@ export default function JobsPage() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
-      <ScoutSidebar isDark={isDark} setIsDark={setIsDark} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      <ScoutSidebar isDark={isDark} setIsDark={setIsDark} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} stats={stats} />
 
       <main style={{ flex: 1, maxWidth: '980px', margin: '0 auto', width: '100%', padding: '44px 50px 70px', boxSizing: 'border-box' }}>
         {/* Header */}

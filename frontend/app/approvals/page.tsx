@@ -21,11 +21,12 @@ interface TailoredCV {
 
 export default function ApprovalsPage() {
   const [isDark, setIsDark] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [priorityCountry, setPriorityCountry] = useState<string | null>(null);
+  const [stats, setStats] = useState<{ needs_approval: number }>({ needs_approval: 0 });
   const [tailoringModalData, setTailoringModalData] = useState<{
     job: Job;
     tailored: TailoredCV;
@@ -91,6 +92,9 @@ export default function ApprovalsPage() {
       });
 
       setPendingJobs(deduplicatedJobs);
+      setStats({ needs_approval: deduplicatedJobs.length });
+      console.log('[APPROVALS] Pending jobs count:', deduplicatedJobs.length);
+      console.log('[APPROVALS] Stats set to:', { needs_approval: deduplicatedJobs.length });
     } catch (err) {
       console.error('Failed to load pending jobs:', err);
       setError('Failed to load pending jobs. Please try again.');
@@ -152,7 +156,7 @@ export default function ApprovalsPage() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
-      <ScoutSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      <ScoutSidebar isDark={isDark} setIsDark={setIsDark} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} stats={stats} />
 
       <main style={{ flex: 1, maxWidth: '900px', margin: '0 auto', padding: '44px 50px 70px', width: '100%' }}>
         <h1 style={{
@@ -405,7 +409,7 @@ function ApprovalCard({
               fontSize: '14px',
               fontWeight: 700,
               fontFamily: 'var(--font-body)',
-              color: 'var(--text)',
+              color: getScoreRingColor(fitScore),
             }}>
               {fitScore}
             </div>
@@ -473,7 +477,7 @@ function ApprovalCard({
               border: 'none',
               fontFamily: 'var(--font-body)',
               fontSize: '12.5px',
-              fontWeight: 500,
+              fontWeight: 700,
               background: 'var(--bg)',
               color: 'var(--muted)',
               boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',

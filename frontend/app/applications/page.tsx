@@ -96,6 +96,7 @@ export default function ApplicationsPage() {
   const [applications, setApplications] = useState<ApplicationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<{ needs_approval: number }>({ needs_approval: 0 });
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [checking, setChecking] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
@@ -119,6 +120,8 @@ export default function ApplicationsPage() {
         setError(null);
         const apps = await getApplications(1000);
         setApplications(apps);
+        const pendingApprovalCount = apps.filter((app: any) => app.status === 'pending_approval').length;
+        setStats({ needs_approval: pendingApprovalCount });
 
         const cached = localStorage.getItem('emailCheckTime');
         if (cached) {
@@ -231,7 +234,7 @@ export default function ApplicationsPage() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
-      <ScoutSidebar isDark={isDark} setIsDark={setIsDark} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      <ScoutSidebar isDark={isDark} setIsDark={setIsDark} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} stats={stats} />
 
       <main style={{ flex: 1, maxWidth: '980px', margin: '0 auto', width: '100%', padding: '44px 50px 70px', boxSizing: 'border-box' }}>
         {/* Header */}
@@ -544,6 +547,7 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
                 color: 'var(--color-accent-2-800)',
                 fontFamily: 'var(--font-body)',
                 fontSize: '11px',
+                fontWeight: 700,
                 cursor: 'pointer',
                 boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
                 transition: 'all 0.25s',
@@ -568,6 +572,7 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
                 color: 'var(--muted)',
                 fontFamily: 'var(--font-body)',
                 fontSize: '11px',
+                fontWeight: 700,
                 cursor: 'pointer',
                 boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
                 transition: 'all 0.25s',
