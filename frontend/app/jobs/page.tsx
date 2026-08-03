@@ -173,7 +173,7 @@ export default function JobsPage() {
           gap: '12px',
           padding: '10px 16px',
           borderRadius: '999px',
-          background: 'transparent',
+          background: 'var(--card)',
           boxShadow: 'inset 0 2px 5px rgba(32,30,29,.16)',
           marginBottom: '35.2px',
         }}>
@@ -455,6 +455,7 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
             color: 'var(--muted)',
             fontFamily: 'var(--font-body)',
             fontSize: '12px',
+            fontWeight: 700,
             cursor: 'pointer',
             boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
             transition: 'all 0.25s',
