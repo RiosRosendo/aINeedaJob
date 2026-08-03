@@ -387,8 +387,8 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
 
   const getDecisionColor = (fitScore?: number): string => {
     if (!fitScore && fitScore !== 0) return 'var(--muted)';
-    if (fitScore >= 85) return 'var(--color-accent-2-800)';
-    if (fitScore >= 60) return 'var(--color-accent-700)';
+    if (fitScore >= 85) return '#7a8a5e';
+    if (fitScore >= 60) return '#c67139';
     return 'var(--muted)';
   };
 
@@ -396,7 +396,7 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
     <div style={{
       display: 'flex',
       justifyContent: 'space-between',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       gap: '26.4px',
       padding: '17.6px',
       borderRadius: '20px',
@@ -417,7 +417,7 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
         <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 8.8px' }}>
           Found {dateStr} · {job.status}
         </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
           <span style={{
             fontSize: '11px',
             padding: '3px 10px',
@@ -439,6 +439,32 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
             {location}
           </span>
         </div>
+        {/* View Details Button */}
+        <button
+          onClick={onViewDetails}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            width: 'auto',
+            padding: '5px 16px',
+            borderRadius: '999px',
+            border: 'none',
+            background: 'var(--bg)',
+            color: 'var(--muted)',
+            fontFamily: 'var(--font-body)',
+            fontSize: '12px',
+            cursor: 'pointer',
+            boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+            transition: 'all 0.25s',
+            marginTop: '8px',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+          onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
+        >
+          View Details
+        </button>
       </div>
 
       {/* Right: Score Ring + Decision + Button */}
@@ -446,7 +472,7 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
         {/* Progress Ring */}
         {fitScore !== null && (
           <>
-            <svg width="44" height="44" viewBox="0 0 64 64" style={{ overflow: 'visible' }}>
+            <svg width="64" height="64" viewBox="0 0 64 64" style={{ overflow: 'visible' }}>
               <circle cx="32" cy="32" r="26" fill="none" stroke="var(--track)" strokeWidth="6" />
               <circle
                 cx="32"
@@ -464,8 +490,8 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
                   transition: 'stroke-dashoffset 0.3s ease',
                 }}
               />
-              <text x="32" y="36" textAnchor="middle" fontSize="16" fontWeight="700" fill={getScoreRingColor(fitScore)} fontFamily="var(--font-body)">
-                {fitScore}%
+              <text x="32" y="37" textAnchor="middle" fill={getScoreRingColor(fitScore)} style={{ fontSize: '18px', fontWeight: '700', fontFamily: 'var(--font-body)' }}>
+                {fitScore}
               </text>
             </svg>
 
@@ -477,45 +503,16 @@ function JobRow({ job, onViewDetails, delay }: JobRowProps) {
               gap: '6px',
               padding: '3px 10px',
               borderRadius: 'calc(16px * 0.75)',
-              background: 'transparent',
+              background: 'var(--bg)',
               color: getDecisionColor(fitScore),
-              fontSize: '11px',
+              fontSize: '13px',
               fontFamily: 'var(--font-heading)',
-              fontWeight: 400,
               boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
             }}>
               {getDecisionLabel(decision)}
             </div>
           </>
         )}
-
-        {/* View Details Button */}
-        <button
-          onClick={onViewDetails}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            width: 'auto',
-            padding: '5px 16px',
-            borderRadius: '999px',
-            border: 'none',
-            background: 'var(--bg)',
-            color: 'var(--muted)',
-            fontFamily: 'var(--font-body)',
-            fontSize: '11px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
-            transition: 'all 0.25s',
-            marginTop: fitScore !== null ? '0px' : '0px',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
-          onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
-        >
-          View Details
-        </button>
       </div>
     </div>
   );
@@ -597,19 +594,19 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
           {/* Meta */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
             <div>
-              <span style={{ fontSize: '11px', color: 'var(--faint)', display: 'block' }}>Location</span>
+              <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block' }}>Location</span>
               <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: '4px 0 0' }}>
                 {job.location || 'N/A'}
               </p>
             </div>
             <div>
-              <span style={{ fontSize: '11px', color: 'var(--faint)', display: 'block' }}>Modality</span>
+              <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block' }}>Modality</span>
               <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: '4px 0 0' }}>
                 {job.modality || 'Unknown'}
               </p>
             </div>
             <div>
-              <span style={{ fontSize: '11px', color: 'var(--faint)', display: 'block' }}>Salary</span>
+              <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block' }}>Salary</span>
               <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: '4px 0 0' }}>
                 {job.salary_min && job.salary_max
                   ? `$${job.salary_min.toLocaleString()}-${job.salary_max.toLocaleString()}`
@@ -618,7 +615,7 @@ function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
             </div>
             {job.fit_score !== undefined && (
               <div>
-                <span style={{ fontSize: '11px', color: 'var(--faint)', display: 'block' }}>Fit Score</span>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block' }}>Fit Score</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                   <svg width="32" height="32" viewBox="0 0 64 64">
                     <circle cx="32" cy="32" r="26" fill="none" stroke="var(--track)" strokeWidth="6" />

@@ -32,12 +32,12 @@ const getStatusColor = (status: string): { ring: string; text: string; isClosedO
     case 'pending_approval':
     case 'pending_application':
     case 'requires_manual':
-      return { ring: 'var(--color-accent-700)', text: 'var(--color-accent-700)', isClosedOut: false };
+      return { ring: '#c67139', text: '#c67139', isClosedOut: false };
     case 'applied':
     case 'interview':
     case 'offer':
     case 'in_review':
-      return { ring: 'var(--color-accent-2-800)', text: 'var(--color-accent-2-800)', isClosedOut: false };
+      return { ring: '#7a8a5e', text: '#7a8a5e', isClosedOut: false };
     case 'rejected':
     case 'ignored':
     default:
@@ -544,7 +544,6 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
                 color: 'var(--color-accent-2-800)',
                 fontFamily: 'var(--font-body)',
                 fontSize: '11px',
-                fontWeight: 700,
                 cursor: 'pointer',
                 boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
                 transition: 'all 0.25s',
@@ -569,7 +568,6 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
                 color: 'var(--muted)',
                 fontFamily: 'var(--font-body)',
                 fontSize: '11px',
-                fontWeight: 700,
                 cursor: 'pointer',
                 boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
                 transition: 'all 0.25s',
@@ -600,7 +598,6 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
                 color: 'var(--color-accent-700)',
                 fontFamily: 'var(--font-body)',
                 fontSize: '11px',
-                fontWeight: 700,
                 cursor: 'pointer',
                 boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
                 transition: 'all 0.25s',
@@ -625,7 +622,6 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
                 color: 'var(--muted)',
                 fontFamily: 'var(--font-body)',
                 fontSize: '11px',
-                fontWeight: 700,
                 cursor: 'pointer',
                 boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
                 transition: 'all 0.25s',
@@ -684,7 +680,7 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
             fill={getScoreRingColor(fitScore)}
             fontFamily="var(--font-body)"
           >
-            {fitScore}%
+            {fitScore}
           </text>
         </svg>
 
@@ -696,7 +692,7 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
           gap: '6px',
           padding: '3px 10px',
           borderRadius: 'calc(16px * 0.75)',
-          background: 'transparent',
+          background: 'var(--bg)',
           color: statusInfo.text,
           fontSize: '11px',
           fontFamily: 'var(--font-heading)',
