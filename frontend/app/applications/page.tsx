@@ -59,6 +59,20 @@ const getStatusLabel = (status: string): string => {
   }
 };
 
+const getRelativeTime = (date: Date): string => {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSeconds = Math.round(diffMs / 1000);
+  const diffMinutes = Math.round(diffSeconds / 60);
+  const diffHours = Math.round(diffMinutes / 60);
+
+  if (diffSeconds < 60) return 'just now';
+  if (diffMinutes === 1) return '1 minute ago';
+  if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+  if (diffHours === 1) return '1 hour ago';
+  return `${diffHours} hours ago`;
+};
+
 const getAllStatuses = (applications: ApplicationData[]) => {
   const statuses = new Set<string>();
   applications.forEach(app => {
@@ -79,8 +93,10 @@ export default function ApplicationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [checking, setChecking] = useState(false);
-  const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [showIgnored, setShowIgnored] = useState(false);
+  const [checkResult, setCheckResult] = useState<{ type: 'success' | 'error' | 'none'; message: string } | null>(null);
+  const [emailsFound, setEmailsFound] = useState<number>(0);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -101,7 +117,7 @@ export default function ApplicationsPage() {
 
         const cached = localStorage.getItem('emailCheckTime');
         if (cached) {
-          setLastChecked(cached);
+          setLastChecked(new Date(cached));
         }
       } catch (err) {
         console.error('Failed to load applications:', err);
@@ -118,6 +134,8 @@ export default function ApplicationsPage() {
     try {
       setChecking(true);
       setError(null);
+      setCheckResult(null);
+
       const response = await fetch('http://localhost:8001/api/gmail/check', {
         method: 'GET',
         headers: {
@@ -130,21 +148,42 @@ export default function ApplicationsPage() {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      const now = new Date().toLocaleTimeString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const data = await response.json();
+      const now = new Date();
       setLastChecked(now);
-      localStorage.setItem('emailCheckTime', now);
+      localStorage.setItem('emailCheckTime', now.toISOString());
 
       const apps = await getApplications(1000);
       setApplications(apps);
 
+      const newEmails = data.emails_found || 0;
+      setEmailsFound(newEmails);
+
+      if (newEmails > 0) {
+        setCheckResult({
+          type: 'success',
+          message: `Scout found ${newEmails} new ${newEmails === 1 ? 'reply' : 'replies'}`,
+        });
+      } else {
+        setCheckResult({
+          type: 'none',
+          message: 'No new replies',
+        });
+      }
+
+      setTimeout(() => {
+        setCheckResult(null);
+      }, 5000);
+
     } catch (err) {
       console.error('Failed to check emails:', err);
-      setError('Failed to check emails. Make sure Gmail is connected.');
+      setCheckResult({
+        type: 'error',
+        message: 'Could not check emails',
+      });
+      setTimeout(() => {
+        setCheckResult(null);
+      }, 5000);
     } finally {
       setChecking(false);
     }
@@ -201,8 +240,19 @@ export default function ApplicationsPage() {
                 {filteredApplications.length} of {applications.length} applications
               </p>
               {lastChecked && (
-                <p style={{ fontSize: '12px', color: 'var(--faint)', margin: 0 }}>
-                  Last email check: {lastChecked}
+                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 8px' }}>
+                  Last checked: {getRelativeTime(lastChecked)}
+                </p>
+              )}
+              {checkResult && (
+                <p style={{
+                  fontSize: '12px',
+                  color: checkResult.type === 'success' ? 'var(--color-accent-700)' : checkResult.type === 'error' ? '#cc3333' : 'var(--muted)',
+                  margin: 0,
+                  animation: 'fadeOut 0.5s ease-in-out 4.5s forwards',
+                  transition: 'opacity 0.3s',
+                }}>
+                  {checkResult.message}
                 </p>
               )}
             </div>
@@ -251,7 +301,7 @@ export default function ApplicationsPage() {
 
         {/* Filter Row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '26.4px', gap: '16px' }}>
-          <label style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)', margin: 0 }}>
+          <label style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: 0 }}>
             Filter by Status
           </label>
           {ignoredCount > 0 && (
