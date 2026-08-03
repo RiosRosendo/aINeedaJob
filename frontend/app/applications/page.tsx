@@ -500,7 +500,7 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
       gap: '26.4px',
       padding: '17.6px',
       borderRadius: '20px',
-      background: 'transparent',
+      background: 'var(--card)',
       boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)',
       opacity: statusInfo.isClosedOut ? 0.65 : 1,
       transition: 'opacity 0.3s',
@@ -516,9 +516,65 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
           {application.job_company || 'Unknown'} {application.job_location ? `· ${application.job_location}` : ''}
         </p>
         {dateStr && (
-          <p style={{ fontSize: '11px', color: 'var(--faint)', margin: 0 }}>
+          <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 8.8px' }}>
             Found {dateStr}
           </p>
+        )}
+
+        {/* Approval Buttons - Bottom Left */}
+        {shouldShowApprovalButtons && (
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '6px', marginTop: '8.8px' }}>
+            <button
+              onClick={handleApprove}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                width: 'auto',
+                padding: '5px 16px',
+                borderRadius: '999px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--color-accent-2-800)',
+                fontFamily: 'var(--font-heading)',
+                fontSize: '11px',
+                fontWeight: 400,
+                cursor: 'pointer',
+                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                transition: 'all 0.25s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
+            >
+              Approve
+            </button>
+            <button
+              onClick={handleDismiss}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                width: 'auto',
+                padding: '5px 16px',
+                borderRadius: '999px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--muted)',
+                fontFamily: 'var(--font-heading)',
+                fontSize: '11px',
+                fontWeight: 400,
+                cursor: 'pointer',
+                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                transition: 'all 0.25s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
+            >
+              Dismiss
+            </button>
+          </div>
         )}
       </div>
 
@@ -645,60 +701,6 @@ function ApplicationRow({ application, delay }: ApplicationRowProps) {
           </div>
         )}
 
-        {shouldShowApprovalButtons && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
-            <button
-              onClick={handleApprove}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                width: '100%',
-                padding: '6px 8px',
-                borderRadius: '999px',
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--color-accent-2-800)',
-                fontFamily: 'var(--font-heading)',
-                fontSize: '11px',
-                fontWeight: 400,
-                cursor: 'pointer',
-                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
-                transition: 'all 0.25s',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
-              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
-            >
-              Approve
-            </button>
-            <button
-              onClick={handleDismiss}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                width: '100%',
-                padding: '6px 8px',
-                borderRadius: '999px',
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--muted)',
-                fontFamily: 'var(--font-heading)',
-                fontSize: '11px',
-                fontWeight: 400,
-                cursor: 'pointer',
-                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
-                transition: 'all 0.25s',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
-              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
