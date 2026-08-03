@@ -272,17 +272,17 @@ export default function ApplicationsPage() {
                 padding: '8.8px calc(13.2px * 1.2)',
                 borderRadius: '999px',
                 border: 'none',
-                background: checking ? 'transparent' : 'transparent',
+                background: 'var(--card)',
                 color: checking ? 'var(--muted)' : 'var(--color-accent-700)',
-                fontFamily: 'var(--font-heading)',
+                fontFamily: 'var(--font-body)',
                 fontSize: '14px',
-                fontWeight: 400,
+                fontWeight: 700,
                 cursor: checking ? 'not-allowed' : 'pointer',
-                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                boxShadow: 'inset 0 2px 5px rgba(32,30,29,.15)',
                 transition: 'all 0.25s',
               }}
               onMouseEnter={(e) => !checking && (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.2)')}
-              onMouseLeave={(e) => !checking && (e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(32,30,29,.15)')}
+              onMouseLeave={(e) => !checking && (e.currentTarget.style.boxShadow = 'inset 0 2px 5px rgba(32,30,29,.15)')}
             >
               {checking ? 'Checking…' : 'Check emails'}
             </button>
@@ -306,7 +306,7 @@ export default function ApplicationsPage() {
 
         {/* Filter Row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '26.4px', gap: '16px' }}>
-          <label style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: 0, fontFamily: 'var(--font-body)' }}>
+          <label style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: 0, fontFamily: 'var(--font-body)', fontWeight: 700 }}>
             Filter by Status
           </label>
           {ignoredCount > 0 && (
@@ -320,13 +320,13 @@ export default function ApplicationsPage() {
                 padding: '8.8px calc(13.2px * 1.2)',
                 borderRadius: '999px',
                 border: 'none',
-                background: showIgnored ? 'var(--color-accent-700)' : 'transparent',
-                color: showIgnored ? '#f0e4cf' : 'var(--muted)',
-                fontFamily: 'var(--font-heading)',
+                background: 'var(--card)',
+                color: showIgnored ? 'var(--color-accent-700)' : 'var(--muted)',
+                fontFamily: 'var(--font-body)',
                 fontSize: '14px',
-                fontWeight: 400,
+                fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)',
+                boxShadow: 'inset 0 2px 5px rgba(32,30,29,.15)',
                 transition: 'all 0.25s',
               }}
             >
@@ -351,7 +351,7 @@ export default function ApplicationsPage() {
                 border: 'none',
                 background: statusFilter === status ? 'var(--card)' : 'transparent',
                 color: statusFilter === status ? 'var(--color-accent-700)' : 'var(--muted)',
-                fontFamily: 'var(--font-heading)',
+                fontFamily: 'var(--font-body)',
                 fontSize: '13px',
                 fontWeight: statusFilter === status ? 700 : 400,
                 cursor: 'pointer',
