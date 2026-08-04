@@ -456,7 +456,8 @@ def run_interview_prep_agent():
             WHERE a.status = 'interview' AND ip.id IS NULL
             ORDER BY a.created_at DESC
             LIMIT 20
-            """
+            """,
+            ()
         )
 
         if not interviews:
