@@ -1,10 +1,22 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+import { useScout } from '@/contexts/ScoutContext';
+
 interface ScoutLoadingProps {
   message?: string;
 }
 
 export function ScoutLoading({ message = 'Loading...' }: ScoutLoadingProps) {
+  const { isLoading } = useScout();
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setVisible(true);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
   return (
     <div style={{
       display: 'flex',
@@ -61,6 +73,17 @@ export function ScoutLoading({ message = 'Loading...' }: ScoutLoadingProps) {
           }
         }
 
+        @keyframes scoutPopIn {
+          0% {
+            transform: scale(0);
+            opacity: 0;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+
         .scout-blob {
           animation: scoutBounce 1.2s ease-in-out infinite, ainBreathe 3.2s ease-in-out infinite;
         }
@@ -80,6 +103,9 @@ export function ScoutLoading({ message = 'Loading...' }: ScoutLoadingProps) {
       <div style={{
         position: 'relative',
         marginBottom: '24px',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'scale(1)' : 'scale(0)',
+        transition: 'all 0.3s ease-out',
       }}>
         {/* Scout Blob */}
         <div className="scout-blob" style={{

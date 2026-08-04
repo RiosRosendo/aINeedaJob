@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { Home, Briefcase, CheckCircle, FileText, User, LogOut, Sun, Moon } from 'lucide-react';
+import { useScout } from '@/contexts/ScoutContext';
 
 interface ScoutSidebarProps {
   isDark: boolean;
@@ -33,6 +34,7 @@ const injectStyles = () => {
 
 export function ScoutSidebar({ isDark, setIsDark, sidebarOpen, setSidebarOpen, stats }: ScoutSidebarProps) {
   const pathname = usePathname();
+  const { isLoading } = useScout();
 
   useEffect(() => {
     injectStyles();
@@ -95,7 +97,10 @@ export function ScoutSidebar({ isDark, setIsDark, sidebarOpen, setSidebarOpen, s
           height: `${mascotSize}px`,
           margin: `0 auto ${sidebarOpen ? '8px' : '16px'}`,
           display: 'block',
-          transition: 'width .38s cubic-bezier(.4,0,.2,1), height .38s cubic-bezier(.4,0,.2,1), margin .38s cubic-bezier(.4,0,.2,1)',
+          transition: `width .38s cubic-bezier(.4,0,.2,1), height .38s cubic-bezier(.4,0,.2,1), margin .38s cubic-bezier(.4,0,.2,1), opacity ${isLoading ? '0.3s' : '0.4s'} ease-out, transform ${isLoading ? '0.3s' : '0.4s'} ease-out`,
+          transitionDelay: isLoading ? '0s' : '0.3s',
+          opacity: isLoading ? 0 : 1,
+          transform: isLoading ? 'scale(0.5)' : 'scale(1)',
         }}
       >
         {/* Shadow */}

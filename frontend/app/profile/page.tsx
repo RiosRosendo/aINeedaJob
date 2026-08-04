@@ -6,6 +6,7 @@ import { UserProfile } from '@/lib/types';
 import { Mail, X } from 'lucide-react';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
 import { ScoutLoading } from '@/components/ScoutLoading';
+import { useScout } from '@/contexts/ScoutContext';
 
 interface GmailStatus {
   connected: boolean;
@@ -14,6 +15,7 @@ interface GmailStatus {
 }
 
 export default function ProfilePage() {
+  const { setIsLoading } = useScout();
   const [isDark, setIsDark] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -104,6 +106,7 @@ export default function ProfilePage() {
     const loadProfile = async () => {
       try {
         setLoading(true);
+        setIsLoading(true);
         setError(null);
         const [data, apps] = await Promise.all([
           getUserProfile(),
@@ -149,6 +152,7 @@ export default function ProfilePage() {
         setError('Failed to load profile. Please try again.');
       } finally {
         setLoading(false);
+        setIsLoading(false);
       }
     };
 

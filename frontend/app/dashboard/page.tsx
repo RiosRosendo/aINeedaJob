@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getUserProfile, getJobsWithStats, getPendingApprovalJobs } from '@/lib/api';
 import { GlobeMap } from '@/components/GlobeMap';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
+import { useScout } from '@/contexts/ScoutContext';
 import { Job, UserProfile, DashboardStats } from '@/lib/types';
 
 const getScoreRingColor = (score: number): string => {
@@ -51,6 +52,7 @@ interface ActivityLog {
 }
 
 export default function Dashboard() {
+  const { setIsLoading } = useScout();
   const [isDark, setIsDark] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -114,6 +116,7 @@ export default function Dashboard() {
     const loadData = async () => {
       try {
         setLoading(true);
+        setIsLoading(true);
         const profileData = await getUserProfile().catch(() => null);
         const userId = localStorage.getItem('user_id');
 
@@ -153,6 +156,7 @@ export default function Dashboard() {
         console.error('Failed to load dashboard:', error);
       } finally {
         setLoading(false);
+        setIsLoading(false);
       }
     };
 

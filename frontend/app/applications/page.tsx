@@ -5,6 +5,7 @@ import { Check } from 'lucide-react';
 import { getApplications } from '@/lib/api';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
 import { ScoutLoading } from '@/components/ScoutLoading';
+import { useScout } from '@/contexts/ScoutContext';
 
 interface ApplicationData {
   id: string;
@@ -92,6 +93,7 @@ const getAllStatuses = (applications: ApplicationData[]) => {
 };
 
 export default function ApplicationsPage() {
+  const { setIsLoading } = useScout();
   const [isDark, setIsDark] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [applications, setApplications] = useState<ApplicationData[]>([]);
@@ -118,6 +120,7 @@ export default function ApplicationsPage() {
     const loadApplications = async () => {
       try {
         setLoading(true);
+        setIsLoading(true);
         setError(null);
         const apps = await getApplications(1000);
         setApplications(apps);
@@ -133,6 +136,7 @@ export default function ApplicationsPage() {
         setError('Failed to load applications. Please try again.');
       } finally {
         setLoading(false);
+        setIsLoading(false);
       }
     };
 

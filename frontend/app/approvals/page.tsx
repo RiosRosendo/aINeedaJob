@@ -6,6 +6,7 @@ import { Application, Job } from '@/lib/types';
 import { generateCVHTML, downloadCVAsHTML } from '@/lib/cvGenerator';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
 import { ScoutLoading } from '@/components/ScoutLoading';
+import { useScout } from '@/contexts/ScoutContext';
 import { X } from 'lucide-react';
 
 interface PendingJob {
@@ -21,6 +22,7 @@ interface TailoredCV {
 }
 
 export default function ApprovalsPage() {
+  const { setIsLoading } = useScout();
   const [isDark, setIsDark] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
@@ -46,6 +48,7 @@ export default function ApprovalsPage() {
   const loadPendingJobs = async () => {
     try {
       setLoading(true);
+      setIsLoading(true);
       setError(null);
 
       const profileResponse = await fetch('http://localhost:8001/api/users/profile', {
@@ -101,6 +104,7 @@ export default function ApprovalsPage() {
       setError('Failed to load pending jobs. Please try again.');
     } finally {
       setLoading(false);
+      setIsLoading(false);
     }
   };
 

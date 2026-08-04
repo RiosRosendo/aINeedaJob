@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getScoredJobs, getJobs, getApplications } from '@/lib/api';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
 import { ScoutLoading } from '@/components/ScoutLoading';
+import { useScout } from '@/contexts/ScoutContext';
 import { Job } from '@/lib/types';
 import { X, Search } from 'lucide-react';
 
@@ -22,6 +23,7 @@ const getDecisionColor = (fitScore?: number): { color: string; bgColor: string }
 };
 
 export default function JobsPage() {
+  const { setIsLoading } = useScout();
   const [isDark, setIsDark] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -51,6 +53,7 @@ export default function JobsPage() {
     const loadJobs = async () => {
       try {
         setLoading(true);
+        setIsLoading(true);
         setError(null);
 
         const profileResponse = await fetch('http://localhost:8001/api/users/profile', {
@@ -82,6 +85,7 @@ export default function JobsPage() {
         setError('Failed to load jobs. Please try again.');
       } finally {
         setLoading(false);
+        setIsLoading(false);
       }
     };
 
