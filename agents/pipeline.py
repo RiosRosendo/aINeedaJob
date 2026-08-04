@@ -18,7 +18,7 @@ from langgraph.graph import StateGraph, END
 # Import from refactored modules
 from agents.state import JobState, map_country_to_adzuna_code, COUNTRY_CODE_MAP
 from agents.discovery_agent import discovery_node, _translate_roles_for_country
-from agents.processing_agent import processing_node, _is_title_relevant, _mark_as_ignored
+from agents.processing_agent import processing_node, verification_node, _is_title_relevant, _mark_as_ignored
 from agents.autonomous_cycle import (
     run_autonomous_cycle,
     _gather_pipeline_state,
@@ -36,6 +36,7 @@ __all__ = [
     'COUNTRY_CODE_MAP',
     'map_country_to_adzuna_code',
     'discovery_node',
+    'verification_node',
     'processing_node',
     '_translate_roles_for_country',
     '_is_title_relevant',
@@ -58,10 +59,12 @@ workflow = StateGraph(JobState)
 
 # Add nodes
 workflow.add_node("discovery", discovery_node)
+workflow.add_node("verification", verification_node)
 workflow.add_node("processing", processing_node)
 
-# Add edges: Discovery → Processing → END
-workflow.add_edge("discovery", "processing")
+# Add edges: Discovery → Verification → Processing → END
+workflow.add_edge("discovery", "verification")
+workflow.add_edge("verification", "processing")
 workflow.add_edge("processing", END)
 
 # Set entry point

@@ -7,9 +7,63 @@ Processes in batches to avoid overwhelming servers.
 """
 
 from tools.db import execute_query, execute_update
-from tools.check_job_active import check_job_still_active
 from datetime import datetime, timedelta
 import json
+import requests
+from bs4 import BeautifulSoup
+
+
+def check_job_still_active(url: str) -> tuple:
+    """
+    Check if a job URL is still active/available.
+
+    Args:
+        url (str): Job URL to check
+
+    Returns:
+        tuple: (is_active: bool, reason: str)
+            - is_active=True: URL responds with job content
+            - is_active=False: URL dead, 404, or job content removed
+    """
+    if not url:
+        return False, "no_url"
+
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        response = requests.get(url, timeout=10, headers=headers, allow_redirects=True)
+
+        # 404 or 410 = job removed
+        if response.status_code in [404, 410]:
+            return False, "url_not_found"
+
+        # 5xx errors = server issue, assume still active
+        if response.status_code >= 500:
+            return True, "server_error"
+
+        # Success but check if job content exists
+        if response.status_code == 200:
+            content = response.text.lower()
+            # Check for common "job not found" indicators
+            dead_indicators = ['job not found', 'posting has been closed', 'this position has been filled', 'no longer available']
+            if any(indicator in content for indicator in dead_indicators):
+                return False, "job_removed"
+            return True, "active"
+
+        # Other 4xx = assume dead
+        if 400 <= response.status_code < 500:
+            return False, "client_error"
+
+        # Other success codes
+        return True, "active"
+
+    except requests.Timeout:
+        return True, "timeout"
+    except requests.ConnectionError:
+        return True, "connection_error"
+    except Exception as e:
+        return True, f"error_{type(e).__name__}"
 
 
 def verify_active_jobs() -> dict:

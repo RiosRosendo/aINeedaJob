@@ -22,10 +22,198 @@ from tools.save_fit_score import save_fit_score
 from tools.check_eligibility import check_work_eligibility
 from tools.create_notification import create_notification
 from tools.apply_job import apply_for_job_sync
+from tools.verify_active_jobs import check_job_still_active
 import time
 import json
 
 BATCH_DELAY = 0.5  # Seconds between jobs to avoid rate limiting
+
+
+def _perform_llm_driven_cleanup(job_id: str, user_id: str, job_data: dict) -> None:
+    """
+    LLM autonomously decides cleanup actions for expired jobs.
+
+    Evaluates job context (application status, user interaction) and decides:
+    - Should fit_scores be deleted?
+    - Should applications be deleted or kept for tracking?
+    - What additional cleanup is needed?
+
+    Tools Called:
+    - call_llm(): Groq LLM for cleanup decision
+    - execute_update(): Execute cleanup actions
+
+    Args:
+        job_id (str): Job ID that expired
+        user_id (str): User ID who discovered the job
+        job_data (dict): Job data from discovery
+    """
+    try:
+        # Fetch job and application context
+        job_full = execute_query("SELECT * FROM jobs WHERE id = %s AND user_id = %s", (job_id, user_id))
+        application = execute_query(
+            "SELECT status FROM applications WHERE job_id = %s AND user_id = %s ORDER BY created_at DESC LIMIT 1",
+            (job_id, user_id)
+        )
+        fit_score = execute_query(
+            "SELECT score, decision FROM fit_scores WHERE job_id = %s AND user_id = %s",
+            (job_id, user_id)
+        )
+
+        job_info = job_full[0] if job_full else {}
+        app_status = application[0]['status'] if application else None
+        fit_info = fit_score[0] if fit_score else {}
+
+        prompt = f"""You are an autonomous job database cleanup manager.
+
+A job posting has been verified as EXPIRED (no longer available).
+
+JOB CONTEXT:
+- Job ID: {job_id}
+- Title: {job_info.get('title', 'unknown')}
+- Company: {job_info.get('company', 'unknown')}
+
+APPLICATION CONTEXT:
+- Application Status: {app_status or 'none'}
+- Fit Score: {fit_info.get('score', 'N/A')}
+- Fit Decision: {fit_info.get('decision', 'N/A')}
+
+CLEANUP DECISION:
+Should we clean up this job's data? Consider:
+- If user applied/has application: KEEP application for tracking (don't delete)
+- If no application or status is pending: can DELETE application
+- Always evaluate fit_scores: keep if relevant to user's search, delete if low relevance
+- Expired jobs themselves are already marked expires_at = NOW()
+
+Return ONLY valid JSON (no markdown):
+{{
+  "delete_fit_scores": boolean,  # true if fit_scores should be deleted, false to keep
+  "delete_applications": boolean,  # true if pending applications should be deleted
+  "reason": "brief explanation"
+}}"""
+
+        response = call_llm(prompt)
+        response = response.replace("```json", "").replace("```", "").strip()
+        decision = json.loads(response)
+
+        print(f"[CLEANUP] Job {job_id}: LLM decided - fit_scores={decision.get('delete_fit_scores')}, apps={decision.get('delete_applications')}", flush=True)
+
+        # Execute cleanup decisions
+        if decision.get('delete_fit_scores'):
+            try:
+                execute_update("DELETE FROM fit_scores WHERE job_id = %s", (job_id,))
+                print(f"[CLEANUP] Job {job_id}: Deleted fit_scores", flush=True)
+            except Exception as e:
+                print(f"[CLEANUP] Job {job_id}: Failed to delete fit_scores - {str(e)}", flush=True)
+
+        if decision.get('delete_applications'):
+            try:
+                # Only delete pending applications, keep applied/in-review/offer
+                execute_update(
+                    "DELETE FROM applications WHERE job_id = %s AND status IN ('pending_approval', 'pending_application')",
+                    (job_id,)
+                )
+                print(f"[CLEANUP] Job {job_id}: Deleted pending applications", flush=True)
+            except Exception as e:
+                print(f"[CLEANUP] Job {job_id}: Failed to delete applications - {str(e)}", flush=True)
+
+    except Exception as e:
+        print(f"[CLEANUP] Job {job_id}: LLM cleanup decision failed - {str(e)}", flush=True)
+
+
+def verification_node(state: JobState) -> JobState:
+    """
+    Autonomous job verification node in LangGraph pipeline.
+
+    Agent Role: VERIFICATION NODE in WAT framework
+
+    Verifies that discovered job URLs are still active before processing:
+    1. Reads unprocessed jobs from discovery_node
+    2. For each job not verified in last 24 hours: checks if URL is active
+    3. Marks dead jobs as expired (expires_at = NOW())
+    4. Returns only active jobs to processing_node
+
+    No hardcoded rules - LangGraph manages flow, verification is deterministic.
+
+    Tools Called:
+    - check_job_still_active(): HTTP check if URL responds with job content
+    - execute_update(): Mark expired jobs in database
+
+    Args:
+        state (JobState): Pipeline state with raw_jobs from discovery_node
+
+    Returns:
+        JobState: Updated state with only active jobs in unprocessed_jobs
+    """
+    user_id = state.get("user_id")
+    raw_jobs = state.get("raw_jobs", [])
+
+    if not user_id or not raw_jobs:
+        print(f"[VERIFICATION] No jobs to verify")
+        state["unprocessed_jobs"] = []
+        return state
+
+    now = datetime.utcnow()
+    active_jobs = []
+    expired_count = 0
+
+    print(f"[VERIFICATION] Verifying {len(raw_jobs)} jobs for user {user_id}", flush=True)
+
+    for job_data in raw_jobs:
+        job_id = job_data.get("id")
+        url = job_data.get("url")
+        last_verified = job_data.get("last_verified_at")
+
+        # Skip if verified in last 24 hours
+        if last_verified:
+            hours_since_verified = (now - last_verified).total_seconds() / 3600 if hasattr(last_verified, 'total_seconds') else (now - last_verified.replace(tzinfo=None)).total_seconds() / 3600
+            if hours_since_verified < 24:
+                print(f"[VERIFICATION] Job {job_id}: SKIP - verified {hours_since_verified:.1f}h ago", flush=True)
+                active_jobs.append(job_data)
+                continue
+
+        # Check if URL is still active
+        if not url:
+            print(f"[VERIFICATION] Job {job_id}: SKIP - no URL", flush=True)
+            active_jobs.append(job_data)
+            continue
+
+        try:
+            is_active, reason = check_job_still_active(url)
+
+            if is_active:
+                print(f"[VERIFICATION] Job {job_id}: ACTIVE (reason: {reason})", flush=True)
+                # Update last_verified_at
+                try:
+                    execute_update(
+                        "UPDATE jobs SET last_verified_at = %s WHERE id = %s",
+                        (now, job_id)
+                    )
+                except:
+                    pass
+                active_jobs.append(job_data)
+            else:
+                print(f"[VERIFICATION] Job {job_id}: EXPIRED (reason: {reason})", flush=True)
+                # Mark as expired
+                try:
+                    execute_update(
+                        "UPDATE jobs SET expires_at = %s WHERE id = %s",
+                        (now, job_id)
+                    )
+                except:
+                    pass
+
+                # LLM decides cleanup actions based on job context
+                _perform_llm_driven_cleanup(job_id, user_id, job_data)
+                expired_count += 1
+
+        except Exception as e:
+            print(f"[VERIFICATION] Job {job_id}: ERROR - {type(e).__name__}: {str(e)}", flush=True)
+            # On error, assume active and let processing handle it
+            active_jobs.append(job_data)
+
+    print(f"[VERIFICATION] Complete: {len(active_jobs)} active, {expired_count} expired", flush=True)
+    state["unprocessed_jobs"] = active_jobs
+    return state
 
 
 def processing_node(state: JobState) -> JobState:
