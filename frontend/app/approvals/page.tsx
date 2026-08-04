@@ -5,6 +5,7 @@ import { getApplications, getJob, approveApplication, dismissApplication, getTai
 import { Application, Job } from '@/lib/types';
 import { generateCVHTML, downloadCVAsHTML } from '@/lib/cvGenerator';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
+import { ScoutLoading } from '@/components/ScoutLoading';
 import { X } from 'lucide-react';
 
 interface PendingJob {
@@ -191,13 +192,7 @@ export default function ApprovalsPage() {
         )}
 
         {loading ? (
-          <div style={{
-            padding: '40px 20px',
-            textAlign: 'center',
-            color: 'var(--muted)',
-          }}>
-            Loading...
-          </div>
+          <ScoutLoading message="Loading approvals..." />
         ) : pendingJobs.length === 0 ? (
           <div style={{
             borderRadius: '22px',

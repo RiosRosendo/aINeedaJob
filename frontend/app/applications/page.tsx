@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { getApplications } from '@/lib/api';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
+import { ScoutLoading } from '@/components/ScoutLoading';
 
 interface ApplicationData {
   id: string;
@@ -389,11 +390,7 @@ export default function ApplicationsPage() {
         )}
 
         {/* Loading State */}
-        {loading && (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
-            Loading applications...
-          </div>
-        )}
+        {loading && <ScoutLoading message="Loading applications..." />}
 
         {/* Applications List */}
         {!loading && filteredApplications.length > 0 && (

@@ -5,6 +5,7 @@ import { getUserProfile, updateUserProfile, getApplications } from '@/lib/api';
 import { UserProfile } from '@/lib/types';
 import { Mail, X } from 'lucide-react';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
+import { ScoutLoading } from '@/components/ScoutLoading';
 
 interface GmailStatus {
   connected: boolean;
@@ -448,7 +449,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div style={{ ...theme as any, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg)', color: 'var(--text)', fontFamily: "'Figtree', sans-serif" }}>
-        Loading profile...
+        <ScoutLoading message="Loading profile..." />
       </div>
     );
   }

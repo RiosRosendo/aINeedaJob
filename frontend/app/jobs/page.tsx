@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getScoredJobs, getJobs, getApplications } from '@/lib/api';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
+import { ScoutLoading } from '@/components/ScoutLoading';
 import { Job } from '@/lib/types';
 import { X, Search } from 'lucide-react';
 
@@ -338,11 +339,7 @@ export default function JobsPage() {
         )}
 
         {/* Loading State */}
-        {loading && (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
-            Loading jobs...
-          </div>
-        )}
+        {loading && <ScoutLoading message="Loading jobs..." />}
 
         {/* Jobs List */}
         {!loading && sortedJobs.length > 0 && (

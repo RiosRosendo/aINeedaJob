@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getUserProfile, getJobsWithStats, getAgentLogs, getPendingApprovalJobs } from '@/lib/api';
+import { getUserProfile, getJobsWithStats, getPendingApprovalJobs } from '@/lib/api';
 import { GlobeMap } from '@/components/GlobeMap';
 import { ScoutSidebar } from '@/components/ScoutSidebar';
 import { Job, UserProfile, DashboardStats } from '@/lib/types';
