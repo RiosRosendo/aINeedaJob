@@ -517,6 +517,48 @@ async def trigger_autonomous_cycle(user_id: str = Depends(get_user_id)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/trigger-followup")
+async def trigger_followup(user_id: str = Depends(get_user_id)):
+    """
+    Manually trigger the follow-up agent for testing.
+
+    Sends follow-up emails to companies after 7+ days without response.
+    """
+    try:
+        from tools.follow_up_agent import run_follow_up_agent
+
+        print(f"[TRIGGER] Manual follow-up trigger for user {user_id}", flush=True)
+        result = run_follow_up_agent()
+
+        print(f"[TRIGGER] Follow-up result: {result}", flush=True)
+        return result
+
+    except Exception as e:
+        print(f"[TRIGGER] ERROR in follow-up: {str(e)}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/trigger-interview-prep")
+async def trigger_interview_prep(user_id: str = Depends(get_user_id)):
+    """
+    Manually trigger interview prep agent for testing.
+
+    Generates interview preparation materials for confirmed interviews.
+    """
+    try:
+        from api.main import run_interview_prep_agent
+
+        print(f"[TRIGGER] Manual interview prep trigger for user {user_id}", flush=True)
+        run_interview_prep_agent()
+
+        print(f"[TRIGGER] Interview prep generation triggered", flush=True)
+        return {"status": "triggered"}
+
+    except Exception as e:
+        print(f"[TRIGGER] ERROR in interview prep: {str(e)}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{job_id}", response_model=dict)
 async def get_job(job_id: str, user_id: str = Depends(get_user_id)):
     """

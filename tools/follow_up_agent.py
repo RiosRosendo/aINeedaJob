@@ -13,12 +13,16 @@ import sys
 import os
 from datetime import datetime, timedelta
 import json
+from typing import Optional, Dict
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+import requests
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tools.db import execute_query, execute_update
 from tools.llm import call_llm
-from tools.gmail_client import get_gmail_client, check_email_from_company, send_email
+from api.routes.gmail import get_gmail_tokens, refresh_gmail_token, GOOGLE_TOKEN_URL
 
 
 def run_follow_up_agent():
@@ -79,14 +83,34 @@ def run_follow_up_agent():
                     except:
                         pass
 
-                # Check if email received from company
-                gmail_client = get_gmail_client(user_id)
-                if not gmail_client:
-                    print(f"[FOLLOW_UP] No Gmail client for user {user_id}, skipping")
+                # Check if Gmail is connected
+                tokens = get_gmail_tokens(user_id)
+                if not tokens:
+                    print(f"[FOLLOW_UP] Gmail not connected for user {user_id}, skipping")
                     errors += 1
                     continue
 
-                has_response = check_email_from_company(gmail_client, company, job_title)
+                # Refresh token if expired
+                if _is_token_expired(tokens.get('token_expiry')):
+                    refresh_gmail_token(user_id)
+                    tokens = get_gmail_tokens(user_id)
+                    if not tokens:
+                        print(f"[FOLLOW_UP] Failed to refresh Gmail token for user {user_id}")
+                        errors += 1
+                        continue
+
+                # Build Gmail service
+                credentials = Credentials(
+                    token=tokens.get('access_token'),
+                    refresh_token=tokens.get('refresh_token'),
+                    token_uri=GOOGLE_TOKEN_URL,
+                    client_id=os.getenv('GOOGLE_CLIENT_ID'),
+                    client_secret=os.getenv('GOOGLE_CLIENT_SECRET')
+                )
+                gmail_service = build('gmail', 'v1', credentials=credentials)
+
+                # Check if email received from company
+                has_response = _check_email_from_company(gmail_service, company, job_title)
                 if has_response:
                     print(f"[FOLLOW_UP] Email from {company} already received, skipping")
                     # Mark as responded
@@ -114,7 +138,7 @@ def run_follow_up_agent():
                     errors += 1
                     continue
 
-                success = send_email(gmail_client, to_email, follow_up_text, job_title)
+                success = _send_email(gmail_service, to_email, follow_up_text, job_title)
                 if not success:
                     print(f"[FOLLOW_UP] Failed to send follow-up email")
                     errors += 1
@@ -195,6 +219,52 @@ def _get_company_email(company: str) -> str:
         pass
 
     return None
+
+
+def _is_token_expired(token_expiry) -> bool:
+    """Check if Gmail token has expired."""
+    if not token_expiry:
+        return True
+    try:
+        from datetime import datetime
+        expiry = datetime.fromisoformat(token_expiry)
+        return datetime.utcnow() > expiry
+    except:
+        return True
+
+
+def _check_email_from_company(gmail_service, company: str, job_title: str) -> bool:
+    """Check if we have received an email from the company regarding this job."""
+    try:
+        # Search for emails from company (using sender domain/name)
+        query = f'from:{company.lower().split()[0]} subject:{job_title[:20]}'
+        results = gmail_service.users().messages().list(userId='me', q=query, maxResults=1).execute()
+
+        messages = results.get('messages', [])
+        return len(messages) > 0
+    except Exception as e:
+        print(f"[FOLLOW_UP] Error checking emails from company: {str(e)}")
+        return False
+
+
+def _send_email(gmail_service, to_email: str, body: str, subject: str) -> bool:
+    """Send an email via Gmail API."""
+    try:
+        import base64
+        from email.mime.text import MIMEText
+
+        message = MIMEText(body)
+        message['to'] = to_email
+        message['subject'] = f"Follow-up: {subject}"
+
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        send_message = {'raw': raw_message}
+
+        gmail_service.users().messages().send(userId='me', body=send_message).execute()
+        return True
+    except Exception as e:
+        print(f"[FOLLOW_UP] Error sending email: {str(e)}")
+        return False
 
 
 if __name__ == "__main__":
