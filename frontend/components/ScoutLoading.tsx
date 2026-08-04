@@ -11,8 +11,17 @@ export function ScoutLoading({ message = 'Loading...' }: ScoutLoadingProps) {
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '40px 20px',
+      minHeight: 'calc(100vh - 200px)',
+      width: '100%',
+      flex: 1,
     }}>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '40px 20px',
+      }}>
       <style>{`
         @keyframes scoutBounce {
           0%, 100% {
@@ -24,11 +33,11 @@ export function ScoutLoading({ message = 'Loading...' }: ScoutLoadingProps) {
         }
 
         @keyframes scoutBlink {
-          0%, 49%, 51%, 100% {
-            scaleY: 1;
+          0%, 92%, 100% {
+            transform: scaleY(1);
           }
-          50% {
-            scaleY: 0.1;
+          95% {
+            transform: scaleY(0.15);
           }
         }
 
@@ -43,12 +52,21 @@ export function ScoutLoading({ message = 'Loading...' }: ScoutLoadingProps) {
           }
         }
 
+        @keyframes ainBreathe {
+          0%, 100% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.08);
+          }
+        }
+
         .scout-blob {
-          animation: scoutBounce 1.2s ease-in-out infinite;
+          animation: scoutBounce 1.2s ease-in-out infinite, ainBreathe 3.2s ease-in-out infinite;
         }
 
         .scout-eye {
-          animation: scoutBlink 1.2s ease-in-out infinite;
+          animation: scoutBlink 4.5s ease-in-out infinite;
           transform-origin: center;
         }
 
@@ -58,54 +76,68 @@ export function ScoutLoading({ message = 'Loading...' }: ScoutLoadingProps) {
       `}
       </style>
 
-      {/* Scout Blob */}
-      <div className="scout-blob" style={{
+      {/* Scout Blob with Shadow */}
+      <div style={{
         position: 'relative',
-        width: '80px',
-        height: '80px',
         marginBottom: '24px',
       }}>
+        {/* Scout Blob */}
+        <div className="scout-blob" style={{
+          position: 'relative',
+          width: '80px',
+          height: '80px',
+        }}>
+          {/* Blob Body */}
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '58% 42% 45% 55% / 45% 55% 45% 55%',
+            background: 'radial-gradient(circle at 30% 26%, var(--color-accent-200), var(--color-accent) 55%, var(--color-accent-700) 100%)',
+          }} />
+
+          {/* Left Eye */}
+          <div className="scout-eye" style={{
+            position: 'absolute',
+            left: '25px',
+            top: '28px',
+            width: '8px',
+            height: '8px',
+            background: 'rgba(255,255,255,0.8)',
+            borderRadius: '50%',
+          }} />
+
+          {/* Right Eye */}
+          <div className="scout-eye" style={{
+            position: 'absolute',
+            right: '25px',
+            top: '28px',
+            width: '8px',
+            height: '8px',
+            background: 'rgba(255,255,255,0.8)',
+            borderRadius: '50%',
+          }} />
+
+          {/* Mouth */}
+          <div style={{
+            position: 'absolute',
+            left: '32%',
+            top: '58%',
+            width: '36%',
+            height: '8px',
+            borderRadius: '0 0 16px 16px',
+            borderBottom: '2px solid var(--bg)',
+          }} />
+        </div>
+
         {/* Shadow */}
         <div className="scout-shadow" style={{
           position: 'absolute',
-          bottom: '-16px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '60px',
+          bottom: '-12px',
+          left: '10%',
+          width: '80%',
           height: '8px',
           background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 70%)',
           borderRadius: '50%',
-        }} />
-
-        {/* Blob Body */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          borderRadius: '58% 42% 45% 55% / 45% 55% 45% 55%',
-          background: 'radial-gradient(circle at 30% 26%, var(--color-accent-200), var(--color-accent) 55%, var(--color-accent-700) 100%)',
-        }} />
-
-        {/* Left Eye */}
-        <div className="scout-eye" style={{
-          position: 'absolute',
-          left: '25px',
-          top: '28px',
-          width: '8px',
-          height: '8px',
-          background: 'rgba(255,255,255,0.8)',
-          borderRadius: '50%',
-        }} />
-
-        {/* Right Eye */}
-        <div className="scout-eye" style={{
-          position: 'absolute',
-          right: '25px',
-          top: '28px',
-          width: '8px',
-          height: '8px',
-          background: 'rgba(255,255,255,0.8)',
-          borderRadius: '50%',
-          animationDelay: '0.1s',
         }} />
       </div>
 
@@ -119,6 +151,7 @@ export function ScoutLoading({ message = 'Loading...' }: ScoutLoadingProps) {
       }}>
         {message}
       </p>
+      </div>
     </div>
   );
 }

@@ -446,15 +446,6 @@ export default function ProfilePage() {
 
 
 
-  if (loading) {
-    return (
-      <div style={{ ...theme as any, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg)', color: 'var(--text)', fontFamily: "'Figtree', sans-serif" }}>
-        <ScoutLoading message="Loading profile..." />
-      </div>
-    );
-  }
-
-
   return (
     <div style={{ ...theme as any, minHeight: '100vh', backgroundColor: 'var(--bg)', color: 'var(--text)', fontFamily: "'Figtree', sans-serif" }}>
       <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -462,6 +453,11 @@ export default function ProfilePage() {
 
         {/* Main Content */}
         <main style={{ flex: 1, maxWidth: '900px', margin: '0 auto', padding: '44px 50px 70px', width: '100%' }}>
+          {loading ? (
+            <ScoutLoading message="Loading profile..." />
+          ) : (
+            <>
+
           {/* 1. Header Row */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', marginBottom: '32px', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', flex: 1 }}>
@@ -737,6 +733,8 @@ export default function ProfilePage() {
             <div style={{ background: '#f8d7da', color: '#721c24', padding: '12px 16px', borderRadius: '8px', marginTop: '20px', fontSize: '14px' }}>
               ✗ {error}
             </div>
+          )}
+            </>
           )}
         </main>
       </div>
