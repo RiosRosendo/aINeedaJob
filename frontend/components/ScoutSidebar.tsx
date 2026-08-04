@@ -23,6 +23,10 @@ const injectStyles = () => {
     @keyframes ainLook { 0%, 12% { transform: translate(0, 0); } 20%, 32% { transform: translate(-3px, 1px); } 40%, 52% { transform: translate(3px, -1px); } 60%, 72% { transform: translate(-2px, 2px); } 80%, 100% { transform: translate(0, 0); } }
     @keyframes ainBlink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.15); } }
     @keyframes ainTalk { 0%, 100% { transform: scaleX(1) scaleY(1); } 30% { transform: scaleX(0.75) scaleY(1.3); } 55% { transform: scaleX(1.15) scaleY(0.7); } 80% { transform: scaleX(0.9) scaleY(1.1); } }
+    @keyframes blinkBoth { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+    @keyframes blinkLeft { 0%, 88%, 100% { transform: scaleY(1); } 92% { transform: scaleY(0.1); } }
+    @keyframes blinkRight { 0%, 84%, 100% { transform: scaleY(1); } 88% { transform: scaleY(0.1); } }
+    @keyframes blinkFast { 0%, 95%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } 97% { transform: scaleY(1); } 98% { transform: scaleY(0.1); } }
   `;
   document.head.appendChild(style);
 };
@@ -144,7 +148,7 @@ export function ScoutSidebar({ isDark, setIsDark, sidebarOpen, setSidebarOpen, s
             height: `${eyeSize}px`,
             borderRadius: '50%',
             background: 'var(--bg)',
-            animation: 'ainLook 6s ease-in-out infinite, ainBlink 4.5s ease-in-out infinite',
+            animation: 'ainBlink 4.5s ease-in-out infinite',
           }}
         />
         <div
@@ -156,7 +160,7 @@ export function ScoutSidebar({ isDark, setIsDark, sidebarOpen, setSidebarOpen, s
             height: `${eyeSize}px`,
             borderRadius: '50%',
             background: 'var(--bg)',
-            animation: 'ainLook 6s ease-in-out infinite, ainBlink 4.5s ease-in-out infinite',
+            animation: 'ainBlink 4.5s ease-in-out infinite',
           }}
         />
 
