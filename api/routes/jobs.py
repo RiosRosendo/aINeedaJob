@@ -159,8 +159,6 @@ async def get_agent_logs(user_id: str = Depends(get_user_id), limit: int = 5):
             LEFT JOIN jobs j ON l.job_id = j.id AND j.user_id = %s
             LEFT JOIN fit_scores fs ON l.job_id = fs.job_id AND fs.user_id = %s
             WHERE l.user_id = %s
-              AND l.agent = 'job_match'
-              AND fs.score >= 60
             ORDER BY l.created_at DESC
             LIMIT %s
             """,

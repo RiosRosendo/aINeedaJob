@@ -170,9 +170,13 @@ export default function Dashboard() {
 
       if (log.agent === 'job_discovery' && log.status === 'success') {
         title = `Found ${details.count || details.jobs_count || 'new'} roles matching your profile`;
+      } else if (log.agent === 'job_discovery' && log.status === 'failed') {
+        title = 'Failed to discover new jobs';
       } else if (log.agent === 'job_parsing' && log.status === 'success') {
         const jobName = details.title || details.job_title || 'Job';
         title = `Parsed: ${jobName.substring(0, 40)}`;
+      } else if (log.agent === 'job_parsing' && log.status === 'failed') {
+        title = 'Failed to parse job description';
       } else if (log.agent === 'job_match' && log.status === 'success') {
         const jobName = (log as any).job_title || 'Position';
         const company = (log as any).job_company || 'Company';
@@ -180,6 +184,28 @@ export default function Dashboard() {
         title = `Scored job — ${jobName} at ${company} (${score}%)`;
       } else if (log.agent === 'job_match' && log.status === 'failed') {
         title = 'Failed to score job';
+      } else if (log.agent === 'autonomous_cycle') {
+        const action = details.action || log.status;
+        title = `Autonomous cycle: ${action}${details.reasoning ? ' — ' + details.reasoning.substring(0, 40) : ''}`;
+      } else if (log.agent === 'decision') {
+        const jobName = (log as any).job_title || details.title || '';
+        const company = (log as any).job_company || details.company || '';
+        const action = details.decision || details.action || log.status;
+        const location = company ? ` at ${company}` : '';
+        title = `${action}${jobName ? ` — ${jobName}${location}` : ''}`;
+      } else if (log.agent === 'cleanup' && log.status === 'success') {
+        title = `Cleaned up ${details.duplicates_deleted || 0} duplicate jobs`;
+      } else if (log.agent === 'verification' && log.status === 'success') {
+        title = `Verified job URL — ${details.reason || 'active'}`;
+      } else if (log.agent === 'verification' && log.status === 'expired') {
+        title = `Job URL expired — ${details.reason || 'no longer available'}`;
+      } else if (log.agent === 'job_verification') {
+        const status = details.verified ? 'active' : 'expired';
+        const reason = details.reason || '';
+        const jobName = (log as any).job_title || '';
+        title = jobName
+          ? `Verified ${jobName} — ${status}`
+          : `Job ${status}${reason ? ' (' + reason + ')' : ''}`;
       } else {
         title = `${log.agent.charAt(0).toUpperCase() + log.agent.slice(1)} — ${log.status}`;
       }

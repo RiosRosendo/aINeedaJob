@@ -155,6 +155,8 @@ def verification_node(state: JobState) -> JobState:
     now = datetime.utcnow()
     active_jobs = []
     expired_count = 0
+    urls_checked = 0
+    max_url_checks = 5  # Rate limit: max 5 URL checks per batch to avoid overwhelming job boards
 
     print(f"[VERIFICATION] Verifying {len(raw_jobs)} jobs for user {user_id}", flush=True)
 
@@ -177,7 +179,14 @@ def verification_node(state: JobState) -> JobState:
             active_jobs.append(job_data)
             continue
 
+        # Rate limit: skip URL check if already checked max_url_checks
+        if urls_checked >= max_url_checks:
+            print(f"[VERIFICATION] Job {job_id}: SKIP - rate limit reached ({urls_checked}/{max_url_checks})", flush=True)
+            active_jobs.append(job_data)
+            continue
+
         try:
+            urls_checked += 1
             is_active, reason = check_job_still_active(url)
 
             if is_active:
@@ -211,7 +220,7 @@ def verification_node(state: JobState) -> JobState:
             # On error, assume active and let processing handle it
             active_jobs.append(job_data)
 
-    print(f"[VERIFICATION] Complete: {len(active_jobs)} active, {expired_count} expired", flush=True)
+    print(f"[VERIFICATION] Complete: {len(active_jobs)} active, {expired_count} expired, {urls_checked} URL checks performed", flush=True)
     state["unprocessed_jobs"] = active_jobs
     return state
 

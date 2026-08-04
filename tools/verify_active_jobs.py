@@ -22,8 +22,8 @@ def check_job_still_active(url: str) -> tuple:
 
     Returns:
         tuple: (is_active: bool, reason: str)
-            - is_active=True: URL responds with job content
-            - is_active=False: URL dead, 404, or job content removed
+            - is_active=True: URL responds or anti-bot protection blocks it
+            - is_active=False: URL dead (404/410) or job content removed
     """
     if not url:
         return False, "no_url"
@@ -34,9 +34,13 @@ def check_job_still_active(url: str) -> tuple:
         }
         response = requests.get(url, timeout=10, headers=headers, allow_redirects=True)
 
-        # 404 or 410 = job removed
+        # 404 or 410 = job definitely removed
         if response.status_code in [404, 410]:
             return False, "url_not_found"
+
+        # 403, 401, 429 = anti-bot protection, assume active
+        if response.status_code in [401, 403, 429]:
+            return True, "anti_bot_protection"
 
         # 5xx errors = server issue, assume still active
         if response.status_code >= 500:
@@ -51,9 +55,9 @@ def check_job_still_active(url: str) -> tuple:
                 return False, "job_removed"
             return True, "active"
 
-        # Other 4xx = assume dead
+        # Other 4xx = assume active (likely anti-bot)
         if 400 <= response.status_code < 500:
-            return False, "client_error"
+            return True, "client_error_assume_active"
 
         # Other success codes
         return True, "active"
