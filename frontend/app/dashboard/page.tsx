@@ -408,7 +408,7 @@ export default function Dashboard() {
                 <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', fontWeight: 400, color: '#645C50', margin: 0 }}>
                   Agent Activity
                 </h2>
-                <a href="/debug" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-accent)', textDecoration: 'none' }}>
+                <a href="/activity" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-accent)', textDecoration: 'none' }}>
                   View all →
                 </a>
               </div>
