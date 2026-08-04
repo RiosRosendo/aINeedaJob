@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;500;600;700&display=swap');
+
 :root {
   --bg: #f5ead8;
   --card: #fffaf1;
@@ -335,4 +337,12 @@ body {
   margin: 22px 0 0;
   font-size: 11.5px;
   color: var(--faint);
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 30px var(--card) inset !important;
+  -webkit-text-fill-color: var(--text) !important;
+  background-color: var(--card) !important;
 }
