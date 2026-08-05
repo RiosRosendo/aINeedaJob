@@ -20,6 +20,7 @@ from agents.discovery_agent import discovery_node
 from agents.processing_agent import processing_node
 from tools.db import execute_query, execute_update
 from tools.llm import call_llm
+from tools.agent_metrics import get_metrics_for_llm
 from langgraph.graph import StateGraph, END
 from datetime import datetime, timezone
 import json
@@ -225,6 +226,9 @@ def _gather_pipeline_state(user_id: str) -> dict:
     unique_jobs = duplication_data.get('unique_jobs', 0)
     duplication_rate = (total_jobs / unique_jobs) if unique_jobs > 0 else 1.0
 
+    # Get agent performance metrics (LLM uses this to autonomously decide strategy)
+    agent_metrics = get_metrics_for_llm(user_id)
+
     return {
         'last_discovery_time': last_discovery,
         'hours_since_discovery': hours_since_discovery,
@@ -249,6 +253,7 @@ def _gather_pipeline_state(user_id: str) -> dict:
         'duplication_rate': duplication_rate,
         'total_jobs': total_jobs,
         'unique_jobs': unique_jobs,
+        'agent_performance_metrics': agent_metrics,
     }
 
 

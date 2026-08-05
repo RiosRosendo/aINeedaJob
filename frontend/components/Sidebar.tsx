@@ -31,7 +31,7 @@ export function Sidebar() {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user_id');
     document.cookie = 'access_token=; path=/; max-age=0';
-    router.push('/login');
+    router.push('/auth');
   };
 
   useEffect(() => {

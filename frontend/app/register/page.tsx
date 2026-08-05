@@ -225,11 +225,11 @@ export default function RegisterPage() {
             <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)' }} />
           </div>
 
-          {/* Login Link */}
+          {/* Auth Link */}
           <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: '14px' }}>
             Already have an account?{' '}
             <Link
-              href="/login"
+              href="/auth"
               style={{
                 color: 'var(--primary-bg)',
                 textDecoration: 'none',

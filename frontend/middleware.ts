@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const PROTECTED_ROUTES = ['/dashboard', '/jobs', '/approvals', '/applications', '/profile', '/onboarding'];
 
 // Public auth routes (should redirect to dashboard if already authenticated)
-const AUTH_ROUTES = ['/login', '/register'];
+const AUTH_ROUTES = ['/auth', '/login', '/register'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -18,9 +18,9 @@ export function middleware(request: NextRequest) {
   // Check if current route is an auth route
   const isAuthRoute = AUTH_ROUTES.some(route => pathname.startsWith(route));
 
-  // If no token and trying to access protected route, redirect to login
+  // If no token and trying to access protected route, redirect to auth
   if (isProtectedRoute && !token) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/auth', request.url));
   }
 
   // If token exists and trying to access auth routes, redirect to dashboard
@@ -42,6 +42,7 @@ export const config = {
     '/profile/:path*',
     '/onboarding/:path*',
     // Auth routes
+    '/auth/:path*',
     '/login/:path*',
     '/register/:path*',
   ],

@@ -434,6 +434,80 @@ def run_processed_emails_cleanup():
         sys.stdout.flush()
 
 
+def run_agent_metrics_collection():
+    """
+    Collect weekly agent performance metrics.
+
+    Aggregates agent_logs and fit_scores into agent_metrics table.
+    Metrics enable autonomous agents to learn and adapt strategy:
+    - Source quality (which job boards have best relevance)
+    - Geographic performance (which countries are productive)
+    - Role performance (which positions have highest success)
+    - Application method effectiveness (form vs email vs clicks)
+
+    LLM uses this data to autonomously decide discovery priorities,
+    scoring thresholds, and application strategy - no hardcoded rules.
+
+    Runs every Sunday at 11:00 PM.
+    """
+    try:
+        from tools.db import execute_query
+        from tools.agent_metrics import collect_weekly_metrics
+
+        print("[SCHEDULER] Starting agent metrics collection for all users...", flush=True)
+
+        # Get all active users
+        users_result = execute_query(
+            """
+            SELECT u.id, u.email
+            FROM users u
+            WHERE u.is_active = TRUE
+            ORDER BY u.created_at DESC
+            """,
+            ()
+        )
+
+        if not users_result:
+            print("[SCHEDULER] No active users found for metrics collection", flush=True)
+            return
+
+        total_users = len(users_result)
+        processed_users = 0
+
+        for user in users_result:
+            user_id = user.get('id')
+            email = user.get('email')
+
+            try:
+                print(f"[SCHEDULER] Collecting metrics for user {email}", flush=True)
+                result = collect_weekly_metrics(user_id)
+
+                if result.get('error'):
+                    print(f"[SCHEDULER] Error for {email}: {result['error']}", flush=True)
+                else:
+                    processed_users += 1
+                    print(f"[SCHEDULER] Metrics collected for {email}: {result.get('metrics_collected')} rows",
+                          flush=True)
+
+            except Exception as e:
+                print(f"[SCHEDULER] ERROR collecting metrics for {email}: {type(e).__name__}: {str(e)}",
+                      flush=True)
+                continue
+
+        print(
+            f"[SCHEDULER] Agent metrics collection complete! "
+            f"Processed {processed_users}/{total_users} users",
+            flush=True
+        )
+        sys.stdout.flush()
+
+    except Exception as e:
+        print(f"[SCHEDULER] FATAL ERROR in agent metrics collection: {type(e).__name__}: {str(e)}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        sys.stdout.flush()
+
+
 def run_interview_prep_agent():
     """
     Generate interview prep materials for confirmed interviews.
@@ -587,6 +661,16 @@ async def startup_event():
             misfire_grace_time=60
         )
 
+        # Schedule agent metrics collection every Sunday at 11:00 PM (day_of_week=6)
+        scheduler.add_job(
+            run_agent_metrics_collection,
+            trigger=CronTrigger(day_of_week=6, hour=23, minute=0),
+            id='agent_metrics_collection',
+            name='Agent Metrics Collection',
+            replace_existing=True,
+            misfire_grace_time=60
+        )
+
         scheduler.start()
         print("[SCHEDULER] Background scheduler started successfully", flush=True)
         print("[SCHEDULER] Daily job search scheduled for 8:00 AM every day", flush=True)
@@ -597,6 +681,7 @@ async def startup_event():
         print("[SCHEDULER] Follow-up agent scheduled for Monday 10:00 AM", flush=True)
         print("[SCHEDULER] Interview prep agent scheduled for Tuesday 3:00 AM", flush=True)
         print("[SCHEDULER] Processed emails cleanup scheduled for Sunday 1:00 AM", flush=True)
+        print("[SCHEDULER] Agent metrics collection scheduled for Sunday 11:00 PM", flush=True)
 
     except Exception as e:
         print(f"[SCHEDULER] Failed to start scheduler: {type(e).__name__}: {str(e)}", flush=True)
