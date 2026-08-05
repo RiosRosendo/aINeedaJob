@@ -33,6 +33,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle 401 errors by redirecting to auth
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('user_id');
+      localStorage.removeItem('access_token');
+      document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      window.location.href = '/auth';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // User Profile
 export const getUserProfile = async () => {
   try {

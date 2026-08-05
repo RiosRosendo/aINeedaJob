@@ -87,11 +87,13 @@ Evaluate fit considering:
     The LLM should autonomously understand that equivalent terms in different
     languages refer to the same concept.
   * Evaluate skills autonomously based on semantic meaning, not exact text match
-- Experience level: compare user's stated experience level ({user_profile.get('experience_level', 'Junior')}) with job requirement
-  * If job requires Senior and user is Junior: consider gap but balance with other strengths
-  * If job requires Junior and user is Senior: strong match, possible overqualification
-  * Use actual CV experience to validate stated experience level
-  * Consider internships and industry projects as real work experience
+- Experience level: evaluate if job's required experience level matches the user's profile
+  * User's self-reported level: {user_profile.get('experience_level', 'Junior')}
+  * CV-detected level: {user_profile.get('cv_data', {}).get('detected_experience_level', 'Unknown') if isinstance(user_profile.get('cv_data'), dict) else json.loads(user_profile.get('cv_data', '{}')).get('detected_experience_level', 'Unknown')}
+  * Consider: self-reported level, CV-detected level, actual CV content
+  * If there is a significant mismatch (e.g., Senior job for Junior candidate), reflect this in the score
+  * The LLM evaluates autonomously - no hardcoded penalties
+  * Balance experience gap with other strengths (skills, education, projects)
 - Education relevance (degree, certifications)
 - Languages required for the role
 - Salary expectations

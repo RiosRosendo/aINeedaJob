@@ -392,8 +392,7 @@ def _execute_autonomous_action(user_id: str, action: str, state: dict) -> dict:
     elif action == 'run_cleanup':
         return _execute_cleanup(user_id)
     elif action == 'try_new_sources':
-        print("[AUTONOMOUS] try_new_sources not yet implemented, waiting instead", flush=True)
-        return {'action': 'wait', 'reason': 'new_sources_not_implemented'}
+        return _execute_try_new_sources(user_id, state)
     else:
         return {'action': 'wait', 'reason': 'cycle complete, monitoring'}
 
@@ -622,6 +621,132 @@ def _execute_cleanup(user_id: str) -> dict:
     except Exception as e:
         print(f"[AUTONOMOUS] Cleanup failed: {str(e)}", flush=True)
         return {'action': 'run_cleanup', 'error': str(e), 'success': False}
+
+
+def _execute_try_new_sources(user_id: str, state: dict) -> dict:
+    """
+    Let LLM suggest new search term variations based on performance metrics.
+
+    Agent Role: Helper for AUTONOMOUS CYCLE ORCHESTRATOR
+
+    Autonomously decides what new search variations to try:
+    - Different role variations (e.g., "AI Engineer" → "Machine Learning Engineer", "Data Scientist")
+    - Search in different languages for priority country
+    - Adjust search terms based on agent_metrics performance (which sources/roles underperform)
+
+    No hardcoded sources - LLM decides what to try based on:
+    - Current target_roles and performance data
+    - Priority country and geographic metrics
+    - Agent metrics showing which sources have high relevance/success rates
+    - Discovered job title variations that didn't match initial search
+
+    Args:
+        user_id (str): User ID to suggest new sources for
+        state (dict): Pipeline state from _gather_pipeline_state()
+
+    Returns:
+        dict: Result with suggested_variations and discovery result
+    """
+    try:
+        from tools.llm import call_llm
+        import json
+
+        profile_result = execute_query(
+            "SELECT target_roles, preferred_countries FROM user_profiles WHERE user_id = %s",
+            (user_id,)
+        )
+
+        if not profile_result:
+            return {'error': 'User profile not found'}
+
+        profile = profile_result[0]
+        target_roles = profile.get('target_roles', [])
+        priority_country = profile.get('preferred_countries', [''])[0]
+
+        # Get agent metrics to inform LLM about performance
+        metrics_result = execute_query(
+            """
+            SELECT source, target_role, target_country, source_success_rate, country_success_rate, role_avg_score
+            FROM agent_metrics
+            WHERE user_id = %s
+            ORDER BY week_of DESC
+            LIMIT 4
+            """,
+            (user_id,)
+        )
+
+        metrics_data = [dict(row) for row in metrics_result] if metrics_result else []
+
+        prompt = f"""Based on the user's job search performance data, suggest new search term variations to try.
+
+User's Target Roles: {target_roles}
+Priority Country: {priority_country}
+
+Recent Performance Metrics (last 4 weeks):
+{json.dumps(metrics_data, indent=2) if metrics_data else 'No metrics data yet'}
+
+Autonomously decide what new search variations might improve discovery:
+1. Different role variations (synonyms, related titles)
+2. Variations for priority country (different keywords in local language or regional terms)
+3. Adjustments based on performance data (if some sources underperform, try new terms for those areas)
+
+Return ONLY valid JSON (no markdown):
+{{
+  "suggested_variations": [
+    {{"original_role": "AI Engineer", "variation": "Machine Learning Engineer", "reason": "Broader ML-focused companies"}},
+    {{"original_role": "AI Engineer", "variation": "Data Scientist", "reason": "Overlapping skill set"}}
+  ],
+  "language_variations": ["Machine Learning Ingénieur"] if priority_country is French, etc.
+}}"""
+
+        response = call_llm(prompt)
+        response = response.replace("```json", "").replace("```", "").strip()
+        suggestions = json.loads(response)
+
+        print(f"[AUTONOMOUS] LLM suggested {len(suggestions.get('suggested_variations', []))} new search variations", flush=True)
+
+        # Execute discovery with suggested new terms (merged with original roles)
+        new_roles = target_roles.copy()
+        for var in suggestions.get('suggested_variations', []):
+            if var.get('variation') not in new_roles:
+                new_roles.append(var['variation'])
+
+        print(f"[AUTONOMOUS] Running discovery with expanded roles: {new_roles}", flush=True)
+
+        # Create temporary profile with expanded roles for this discovery run
+        temp_profile = profile.copy()
+        temp_profile['target_roles'] = new_roles
+
+        initial_state = JobState(
+            user_id=user_id,
+            raw_jobs=[],
+            unprocessed_jobs=[],
+            processed_count=0,
+            applied_count=0,
+            review_count=0,
+            ignored_count=0,
+            error="",
+            roles=new_roles,
+            profile=temp_profile,
+            summary={}
+        )
+
+        # Import here to avoid circular imports
+        from agents.pipeline import graph
+
+        result = graph.invoke(initial_state)
+        discovered = len(result.get('raw_jobs', []))
+
+        return {
+            'action': 'try_new_sources',
+            'suggested_variations': suggestions.get('suggested_variations', []),
+            'jobs_discovered_with_new_terms': discovered,
+            'success': True
+        }
+
+    except Exception as e:
+        print(f"[AUTONOMOUS] try_new_sources failed: {str(e)}", flush=True)
+        return {'action': 'try_new_sources', 'error': str(e), 'success': False}
 
 
 def _hours_since(dt) -> float:

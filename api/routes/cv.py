@@ -385,6 +385,17 @@ Extract the person's nationality/citizenship from the CV if mentioned:
 - Return as string (not array)
 - If no nationality found, return null
 
+EXPERIENCE LEVEL DETECTION:
+Analyze the CV holistically to determine experience level:
+- Consider: graduation year, years since graduation, number of jobs held, seniority of roles, complexity of projects, academic level (BSc/MSc/PhD), internships vs full-time positions
+- Return detected_experience_level as one of: Intern, Junior, Semi-Senior, Senior, Lead/Manager
+- The LLM decides autonomously based on the full picture, not just years of experience
+- Intern: No professional work experience, recent graduate, internships only
+- Junior: 0-3 years professional experience, entry-level roles, mostly individual contributor
+- Semi-Senior: 3-7 years experience, some technical leadership, mentoring junior developers, leading small projects
+- Senior: 7+ years, technical depth, mentoring multiple people, leading significant projects, architecture decisions
+- Lead/Manager: People management, team/project leadership, strategic decisions, C-level or director roles
+
 EXPERIENCE EXTRACTION:
 Extract detailed work experience from the CV:
 - Each experience entry represents ONE job position
@@ -412,6 +423,7 @@ Return:
   "languages": [{{"language": "Spanish", "level": "Native"}}],
   "roles": ["Robotics Engineer"],
   "nationality": "Mexican",
+  "detected_experience_level": "Senior",
   "experience_years": 5,
   "experience": [{{"title": "Robotics Engineer", "company": "Acme Corp", "duration": "2021-2023", "description": "Led autonomous robot development"}}],
   "projects": [{{"name": "Autonomous Nav", "description": "Built ROS2 navigation stack", "technologies": ["ROS2", "Python", "Docker"]}}],

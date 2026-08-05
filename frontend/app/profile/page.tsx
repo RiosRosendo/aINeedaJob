@@ -475,9 +475,16 @@ export default function ProfilePage() {
 
               {/* Name & Email */}
               <div>
-                <h1 style={{ fontFamily: "'Caprasimo', serif", fontSize: '32px', fontWeight: 400, color: 'var(--text)', margin: 0 }}>
-                  {userName || 'User Profile'}
-                </h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <h1 style={{ fontFamily: "'Caprasimo', serif", fontSize: '32px', fontWeight: 400, color: 'var(--text)', margin: 0 }}>
+                    {userName || 'User Profile'}
+                  </h1>
+                  {(profile?.cv_data as any)?.detected_experience_level && (
+                    <div style={{ padding: '6px 14px', borderRadius: '999px', background: 'var(--bg)', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)', fontSize: '12px', fontFamily: "'Figtree', sans-serif", fontWeight: 600, color: 'var(--color-accent-2)', whiteSpace: 'nowrap' }}>
+                      {(profile?.cv_data as any)?.detected_experience_level}
+                    </div>
+                  )}
+                </div>
                 <p style={{ fontSize: '13.5px', color: 'var(--muted)', margin: '4px 0 0' }}>
                   {userEmail || 'email@example.com'}
                 </p>
