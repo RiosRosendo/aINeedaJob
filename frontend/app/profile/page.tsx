@@ -127,7 +127,7 @@ export default function ProfilePage() {
           experience_level: (data.experience_level || 'Junior') as 'Intern' | 'Junior' | 'Semi-Senior' | 'Senior' | 'Lead/Manager' | undefined,
         };
         setFormData(formDataToSet);
-        setExperienceLevel(data.experience_level || 'Junior');
+        setExperienceLevel((data.experience_level || 'Junior') as 'Intern' | 'Junior' | 'Semi-Senior' | 'Senior' | 'Lead/Manager');
         setUserName(data.name || (data as any).cv_data?.name || '');
         setUserEmail(data.email || '');
 
@@ -623,7 +623,7 @@ export default function ProfilePage() {
             {/* Experience Level */}
             <div style={{ marginBottom: '16px' }}>
               <label style={{ fontSize: '13px', color: 'var(--text)', display: 'block', marginBottom: '8px' }}>Experience level</label>
-              <select value={experienceLevel || 'Junior'} onChange={(e) => {setExperienceLevel(e.target.value); setFormData({...formData, experience_level: e.target.value});}} style={{ appearance: 'none', borderRadius: '999px', background: 'var(--bg)', color: 'var(--text)', font: '600 12px var(--font-body)', padding: '6px 12px', border: 'none', boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18)', width: '100%', paddingRight: '24px', cursor: 'pointer' }}>
+              <select value={experienceLevel || 'Junior'} onChange={(e) => {setExperienceLevel(e.target.value); setFormData({...formData, experience_level: (e.target.value || 'Junior') as 'Intern' | 'Junior' | 'Semi-Senior' | 'Senior' | 'Lead/Manager' | undefined});}} style={{ appearance: 'none', borderRadius: '999px', background: 'var(--bg)', color: 'var(--text)', font: '600 12px var(--font-body)', padding: '6px 12px', border: 'none', boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18)', width: '100%', paddingRight: '24px', cursor: 'pointer' }}>
                 <option value="Intern">Intern</option>
                 <option value="Junior">Junior</option>
                 <option value="Semi-Senior">Semi-Senior</option>
