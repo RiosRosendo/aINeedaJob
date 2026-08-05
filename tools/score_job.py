@@ -59,6 +59,7 @@ Return only a JSON object with no extra text.
 
 User Profile:
 - Skills: {user_profile.get('tech_stack', [])}
+- Experience Level: {user_profile.get('experience_level', 'Junior')}
 - Experience: {user_profile.get('cv_data', {}).get('experience', [])}
 - Projects: {user_profile.get('cv_data', {}).get('projects', [])}
 - Education: {user_profile.get('cv_data', {}).get('education', [])}
@@ -86,7 +87,10 @@ Evaluate fit considering:
     The LLM should autonomously understand that equivalent terms in different
     languages refer to the same concept.
   * Evaluate skills autonomously based on semantic meaning, not exact text match
-- Experience level: evaluate if user's actual experience matches job seniority requirements
+- Experience level: compare user's stated experience level ({user_profile.get('experience_level', 'Junior')}) with job requirement
+  * If job requires Senior and user is Junior: consider gap but balance with other strengths
+  * If job requires Junior and user is Senior: strong match, possible overqualification
+  * Use actual CV experience to validate stated experience level
   * Consider internships and industry projects as real work experience
 - Education relevance (degree, certifications)
 - Languages required for the role

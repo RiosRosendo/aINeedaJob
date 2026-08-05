@@ -18,6 +18,7 @@ class UserProfileBase(BaseModel):
     github_url: Optional[str] = None
     linkedin_url: Optional[str] = None
     email_provider: Optional[str] = None
+    experience_level: Optional[str] = Field(default="Junior", description="Career level: Intern, Junior, Semi-Senior, Senior, Lead/Manager")
 
 
 class UserProfileResponse(UserProfileBase):

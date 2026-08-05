@@ -49,6 +49,7 @@ export default function ProfilePage() {
   const [userName, setUserName] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
   const [cvUploadDate, setCvUploadDate] = useState<string>('');
+  const [experienceLevel, setExperienceLevel] = useState<string>('Junior');
 
   const lightTheme = {
     '--bg': '#f0e4cf',
@@ -123,8 +124,10 @@ export default function ProfilePage() {
           preferred_modality: data.preferred_modality || null,
           salary_min: data.salary_min || 0,
           cv_data: data.cv_data || {},
+          experience_level: data.experience_level || 'Junior',
         };
         setFormData(formDataToSet);
+        setExperienceLevel(data.experience_level || 'Junior');
         setUserName(data.name || (data as any).cv_data?.name || '');
         setUserEmail(data.email || '');
 
@@ -607,6 +610,18 @@ export default function ProfilePage() {
                 <option value="remote">Remote</option>
                 <option value="hybrid">Hybrid</option>
                 <option value="on-site">On-site</option>
+              </select>
+            </div>
+
+            {/* Experience Level */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ fontSize: '13px', color: 'var(--text)', display: 'block', marginBottom: '8px' }}>Experience level</label>
+              <select value={experienceLevel || 'Junior'} onChange={(e) => {setExperienceLevel(e.target.value); setFormData({...formData, experience_level: e.target.value});}} style={{ appearance: 'none', borderRadius: '999px', background: 'var(--bg)', color: 'var(--text)', font: '600 12px var(--font-body)', padding: '6px 12px', border: 'none', boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18)', width: '100%', paddingRight: '24px', cursor: 'pointer' }}>
+                <option value="Intern">Intern</option>
+                <option value="Junior">Junior</option>
+                <option value="Semi-Senior">Semi-Senior</option>
+                <option value="Senior">Senior</option>
+                <option value="Lead/Manager">Lead/Manager</option>
               </select>
             </div>
 

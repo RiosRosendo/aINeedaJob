@@ -125,6 +125,7 @@ async def update_user_profile(
               cv_base_url = %s,
               github_url = %s,
               linkedin_url = %s,
+              experience_level = %s,
               updated_at = NOW()
             WHERE user_id = %s
         """
@@ -141,6 +142,7 @@ async def update_user_profile(
             profile.cv_base_url,
             profile.github_url,
             profile.linkedin_url,
+            getattr(profile, 'experience_level', 'Junior'),
             user_id
         )
 
@@ -150,8 +152,8 @@ async def update_user_profile(
             # Create new profile if it doesn't exist
             insert_query = """
                 INSERT INTO user_profiles
-                (user_id, target_roles, preferred_modality, preferred_countries, priority_country, salary_min, tech_stack, cv_data, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                (user_id, target_roles, preferred_modality, preferred_countries, priority_country, salary_min, tech_stack, cv_data, experience_level, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
             """
             insert_params = (
                 user_id,
@@ -161,7 +163,8 @@ async def update_user_profile(
                 profile.priority_country,
                 profile.salary_min,
                 json.dumps(profile.tech_stack),
-                json.dumps(getattr(profile, 'cv_data', {}))
+                json.dumps(getattr(profile, 'cv_data', {})),
+                getattr(profile, 'experience_level', 'Junior')
             )
             execute_update(insert_query, insert_params)
 
