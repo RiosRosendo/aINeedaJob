@@ -421,6 +421,8 @@ export default function ProfilePage() {
     });
   };
 
+  const displayCountry = (c: string) => c.charAt(0).toUpperCase() + c.slice(1);
+
   const addLink = (label: string, url: string) => {
     if (label.trim() && url.trim()) {
       const cvData = formData.cv_data || {};
@@ -634,10 +636,10 @@ export default function ProfilePage() {
             {/* Priority Country */}
             <div style={{ marginBottom: '16px' }}>
               <label style={{ fontSize: '13px', color: 'var(--text)', display: 'block', marginBottom: '8px' }}>Priority country</label>
-              <select value={formData.preferred_countries?.[0] || ''} onChange={(e) => setFormData({...formData, preferred_countries: [e.target.value, ...(formData.preferred_countries?.slice(1) || [])]})} style={{ appearance: 'none', borderRadius: '999px', background: 'var(--bg)', color: 'var(--text)', font: '600 12px var(--font-body)', padding: '6px 12px', border: 'none', boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18)', width: '100%', paddingRight: '24px', cursor: 'pointer' }}>
+              <select value={formData.priority_country || ''} onChange={(e) => setFormData({...formData, priority_country: e.target.value})} style={{ appearance: 'none', borderRadius: '999px', background: 'var(--bg)', color: 'var(--text)', font: '600 12px var(--font-body)', padding: '6px 12px', border: 'none', boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18)', width: '100%', paddingRight: '24px', cursor: 'pointer' }}>
                 <option value="">None</option>
                 {[...new Set(formData.preferred_countries || [])].map((country: string) => (
-                  <option key={country} value={country}>{country}</option>
+                  <option key={country} value={country}>{displayCountry(country)}</option>
                 ))}
               </select>
             </div>
@@ -646,12 +648,12 @@ export default function ProfilePage() {
             <div>
               <div style={{ fontSize: '12px', color: 'var(--faint)', marginBottom: '8px' }}>Also searching in</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: showCountryInput ? '12px' : 0 }}>
-                {((formData.preferred_countries || []).slice(1) || []).map((country: string, i: number) => (
+                {((formData.preferred_countries || []).filter(c => c !== formData.priority_country) || []).map((country: string, i: number) => (
                   <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                     <span style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '12px', color: 'var(--faint)', background: 'transparent', boxShadow: 'inset 0 1px 3px rgba(32,30,29,.15)' }}>
-                      {country}
+                      {displayCountry(country)}
                     </span>
-                    <button onClick={() => removeCountry(i + 1)} style={{ padding: '2px 6px', borderRadius: '999px', border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer', fontSize: '12px' }}>×</button>
+                    <button onClick={() => removeCountry((formData.preferred_countries || []).indexOf(country))} style={{ padding: '2px 6px', borderRadius: '999px', border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer', fontSize: '12px' }}>×</button>
                   </div>
                 ))}
               </div>
