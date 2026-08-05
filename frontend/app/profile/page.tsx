@@ -116,10 +116,11 @@ export default function ProfilePage() {
         setProfile(data);
         const pendingApprovalCount = apps.filter((app: any) => app.status === 'pending_approval').length;
         setStats({ needs_approval: pendingApprovalCount });
+        const countries = [...new Set((data.preferred_countries || []).map((c: string) => c.trim()))];
         const formDataToSet = {
           target_roles: data.target_roles || [],
           tech_stack: data.tech_stack || [],
-          preferred_countries: data.preferred_countries || [],
+          preferred_countries: countries,
           priority_country: data.priority_country || null,
           preferred_modality: data.preferred_modality || null,
           salary_min: data.salary_min || 0,
@@ -404,14 +405,12 @@ export default function ProfilePage() {
   };
 
   const addCountry = (country: string) => {
-    if (country.trim() && !(formData.preferred_countries || []).includes(country.trim())) {
-      setFormData({
-        ...formData,
-        preferred_countries: [...(formData.preferred_countries || []), country.trim()]
-      });
-      setCountryInput('');
-      setShowCountryInput(false);
+    const existing = formData.preferred_countries || [];
+    if (country.trim() && !existing.map(c => c.toLowerCase()).includes(country.trim().toLowerCase())) {
+      setFormData({...formData, preferred_countries: [...existing, country.trim()]});
     }
+    setCountryInput('');
+    setShowCountryInput(false);
   };
 
   const removeCountry = (index: number) => {
