@@ -124,7 +124,7 @@ export default function ProfilePage() {
           preferred_modality: data.preferred_modality || null,
           salary_min: data.salary_min || 0,
           cv_data: data.cv_data || {},
-          experience_level: data.experience_level || 'Junior',
+          experience_level: (data.experience_level || 'Junior') as 'Intern' | 'Junior' | 'Semi-Senior' | 'Senior' | 'Lead/Manager' | undefined,
         };
         setFormData(formDataToSet);
         setExperienceLevel(data.experience_level || 'Junior');

@@ -23,11 +23,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth', request.url));
   }
 
-  // If token exists and trying to access auth routes, redirect to dashboard
-  if (isAuthRoute && token) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
-  }
-
+  // Let all routes through - client-side will handle redirects for authenticated users on /auth
   return NextResponse.next();
 }
 
@@ -42,8 +38,11 @@ export const config = {
     '/profile/:path*',
     '/onboarding/:path*',
     // Auth routes
+    '/auth',
     '/auth/:path*',
+    '/login',
     '/login/:path*',
+    '/register',
     '/register/:path*',
   ],
 };

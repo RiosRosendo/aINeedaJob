@@ -6,6 +6,7 @@ export interface UserProfile {
   preferred_modality: 'remote' | 'hybrid' | 'on-site' | null;
   preferred_countries: string[];
   priority_country?: string | null;
+  experience_level?: 'Intern' | 'Junior' | 'Semi-Senior' | 'Senior' | 'Lead/Manager';
   salary_min: number;
   tech_stack: string[];
   cv_base_url?: string;

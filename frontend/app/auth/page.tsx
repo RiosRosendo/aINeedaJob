@@ -1,96 +1,67 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Mail, Lock, User } from 'lucide-react';
+import './auth.css';
 
 export default function AuthPage() {
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
 
-  // Login form state
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  // Register form state
-  const [registerName, setRegisterName] = useState('');
-  const [registerEmail, setRegisterEmail] = useState('');
-  const [registerPassword, setRegisterPassword] = useState('');
-  const [registerConfirm, setRegisterConfirm] = useState('');
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch('http://localhost:8001/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.detail || 'Login failed');
-        setLoading(false);
-        return;
-      }
-
-      const data = await response.json();
+  const handleLogin = async () => {
+    const res = await fetch('http://localhost:8001/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (res.ok) {
       localStorage.setItem('user_id', data.user_id);
       localStorage.setItem('access_token', data.access_token);
-      window.location.href = '/dashboard';
-    } catch (err) {
-      setError('Connection failed. Please try again.');
-      setLoading(false);
+      document.cookie = `access_token=${data.access_token}; path=/`;
+      router.push('/dashboard');
+    } else {
+      setError(data.detail || 'Login failed');
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    if (registerPassword !== registerConfirm) {
+  const handleRegister = async () => {
+    if (password !== confirmPassword) {
       setError('Passwords do not match');
-      setLoading(false);
       return;
     }
-
-    if (registerPassword.length < 8) {
+    if (password.length < 8) {
       setError('Password must be at least 8 characters');
-      setLoading(false);
       return;
     }
-
-    try {
-      const response = await fetch('http://localhost:8001/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: registerName,
-          email: registerEmail,
-          password: registerPassword,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.detail || 'Registration failed');
-        setLoading(false);
-        return;
-      }
-
-      const data = await response.json();
+    const res = await fetch('http://localhost:8001/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password }),
+    });
+    const data = await res.json();
+    if (res.ok) {
       localStorage.setItem('user_id', data.user_id);
       localStorage.setItem('access_token', data.access_token);
-      window.location.href = '/onboarding';
-    } catch (err) {
-      setError('Connection failed. Please try again.');
-      setLoading(false);
+      document.cookie = `access_token=${data.access_token}; path=/`;
+      router.push('/onboarding');
+    } else {
+      setError(data.detail || 'Registration failed');
     }
   };
+
+  if (!mounted) return null;
 
   return (
     <div className="auth-container" suppressHydrationWarning>
@@ -111,7 +82,7 @@ export default function AuthPage() {
         <div className="auth-form-card">
           {error && <div className="auth-error">{error}</div>}
 
-          <form onSubmit={isLogin ? handleLogin : handleRegister}>
+          <div>
             {!isLogin && (
               <div className="form-group">
                 <label className="form-label">Full name</label>
@@ -119,11 +90,9 @@ export default function AuthPage() {
                   <User size={16} color="var(--faint)" />
                   <input
                     type="text"
-                    value={registerName}
-                    onChange={(e) => setRegisterName(e.target.value)}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     placeholder="Your name"
-                    required
-                    disabled={loading}
                   />
                 </div>
               </div>
@@ -135,11 +104,9 @@ export default function AuthPage() {
                 <Mail size={16} color="var(--faint)" />
                 <input
                   type="email"
-                  value={isLogin ? loginEmail : registerEmail}
-                  onChange={(e) => (isLogin ? setLoginEmail(e.target.value) : setRegisterEmail(e.target.value))}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  required
-                  disabled={loading}
                 />
               </div>
             </div>
@@ -150,11 +117,9 @@ export default function AuthPage() {
                 <Lock size={16} color="var(--faint)" />
                 <input
                   type="password"
-                  value={isLogin ? loginPassword : registerPassword}
-                  onChange={(e) => (isLogin ? setLoginPassword(e.target.value) : setRegisterPassword(e.target.value))}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  required
-                  disabled={loading}
                 />
               </div>
               {!isLogin && <p style={{ fontSize: '11.5px', color: 'var(--faint)', margin: '6px 0 0' }}>At least 8 characters recommended</p>}
@@ -167,20 +132,21 @@ export default function AuthPage() {
                   <Lock size={16} color="var(--faint)" />
                   <input
                     type="password"
-                    value={registerConfirm}
-                    onChange={(e) => setRegisterConfirm(e.target.value)}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
-                    required
-                    disabled={loading}
                   />
                 </div>
               </div>
             )}
 
-            <button type="submit" className="submit-button" disabled={loading}>
-              {loading ? (isLogin ? 'Signing in…' : 'Creating account…') : isLogin ? 'Sign in' : 'Create account'}
+            <button
+              onClick={isLogin ? handleLogin : handleRegister}
+              className="submit-button"
+            >
+              {isLogin ? 'Sign in' : 'Create account'}
             </button>
-          </form>
+          </div>
 
           <div className="divider">
             <div className="divider-line"></div>
@@ -190,7 +156,9 @@ export default function AuthPage() {
 
           <p className="auth-toggle">
             {isLogin ? "Don't have an account? " : 'Already have an account? '}
-            <a onClick={() => setIsLogin(!isLogin)}>{isLogin ? 'Sign up' : 'Sign in'}</a>
+            <a onClick={() => {setIsLogin(!isLogin); setError('');}}>
+              {isLogin ? 'Sign up' : 'Sign in'}
+            </a>
           </p>
         </div>
 
