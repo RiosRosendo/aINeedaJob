@@ -68,7 +68,7 @@ User Profile:
 - Target Roles: {user_profile.get('target_roles', [])}
 - Preferred Modality: {user_profile.get('preferred_modality')}
 - Preferred Countries: {user_profile.get('preferred_countries', [])}
-- Minimum Salary: ${user_profile.get('salary_min')}
+- Minimum Salary: ${user_profile.get('salary_min')} USD/year
 
 Job Details:
 - Title: {job_data.get('title')}
@@ -96,7 +96,15 @@ Evaluate fit considering:
   * Balance experience gap with other strengths (skills, education, projects)
 - Education relevance (degree, certifications)
 - Languages required for the role
-- Salary expectations
+- Salary evaluation - be smart about currency and conversion:
+  * User's minimum: ${user_profile.get('salary_min')} USD/year
+  * Job salary may be in any currency (EUR, GBP, JPY, CAD, MXN, etc.)
+  * Convert job salary to USD equivalent for comparison
+  * Use approximate exchange rates autonomously (LLM knows current rates)
+  * If job salary in EUR/GBP is above user minimum in USD after conversion, do NOT penalize
+  * If salary is truly below minimum after conversion, reduce score
+  * If salary is not specified, do not penalize
+  * Remote jobs may pay in different currencies - evaluate fairly
 
 Return:
 {{

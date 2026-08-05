@@ -689,11 +689,12 @@ export default function ProfilePage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             {/* Salary */}
             <div style={{ background: 'var(--card)', borderRadius: '24px', padding: '22px', boxShadow: 'inset 0 3px 10px rgba(32,30,29,.16), inset 0 -1px 0 rgba(255,255,255,.4)' }}>
-              <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)', marginBottom: '12px' }}>Minimum salary</div>
+              <div style={{ fontFamily: "'Caprasimo', serif", fontSize: '15px', fontWeight: 400, color: 'var(--text)', marginBottom: '12px' }}>Minimum Annual Salary (USD)</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontFamily: "'Caprasimo', serif", fontSize: '24px', fontWeight: 400, color: 'var(--text)' }}>$</span>
                 <input type="number" value={formData.salary_min || 100000} onChange={(e) => setFormData({...formData, salary_min: parseInt(e.target.value) || 0})} style={{ fontFamily: "'Caprasimo', serif", fontSize: '24px', fontWeight: 400, color: 'var(--text)', background: 'var(--bg)', border: 'none', boxShadow: 'inset 0 2px 5px rgba(32,30,29,.18)', borderRadius: '8px', padding: '8px 12px', width: '100%' }} />
               </div>
+              <p style={{ fontSize: '12px', color: 'var(--faint)', margin: '8px 0 0' }}>per year</p>
             </div>
 
             {/* Links */}
