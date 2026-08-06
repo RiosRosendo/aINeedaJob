@@ -332,6 +332,14 @@ Analyze the pipeline state and decide the best action. Consider:
 - Job quality metrics (relevance rates, scoring rates)
 - Priority country job distribution
 - Duplication rate
+
+IMPORTANT: Always prefer action over waiting.
+- If unprocessed_count > 100 → run_processing is almost always correct
+- If hours_since_discovery > 24 → run_discovery is needed
+- Only choose 'wait' if everything is caught up AND discovery was recent (< 6 hours)
+- The system should be constantly working, not waiting
+- When in doubt, run_processing to clear the backlog
+
 Make an autonomous decision based on the data provided.
 
 Return ONLY valid JSON (no markdown). Action MUST be exactly one of these strings:
@@ -350,6 +358,12 @@ Return ONLY valid JSON (no markdown). Action MUST be exactly one of these string
         action = decision.get('action', 'wait')
         action_map = {'discovery': 'run_discovery', 'processing': 'run_processing', 'cleanup': 'run_cleanup'}
         decision['action'] = action_map.get(action, action)
+
+        # Override: if LLM chose 'wait' but backlog is huge (>500), force run_processing
+        if decision['action'] == 'wait' and state.get('unprocessed_count', 0) > 500:
+            print(f"[AUTONOMOUS] Override: huge backlog ({state['unprocessed_count']} unprocessed), forcing run_processing despite LLM 'wait'", flush=True)
+            decision['action'] = 'run_processing'
+            decision['reasoning'] = f"Override: massive backlog ({state['unprocessed_count']} jobs) requires immediate processing"
 
         print(f"[AUTONOMOUS] LLM decided: {decision['action']} (priority: {decision.get('priority', 5)})", flush=True)
         return decision
