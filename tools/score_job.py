@@ -33,22 +33,25 @@ def score_job(job_id, user_id, job_data, user_profile):
 
 def _run_hard_filters(job_data, user_profile):
     """Run hard filters on objective constraints. Return early if filter fails, else None."""
-    user_modality = user_profile.get('preferred_modality', 'remote')
+    # Modality filter: only if user explicitly chose a modality (not None or 'Any')
+    user_modality = user_profile.get('preferred_modality')
     job_modality = job_data.get('modality', 'unknown')
-    if user_modality != 'unknown' and job_modality != 'unknown':
+    if user_modality and user_modality not in ('any', '', None) and job_modality != 'unknown':
         if user_modality == 'remote' and job_modality != 'remote':
             return {'score': 0, 'decision': 'ignore', 'strengths': [], 'gaps': [], 'summary': 'Modality mismatch'}
         if user_modality == 'hybrid' and job_modality == 'on-site':
             return {'score': 0, 'decision': 'ignore', 'strengths': [], 'gaps': [], 'summary': 'Modality mismatch'}
+
+    # Salary filter: only if salary data is available
     user_salary_min = user_profile.get('salary_min')
     job_salary_max = job_data.get('salary_max')
     if user_salary_min and job_salary_max and job_salary_max < user_salary_min:
         return {'score': 0, 'decision': 'ignore', 'strengths': [], 'gaps': [], 'summary': 'Salary below minimum'}
-    user_countries = user_profile.get('preferred_countries', [])
-    job_location = job_data.get('location', '')
-    if user_countries and job_location:
-        if not any(country.lower() in job_location.lower() for country in user_countries):
-            return {'score': 0, 'decision': 'ignore', 'strengths': [], 'gaps': [], 'summary': 'Country mismatch'}
+
+    # Country filter removed: Let LLM handle geographic evaluation
+    # The LLM is smarter at understanding locations (e.g., "New York" → "US", "CDMX" → "Mexico")
+    # Hard string matching fails too often. LLM scoring will evaluate country fit autonomously.
+
     return None
 
 
