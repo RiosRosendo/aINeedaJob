@@ -549,8 +549,9 @@ Job Title: {title}
 Target Roles: {roles_str}
 
 STRICT RULES:
+- REJECT generic/non-technical: marca personal, personal branding, sales, marketing, health, medical, farmacéutico, sanitario, role, position, job
 - REJECT generic engineering titles: Controls Engineer, Process Engineer, Manufacturing Engineer, Quality Engineer, Civil Engineer, Mechanical Engineer, Industrial Engineer, Systems Engineer (unless robotics-specific)
-- REJECT titles containing: Controls, Process, Manufacturing, Quality, Civil, Industrial, Facilities, Operations
+- REJECT titles containing: Controls, Process, Manufacturing, Quality, Civil, Industrial, Facilities, Operations, Networking (unless networking + robotics context)
 - ACCEPT titles containing: Robotics, Embedded, Autonomous, Vision, AI, ML, ROS, Computer Vision, Deep Learning, Neural, Firmware
 - Abbreviations: Sr., Sr, Senior must still meet strict rules (Sr. Controls Engineer = NO, Sr. Robotics Engineer = YES)
 

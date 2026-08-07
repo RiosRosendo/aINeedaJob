@@ -19,6 +19,9 @@ def score_job(job_id, user_id, job_data, user_profile):
         # Validate output
         _validate_score_output(score_data)
 
+        # Check if job description is in a language user doesn't speak
+        score_data = _check_job_description_language(score_data, job_data, user_profile)
+
         # Check language requirements and adjust score
         score_data = _check_language_requirements(score_data, job_data, user_profile)
 
@@ -108,6 +111,11 @@ Evaluate fit considering:
   * If salary is truly below minimum after conversion, reduce score
   * If salary is not specified, do not penalize
   * Remote jobs may pay in different currencies - evaluate fairly
+- Geographic restrictions on remote jobs:
+  * If job says 'not available in your region' or has geo-restrictions, note that user is Mexican
+  * For REMOTE jobs with geo-restrictions: user may use VPN or consider relocation - do not automatically penalize
+  * Only apply geo-restrictions strictly to ON-SITE or HYBRID jobs in restricted regions
+  * Consider region restrictions a minor factor for remote roles, not a deal-breaker
 
 Return:
 {{
@@ -148,6 +156,85 @@ def _validate_score_output(score_data):
         score_data['strengths'] = []
     if not isinstance(score_data.get('gaps'), list):
         score_data['gaps'] = []
+
+
+def _check_job_description_language(score_data, job_data, user_profile):
+    """Check if job description is primarily in a language the user doesn't speak."""
+    try:
+        # Get user's CV data with languages
+        cv_data = user_profile.get('cv_data')
+        if not cv_data:
+            return score_data
+
+        # Parse if string
+        if isinstance(cv_data, str):
+            cv_data = json.loads(cv_data)
+
+        user_languages = cv_data.get('languages', [])
+        if not user_languages:
+            return score_data
+
+        # Extract language names (e.g., "Spanish Native" → "Spanish")
+        user_lang_names = set()
+        for lang_entry in user_languages:
+            if isinstance(lang_entry, dict):
+                lang_name = lang_entry.get('language', '').lower()
+            else:
+                lang_name = str(lang_entry).split()[0].lower()
+            if lang_name:
+                user_lang_names.add(lang_name)
+
+        # Get job description
+        job_description = job_data.get('description_raw', '')
+        if not job_description or len(job_description) < 100:
+            return score_data
+
+        # Use LLM to detect primary language of job description
+        prompt = f"""Detect the PRIMARY language of this job description.
+Job Description (first 500 chars):
+{job_description[:500]}
+
+Return ONLY a JSON object:
+{{
+  "primary_language": "language name",
+  "confidence": 0-100,
+  "is_english_or_multilingual": boolean
+}}
+
+If the description is in English or a mix of English with other languages, set is_english_or_multilingual to true.
+If it's primarily non-English, set is_english_or_multilingual to false.
+"""
+
+        response = call_llm(prompt)
+        response = response.replace("```json", "").replace("```", "").strip()
+
+        try:
+            lang_data = json.loads(response)
+            primary_lang = lang_data.get('primary_language', '').lower()
+            confidence = lang_data.get('confidence', 0)
+            is_english_or_multi = lang_data.get('is_english_or_multilingual', True)
+
+            # If it's English or multilingual, no penalty
+            if is_english_or_multi or confidence < 60:
+                return score_data
+
+            # Check if user speaks the primary language
+            if primary_lang not in user_lang_names:
+                # User doesn't speak the job's primary language - reduce score by 20-30 points
+                original_score = score_data.get('score', 0)
+                new_score = max(0, original_score - 25)
+                score_data['score'] = new_score
+                score_data['gaps'].append(f"Job is primarily in {primary_lang}, which is not in user's language profile")
+                print(f"[JOB_LANGUAGE] Reduced score from {original_score} to {new_score} - job is in {primary_lang}, user speaks {user_lang_names}", flush=True)
+
+        except:
+            pass
+
+        return score_data
+
+    except Exception as e:
+        print(f"[JOB_LANGUAGE] Warning: {str(e)}", flush=True)
+        return score_data
 
 
 def _check_language_requirements(score_data, job_data, user_profile):
